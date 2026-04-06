@@ -130,8 +130,10 @@ function CombatBuilder.Build(masterScreenGui, player)
 	GUI.pAvatar.Position = UDim2.new(0, 15, 0, 15)
 	GUI.pAvatar.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 	GUI.pAvatar.ZIndex = 2
-	local content, isReady = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-	GUI.pAvatar.Image = isReady and content or ""
+
+	-- [[ THE FIX: Removed GetUserThumbnailAsync completely! Instant load! ]]
+	GUI.pAvatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=150&h=150"
+
 	GUI.pAvatar.ScaleType = Enum.ScaleType.Crop
 	local pAvatarStroke = Instance.new("UIStroke", GUI.pAvatar)
 	pAvatarStroke.Color = Color3.fromRGB(85, 170, 255)
@@ -216,7 +218,6 @@ function CombatBuilder.Build(masterScreenGui, player)
 	eStatLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	eStatLayout.Padding = UDim.new(0, 4)
 
-	-- [[ THE FIX: Rebuilt the Execute Overlay to be gritty, sharp, and medieval! ]]
 	GUI.ExecuteOverlay = Instance.new("Frame", GUI.CombatWindow)
 	GUI.ExecuteOverlay.Size = UDim2.new(1, 0, 1, 0)
 	GUI.ExecuteOverlay.BackgroundColor3 = Color3.new(0, 0, 0)
