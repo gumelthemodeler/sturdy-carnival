@@ -11,32 +11,62 @@ GachaRoll.Name = "GachaRoll"
 local GachaResult = Network:FindFirstChild("GachaResult") or Instance.new("RemoteEvent", Network)
 GachaResult.Name = "GachaResult"
 
--- [[ THE FIX: Added the missing ManageStorage server logic for Bloodline/Titan Vaults! ]]
 local ManageStorage = Network:FindFirstChild("ManageStorage") or Instance.new("RemoteEvent", Network)
 ManageStorage.Name = "ManageStorage"
 
+-- [[ THE FIX: Strict 1-second server debounce to eradicate mobile double-taps ]]
+local SwapDebounce = {}
+
 ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
-	if type(slotIndex) ~= "number" then return end
-	if gType ~= "Titan" and gType ~= "Clan" then return end
+	local now = os.clock()
+	if SwapDebounce[player.UserId] and (now - SwapDebounce[player.UserId]) < 1.0 then return end
+	SwapDebounce[player.UserId] = now
+
+	local safeGType = tostring(gType)
+	local safeIndex = tonumber(slotIndex)
+
+	if not safeIndex or (safeGType ~= "Titan" and safeGType ~= "Clan") then return end
 
 	-- Verify Gamepass Ownership for extra slots (4, 5, 6)
-	if slotIndex > 3 and not player:GetAttribute("Has" .. gType .. "Vault") then
-		return -- Exploit prevention: Player tried to use a locked slot
+	if safeIndex > 3 and not player:GetAttribute("Has" .. safeGType .. "Vault") then
+		return 
 	end
 
-	local activeAttr = gType 
-	local slotAttr = gType .. "_Slot" .. slotIndex
+	local activeAttr = safeGType 
+	local slotAttr = safeGType .. "_Slot" .. safeIndex
 
-	local currentActive = player:GetAttribute(activeAttr) or "None"
-	local currentSlotted = player:GetAttribute(slotAttr) or "None"
+	-- [[ THE FIX: Intercept ghost string data and force "None" ]]
+	local currentActive = player:GetAttribute(activeAttr)
+	if not currentActive or currentActive == "" then currentActive = "None" end
 
-	-- Swap the currently equipped Titan/Clan with the vaulted one
+	local currentSlotted = player:GetAttribute(slotAttr)
+	if not currentSlotted or currentSlotted == "" then currentSlotted = "None" end
+
+	local NotificationEvent = Network:FindFirstChild("NotificationEvent")
+
+	-- If both slots are empty, send an error and abort
+	if currentActive == "None" and currentSlotted == "None" then
+		if NotificationEvent then
+			NotificationEvent:FireClient(player, "Nothing to swap in this slot.", "Error")
+		end
+		return
+	end
+
+	-- Execute the explicit swap
 	player:SetAttribute(activeAttr, currentSlotted)
 	player:SetAttribute(slotAttr, currentActive)
 
-	local NotificationEvent = Network:FindFirstChild("NotificationEvent")
 	if NotificationEvent then
-		NotificationEvent:FireClient(player, "Vault updated successfully.", "Success")
+		-- Explicitly tell the user what just happened so there is zero confusion
+		local actionText = ""
+		if currentActive ~= "None" and currentSlotted == "None" then
+			actionText = "Vaulted " .. currentActive .. "!"
+		elseif currentActive == "None" and currentSlotted ~= "None" then
+			actionText = "Equipped " .. currentSlotted .. "!"
+		else
+			actionText = "Swapped " .. currentActive .. " with " .. currentSlotted .. "!"
+		end
+		NotificationEvent:FireClient(player, actionText, "Success")
 	end
 end)
 
