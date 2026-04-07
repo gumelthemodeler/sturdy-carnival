@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MobileCombatUI
 -- @ScriptType: ModuleScript
 local MobileCombatUI = {}
@@ -8,18 +9,18 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Network = ReplicatedStorage:WaitForChild("Network")
 
-local player = Players.LocalPlayer
-local playerScripts = player:WaitForChild("PlayerScripts")
-local SharedUI = playerScripts:WaitForChild("SharedUI")
+-- Strict Routing to Parent/Shared Directories
+local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
-local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
-local VFXManager = require(playerScripts:WaitForChild("VFXManager"))
 
--- REQUIRES THE NEW MOBILE BUILDER TO PREVENT YIELDS
+-- Strictly bind to MobileCombatBuilder
 local MobileCombatBuilder = require(script.Parent:WaitForChild("MobileCombatBuilder"))
+local VFXManager = require(script.Parent.Parent:WaitForChild("VFXManager"))
 
-local MasterGui, GUI
+local player = Players.LocalPlayer
+local GUI = nil 
+
 local currentBattleState = nil
 local pendingSkillName = nil
 local inputLocked = false
@@ -27,23 +28,40 @@ local isTypewriting = false
 local skipTypewriting = false
 local ClickSignal = Instance.new("BindableEvent")
 
-local InstantSkills = { ["Maneuver"] = true, ["Recover"] = true, ["Fall Back"] = true, ["Close In"] = true, ["Retreat"] = true, ["Transform"] = true, ["Eject"] = true, ["Titan Recover"] = true, ["Charge"] = true, ["Advance"] = true }
+local InstantSkills = {
+	["Maneuver"] = true, ["Recover"] = true, ["Fall Back"] = true, ["Close In"] = true,
+	["Retreat"] = true, ["Transform"] = true, ["Eject"] = true, ["Titan Recover"] = true,
+	["Charge"] = true, ["Advance"] = true
+}
 
 local function CreateMinimalButton(parent, text, size, baseColorHex)
 	local btn = Instance.new("TextButton", parent)
 	btn.Size = size; btn.BackgroundColor3 = Color3.fromRGB(22, 22, 26); btn.BorderSizePixel = 0
-	btn.AutoButtonColor = false; btn.Font = Enum.Font.GothamBold; btn.TextSize = 13; btn.Text = text
+	btn.AutoButtonColor = false; btn.Font = Enum.Font.GothamBold; btn.Text = text
 	local cColor = Color3.fromHex(baseColorHex:gsub("#", ""))
 	btn.TextColor3 = cColor
+
+	-- Wrap and strictly constrain text sizes for smaller 4-column layout
+	btn.TextWrapped = true
+	btn.TextScaled = true
+	local tsc = Instance.new("UITextSizeConstraint", btn)
+	tsc.MaxTextSize = 14; tsc.MinTextSize = 8
+
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
 	local stroke = Instance.new("UIStroke", btn)
 	stroke.Color = Color3.fromRGB(45, 45, 50); stroke.Thickness = 1; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-	btn.InputBegan:Connect(function() 
-		if btn.Active then TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35)}):Play(); TweenService:Create(stroke, TweenInfo.new(0.2), {Color = cColor}):Play() end
+	btn.InputBegan:Connect(function(input) 
+		if btn.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then 
+			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35)}):Play()
+			TweenService:Create(stroke, TweenInfo.new(0.2), {Color = cColor}):Play() 
+		end
 	end)
-	btn.InputEnded:Connect(function() 
-		if btn.Active then TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 26)}):Play(); TweenService:Create(stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(45, 45, 50)}):Play() end
+	btn.InputEnded:Connect(function(input) 
+		if btn.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then 
+			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 26)}):Play()
+			TweenService:Create(stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(45, 45, 50)}):Play() 
+		end
 	end)
 	return btn
 end
@@ -52,7 +70,7 @@ local function RenderStatuses(container, combatant)
 	if not container then return end
 	for _, child in ipairs(container:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
 	local function addIcon(iconTxt, bgColor, strokeColor)
-		local f = Instance.new("Frame", container); f.Size = UDim2.new(0, 24, 0, 18); f.BackgroundColor3 = bgColor; Instance.new("UICorner", f).CornerRadius = UDim.new(0, 4)
+		local f = Instance.new("Frame", container); f.Size = UDim2.new(0, 30, 0, 22); f.BackgroundColor3 = bgColor; Instance.new("UICorner", f).CornerRadius = UDim.new(0, 4)
 		local s = Instance.new("UIStroke", f); s.Color = strokeColor; s.Thickness = 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		local t = Instance.new("TextLabel", f); t.Size = UDim2.new(1, 0, 1, 0); t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBlack; t.Text = iconTxt; t.TextColor3 = Color3.fromRGB(255,255,255); t.TextScaled = true
 	end
@@ -80,7 +98,8 @@ local function AppendLog(message, colorHex)
 	panel.Size = UDim2.new(1, 0, 0, 0); panel.BackgroundColor3 = Color3.fromRGB(15, 15, 18); panel.BackgroundTransparency = 0.3; panel.BorderSizePixel = 0; panel.AutomaticSize = Enum.AutomaticSize.Y
 	local pStroke = Instance.new("UIStroke", panel); pStroke.Color = Color3.fromRGB(40, 40, 45)
 	local pad = Instance.new("UIPadding", panel); pad.PaddingLeft = UDim.new(0, 10); pad.PaddingRight = UDim.new(0, 10); pad.PaddingTop = UDim.new(0, 8); pad.PaddingBottom = UDim.new(0, 8)
-	local lbl = UIHelpers.CreateLabel(panel, message, UDim2.new(1, 0, 0, 0), Enum.Font.GothamMedium, logColor, 12)
+
+	local lbl = UIHelpers.CreateLabel(panel, message, UDim2.new(1, 0, 0, 0), Enum.Font.GothamMedium, logColor, 16)
 	lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.RichText = true; lbl.TextWrapped = true; lbl.AutomaticSize = Enum.AutomaticSize.Y
 
 	local children = GUI.LogScroll:GetChildren()
@@ -98,7 +117,7 @@ local function PlayLootAnimation(rewards)
 	task.spawn(function()
 		for i, reward in ipairs(rewards) do
 			local popup = Instance.new("Frame", GUI.CombatWindow)
-			popup.Size = UDim2.new(0, 260, 0, 42)
+			popup.Size = UDim2.new(0.4, 0, 0.1, 0)
 
 			local startX = math.random(35, 65) / 100
 			local startY = math.random(30, 50) / 100
@@ -109,15 +128,13 @@ local function PlayLootAnimation(rewards)
 			popup.ZIndex = 250
 
 			Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 6)
-			local stroke = Instance.new("UIStroke", popup)
-			stroke.Color = Color3.fromHex(reward.Color:gsub("#", ""))
-			stroke.Thickness = 2
+			local stroke = Instance.new("UIStroke", popup); stroke.Color = Color3.fromHex(reward.Color:gsub("#", "")); stroke.Thickness = 2; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-			local lbl = UIHelpers.CreateLabel(popup, reward.Text, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex(reward.Color:gsub("#", "")), 16)
-			lbl.ZIndex = 251
+			local lbl = UIHelpers.CreateLabel(popup, reward.Text, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex(reward.Color:gsub("#", "")), 18)
+			lbl.ZIndex = 251; lbl.TextScaled = true
+			local tsc = Instance.new("UITextSizeConstraint", lbl); tsc.MaxTextSize = 22
 
-			local scale = Instance.new("UIScale", popup)
-			scale.Scale = 0
+			local scale = Instance.new("UIScale", popup); scale.Scale = 0
 
 			if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Reveal", 1.0 + (i * 0.05)) end
 
@@ -177,15 +194,13 @@ local function UpdateState(data)
 		if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then
 			VFXManager.ToggleHeartbeat(hpRatio <= 0.25 and safeHP > 0)
 		end
-
-		RenderStatuses(GUI.PlayerStatusBox, battle.Player)
 	end
 
 	if battle.Enemy then 
 		GUI.eNameLbl.Text = (battle.Enemy.Name or "UNKNOWN"):upper() 
-
-		if EnemyData and EnemyData.BossIcons and EnemyData.BossIcons[battle.Enemy.Name] then
-			GUI.eAvatar.Image = EnemyData.BossIcons[battle.Enemy.Name]
+		local EnemyDataModule = require(ReplicatedStorage:WaitForChild("EnemyData"))
+		if EnemyDataModule and EnemyDataModule.BossIcons and EnemyDataModule.BossIcons[battle.Enemy.Name] then
+			GUI.eAvatar.Image = EnemyDataModule.BossIcons[battle.Enemy.Name]
 		else
 			GUI.eAvatar.Image = "rbxassetid://90132878979603"
 		end
@@ -199,7 +214,9 @@ local function UpdateState(data)
 			GUI.eHPText.Text = "HP " .. math.floor(safeHP) .. "/" .. math.floor(maxHP)
 			TweenService:Create(GUI.eHPBar, tInfo, {Size = UDim2.new(maxHP > 0 and (safeHP / maxHP) or 0, 0, 1, 0)}):Play()
 
-			local maxGate = battle.Enemy.MaxGateHP or 0; local safeGate = math.max(0, battle.Enemy.GateHP or 0)
+			local maxGate = battle.Enemy.MaxGateHP or 0
+			local safeGate = math.max(0, battle.Enemy.GateHP or 0)
+
 			if maxGate > 0 and safeGate > 0 then
 				GUI.eGateContainer.Visible = true
 				local gateLabel = (battle.Enemy.GateType == "Steam") and "STEAM " or "ARMOR "
@@ -222,18 +239,17 @@ local function UpdateState(data)
 				end
 			end
 		end
-
-		RenderStatuses(GUI.EnemyStatusBox, battle.Enemy)
 	end
+
+	RenderStatuses(GUI.PlayerStatusBox, battle.Player)
+	RenderStatuses(GUI.EnemyStatusBox, battle.Enemy)
 end
 
 local function UpdateSkills()
 	inputLocked = false
-	if GUI.ActionGrid then 
-		GUI.ActionGrid.Visible = true
-		for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end 
-	end
+	if GUI.ActionGrid then GUI.ActionGrid.Visible = true end
 	if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
+	if GUI.ActionGrid then for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end end
 
 	local currentRange = "Close"
 	local pState = currentBattleState and currentBattleState.Player or nil
@@ -262,11 +278,12 @@ local function UpdateSkills()
 		createdSkills[skillName] = true
 
 		local sData = SkillData.Skills[skillName]
-		local cd = (pState and pState.Cooldowns and pState.Cooldowns[skillName]) or 0
+		local cd = (pState and pState.Cooldowns and tonumber(pState.Cooldowns[skillName])) or 0
 		local hasGas, hasHeat, isWrongRange = true, true, false
 
 		if sData then
-			local actualCost = sData.GasCost
+			-- strictly cast to tonumber to prevent string alphabetical comparison logic bugs
+			local actualCost = tonumber(sData.GasCost)
 			if actualCost then
 				local terrain = "City"
 				if currentBattleState and currentBattleState.Context and currentBattleState.Context.Terrain then terrain = currentBattleState.Context.Terrain end
@@ -274,8 +291,12 @@ local function UpdateSkills()
 				elseif terrain == "Plains" then actualCost = math.ceil(actualCost * 1.5) end
 			end
 
-			if not isTransformed and actualCost and (pState.Gas or 0) < actualCost then hasGas = false end
-			if sData.EnergyCost and (pState.TitanEnergy or 0) < sData.EnergyCost then hasHeat = false end
+			local currentGas = tonumber(pState and pState.Gas) or 0
+			if not isTransformed and actualCost and currentGas < actualCost then hasGas = false end
+
+			local energyCost = tonumber(sData.EnergyCost)
+			if energyCost and (tonumber(pState and pState.TitanEnergy) or 0) < energyCost then hasHeat = false end
+
 			if sData.Range and sData.Range ~= "Any" and sData.Range ~= currentRange then isWrongRange = true end
 		end
 
@@ -300,7 +321,6 @@ local function UpdateSkills()
 
 		btnText = btnText .. errorReason
 		if not isActive then btnColor = "#555555" end
-
 		local btn = CreateMinimalButton(GUI.ActionGrid, btnText, UDim2.new(0, 0, 0, 0), btnColor)
 
 		if not isActive then
@@ -322,7 +342,8 @@ local function UpdateSkills()
 
 				if InstantSkills[skillName] then
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-					UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(0, 200, 0, 45), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 14)
+					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
+					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 20
 					Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = skillName})
 				else
 					pendingSkillName = skillName
@@ -367,19 +388,32 @@ local function UpdateSkills()
 	CreateSkillButton("Retreat", "FLEE", "#FF5555")
 end
 
-local function UpdateCameraScale()
-	if GUI and GUI.CombatWindow and GUI.WindowScale then
-		local cam = workspace.CurrentCamera
-		if not cam then return end
-		local safeX = math.max(100, cam.ViewportSize.X)
-		local safeY = math.max(100, cam.ViewportSize.Y)
-		-- Calculate the perfect ratio to shrink the 1000x580 window into the phone screen.
-		local targetScale = math.min((safeX - 20) / 1000, (safeY - 20) / 580)
-		GUI.WindowScale.Scale = targetScale
+local function CloseUI()
+	pendingSkillName = nil
+	inputLocked = true
+	HideAlly()
+
+	if GUI.ExecuteOverlay then GUI.ExecuteOverlay.Visible = false end
+
+	if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then 
+		VFXManager.ToggleHeartbeat(false) 
 	end
+
+	if GUI.CombatBackdrop then
+		local t2 = TweenService:Create(GUI.CombatBackdrop, TweenInfo.new(0.2), {BackgroundTransparency = 1})
+		t2:Play()
+		GUI.CombatBackdrop.Visible = false
+	end
+
+	if GUI.CombatWindow then GUI.CombatWindow.Visible = false end
+	currentBattleState = nil
+
+	local MusicManager = require(script.Parent.Parent:WaitForChild("MusicManager"))
+	if MusicManager then MusicManager.SetCategory("Lobby") end
 end
 
 local function ShowUI(data)
+	pendingSkillName = nil
 	inputLocked = false
 	HideAlly()
 
@@ -391,11 +425,10 @@ local function ShowUI(data)
 		TweenService:Create(GUI.CombatBackdrop, TweenInfo.new(0.4), {BackgroundTransparency = 0.4}):Play()
 	end
 
-	if GUI.CombatWindow then 
-		GUI.CombatWindow.Visible = true 
-		-- Calculate initial scale perfectly
-		UpdateCameraScale()
-	end
+	if GUI.CombatWindow then GUI.CombatWindow.Visible = true end
+
+	if GUI.PlayerPanel then GUI.PlayerPanel.Position = UDim2.new(0, 0, 0, 0) end
+	if GUI.AllyPanel then GUI.AllyPanel.Position = UDim2.new(-0.5, 0, 0, 0) end
 
 	if GUI.CombatantsFrame then GUI.CombatantsFrame.Visible = true end
 	if GUI.LogContainer then GUI.LogContainer.Visible = true end
@@ -428,38 +461,12 @@ local function ShowUI(data)
 	UpdateSkills()
 end
 
-local function CloseUI()
-	inputLocked = true
-	HideAlly()
 
-	if GUI.ExecuteOverlay then GUI.ExecuteOverlay.Visible = false end
-
-	if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then 
-		VFXManager.ToggleHeartbeat(false) 
-	end
-
-	if GUI.WindowScale then
-		local t1 = TweenService:Create(GUI.WindowScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0})
-		t1:Play()
-		t1.Completed:Wait()
-	end
-
-	if GUI.CombatBackdrop then
-		local t2 = TweenService:Create(GUI.CombatBackdrop, TweenInfo.new(0.2), {BackgroundTransparency = 1})
-		t2:Play()
-		t2.Completed:Connect(function() GUI.CombatBackdrop.Visible = false end)
-	end
-
-	if GUI.CombatWindow then GUI.CombatWindow.Visible = false end
-	currentBattleState = nil
-end
-
+-- ==========================================
+-- INITIALIZATION
+-- ==========================================
 function MobileCombatUI.Initialize(masterScreenGui)
-	local MobileCombatBuilder = require(script.Parent:WaitForChild("MobileCombatBuilder"))
 	GUI = MobileCombatBuilder.Build(masterScreenGui, player)
-
-	-- Safely track Screen Rotation/Resizing!
-	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(UpdateCameraScale)
 
 	GUI.ClickOverlay.MouseButton1Click:Connect(function()
 		if isTypewriting then skipTypewriting = true else ClickSignal:Fire() end
@@ -472,10 +479,12 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				HideAlly()
 
 				if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
-				if GUI.ActionGrid then 
-					GUI.ActionGrid.Visible = true
+				if GUI.ActionGrid then GUI.ActionGrid.Visible = true end
+
+				if GUI.ActionGrid then
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-					UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(0, 200, 0, 45), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 14)
+					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
+					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 20
 				end
 				local trueTarget = targetId
 				if targetId == "LArm" or targetId == "RArm" then trueTarget = "Arms" end
@@ -510,7 +519,6 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if GUI.CombatWindow and not GUI.CombatWindow.Visible then
 					if GUI.CombatBackdrop then GUI.CombatBackdrop.Visible = true; TweenService:Create(GUI.CombatBackdrop, TweenInfo.new(0.4), {BackgroundTransparency = 0.4}):Play() end
 					GUI.CombatWindow.Visible = true
-					UpdateCameraScale()
 				end
 
 				if GUI.CombatantsFrame then GUI.CombatantsFrame.Visible = true end
@@ -531,8 +539,9 @@ function MobileCombatUI.Initialize(masterScreenGui)
 						GUI.SpeakerLbl.Text = line.Speaker or "Unknown"
 						GUI.SpeakerLbl.TextColor3 = (line.Speaker == "System") and UIHelpers.Colors.TextMuted or UIHelpers.Colors.Gold
 
-						if EnemyData and EnemyData.BossIcons and EnemyData.BossIcons[line.Speaker] then
-							if GUI.eAvatar then GUI.eAvatar.Image = EnemyData.BossIcons[line.Speaker] end
+						local EnemyDataModule = require(ReplicatedStorage:WaitForChild("EnemyData"))
+						if EnemyDataModule and EnemyDataModule.BossIcons and EnemyDataModule.BossIcons[line.Speaker] then
+							if GUI.eAvatar then GUI.eAvatar.Image = EnemyDataModule.BossIcons[line.Speaker] end
 						else
 							if GUI.eAvatar then GUI.eAvatar.Image = "rbxassetid://90132878979603" end
 						end
@@ -564,21 +573,29 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 					local choicesArray = data.Choices or {"CONTINUE STORY"}
 					for idx, choiceText in ipairs(choicesArray) do
-						local btn = CreateMinimalButton(GUI.ChoicesContainer, choiceText, UDim2.new(0, 300, 0, 40), "#55FF55")
+						local btn = CreateMinimalButton(GUI.ChoicesContainer, choiceText, UDim2.new(0.6, 0, 0, 50), "#55FF55")
 						btn.MouseButton1Click:Connect(function()
 							GUI.DialogueBox.Visible = false
 							if GUI.LogContainer then GUI.LogContainer.Visible = true end
 							if GUI.ActionContainer then GUI.ActionContainer.Visible = true end
 
 							local rewards = data.Battle and data.Battle.Enemy and data.Battle.Enemy.Rewards
+
 							local animRewards = {}
 							if rewards then
-								if rewards.ItemName then table.insert(animRewards, {Text = "+" .. (rewards.Amount or 1) .. " " .. rewards.ItemName, Color = "#FFD700"}) end
-								if rewards.Dews then table.insert(animRewards, {Text = "+" .. rewards.Dews .. " Dews", Color = "#55FFFF"}) end
-								if rewards.XP then table.insert(animRewards, {Text = "+" .. rewards.XP .. " XP", Color = "#55FF55"}) end
+								if rewards.ItemName then
+									table.insert(animRewards, {Text = "+" .. (rewards.Amount or 1) .. " " .. rewards.ItemName, Color = "#FFD700"})
+								end
+								if rewards.Dews then
+									table.insert(animRewards, {Text = "+" .. rewards.Dews .. " Dews", Color = "#55FFFF"})
+								end
+								if rewards.XP then
+									table.insert(animRewards, {Text = "+" .. rewards.XP .. " XP", Color = "#55FF55"})
+								end
 							end
 
 							if #animRewards > 0 then PlayLootAnimation(animRewards) end
+
 							Network:WaitForChild("CombatAction"):FireServer("MinigameResult", { Success = true, MinigameType = "Dialogue", Choice = idx }) 
 						end)
 					end
@@ -649,11 +666,11 @@ function MobileCombatUI.Initialize(masterScreenGui)
 						GUI.AllyQuoteLbl.Text = '"' .. (data.AllyQuote or "I've got your back!") .. '"'
 
 						if data.AllyUserId then
-							-- Zero Yield URL
 							GUI.AllyAvatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. data.AllyUserId .. "&w=150&h=150"
 						else
-							if EnemyData and EnemyData.BossIcons and EnemyData.BossIcons[data.AllyIntervention] then
-								GUI.AllyAvatar.Image = EnemyData.BossIcons[data.AllyIntervention]
+							local EnemyDataModule = require(ReplicatedStorage:WaitForChild("EnemyData"))
+							if EnemyDataModule and EnemyDataModule.BossIcons and EnemyDataModule.BossIcons[data.AllyIntervention] then
+								GUI.AllyAvatar.Image = EnemyDataModule.BossIcons[data.AllyIntervention]
 							else
 								GUI.AllyAvatar.Image = "rbxassetid://90132878979603"
 							end
@@ -730,8 +747,12 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if data and type(data.LogMsg) == "string" and data.LogMsg ~= "" then AppendLog(data.LogMsg, "#FFD700") end
 
 				local animRewards = {}
-				if data and data.XP and data.XP > 0 then table.insert(animRewards, {Text = "+" .. data.XP .. " XP", Color = "#55FF55"}) end
-				if data and data.Dews and data.Dews > 0 then table.insert(animRewards, {Text = "+" .. data.Dews .. " Dews", Color = "#55FFFF"}) end
+				if data and data.XP and data.XP > 0 then
+					table.insert(animRewards, {Text = "+" .. data.XP .. " XP", Color = "#55FF55"})
+				end
+				if data and data.Dews and data.Dews > 0 then
+					table.insert(animRewards, {Text = "+" .. data.Dews .. " Dews", Color = "#55FFFF"})
+				end
 				if data and data.Items and #data.Items > 0 then
 					for _, item in ipairs(data.Items) do
 						if type(item) == "table" then
@@ -747,13 +768,17 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if #animRewards > 0 then PlayLootAnimation(animRewards) end
 
 				inputLocked = true
-				if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 				if GUI.ActionGrid then
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end
 					GUI.ActionGrid.Visible = true
+				end
+				if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 
+				if GUI.ActionGrid then
 					local continueBtn = CreateMinimalButton(GUI.ActionGrid, "CONTINUE EXPEDITION", UDim2.new(0, 0, 0, 0), "#55FF55")
-					continueBtn.MouseButton1Click:Connect(function() UpdateSkills() end)
+					continueBtn.MouseButton1Click:Connect(function()
+						UpdateSkills()
+					end)
 
 					local retreatBtn = CreateMinimalButton(GUI.ActionGrid, "RETREAT TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
 					retreatBtn.MouseButton1Click:Connect(function()
@@ -776,8 +801,12 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				AppendLog("<b><font color='#55FF55'>VICTORY!</font></b>", "#55FF55")
 
 				local animRewards = {}
-				if data and data.XP and data.XP > 0 then table.insert(animRewards, {Text = "+" .. data.XP .. " XP", Color = "#55FF55"}) end
-				if data and data.Dews and data.Dews > 0 then table.insert(animRewards, {Text = "+" .. data.Dews .. " Dews", Color = "#55FFFF"}) end
+				if data and data.XP and data.XP > 0 then
+					table.insert(animRewards, {Text = "+" .. data.XP .. " XP", Color = "#55FF55"})
+				end
+				if data and data.Dews and data.Dews > 0 then
+					table.insert(animRewards, {Text = "+" .. data.Dews .. " Dews", Color = "#55FFFF"})
+				end
 				if data and data.Items and #data.Items > 0 then
 					for _, item in ipairs(data.Items) do
 						if type(item) == "table" then
@@ -791,22 +820,30 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				end
 
 				if #animRewards > 0 then PlayLootAnimation(animRewards) end
+
 				if data and type(data.ExtraLog) == "string" and data.ExtraLog ~= "" then AppendLog(data.ExtraLog) end
+
 				if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Victory", 1.0) end
 
 				inputLocked = true
-				if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 				if GUI.ActionGrid then
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end
 					GUI.ActionGrid.Visible = true
+				end
+				if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 
+				if GUI.ActionGrid then
 					if data and data.Battle and data.Battle.Context and data.Battle.Context.IsStoryMission then
 						local continueCampBtn = CreateMinimalButton(GUI.ActionGrid, "CONTINUE CAMPAIGN", UDim2.new(0, 0, 0, 0), "#FFD700")
-						continueCampBtn.MouseButton1Click:Connect(function() Network:WaitForChild("CombatAction"):FireServer("EngageStory") end)
+						continueCampBtn.MouseButton1Click:Connect(function()
+							Network:WaitForChild("CombatAction"):FireServer("EngageStory")
+						end)
 					end
 
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "RETURN TO COMMAND", UDim2.new(0, 0, 0, 0), "#55FF55")
-					closeBtn.MouseButton1Click:Connect(function() CloseUI() end)
+					closeBtn.MouseButton1Click:Connect(function() 
+						CloseUI() 
+					end)
 				end
 
 			elseif action == "Defeat" or action == "PathsDeath" then
@@ -824,19 +861,25 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Defeat", 1.0) end
 
 				inputLocked = true
-				if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 				if GUI.ActionGrid then
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end
 					GUI.ActionGrid.Visible = true
+				end
+				if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 
+				if GUI.ActionGrid then
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "RETURN TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
-					closeBtn.MouseButton1Click:Connect(function() CloseUI() end)
+					closeBtn.MouseButton1Click:Connect(function() 
+						CloseUI() 
+					end)
 				end
 
 			elseif action == "Fled" then
 				HideAlly()
 				if GUI.CombatantsFrame then GUI.CombatantsFrame.Visible = true end
+
 				if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then VFXManager.ToggleHeartbeat(false) end
+
 				AppendLog("<b><font color='#AAAAAA'>YOU FLED THE BATTLE.</font></b>", "#AAAAAA")
 				task.wait(1.5)
 				CloseUI()
@@ -857,5 +900,11 @@ function MobileCombatUI.Initialize(masterScreenGui)
 		end
 	end)
 end
+
+MobileCombatUI.UpdateSkills = UpdateSkills
+MobileCombatUI.UpdateState = UpdateState
+MobileCombatUI.AppendLog = AppendLog
+MobileCombatUI.Show = ShowUI
+MobileCombatUI.Close = CloseUI
 
 return MobileCombatUI
