@@ -1,4 +1,5 @@
 -- @ScriptType: LocalScript
+-- @ScriptType: LocalScript
 -- Name: ClientMain
 -- @ScriptType: LocalScript
 local Players = game:GetService("Players")
@@ -22,26 +23,22 @@ local MasterGui = Instance.new("ScreenGui")
 MasterGui.Name = "AoTMasterGui"
 MasterGui.ResetOnSpawn = false
 MasterGui.IgnoreGuiInset = true
+MasterGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling 
 MasterGui.Parent = playerGui
 
 print("[AoT UI] Booting Main Interface...")
 
--- [[ THE FIX: Roblox Studio Emulator Detection ]]
+-- [[ STRICT HARDWARE DETECTION ]]
 local isMobile = false
 
-if RunService:IsStudio() then
-	-- In Studio, 'MouseEnabled' is always true. We check if the viewport height is small (like a phone).
-	local camera = workspace.CurrentCamera
-	if camera and (camera.ViewportSize.Y <= 600 or UserInputService.TouchEnabled) then
-		isMobile = true
-	end
-else
-	-- In the live game, true mobile devices have Touch but NO Mouse.
-	isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+-- True Mobile Devices have Touch but NO physical mouse.
+if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+	isMobile = true
 end
 
--- [[ MANUAL OVERRIDE ]]
--- If the emulator STILL fights you, just uncomment the exact line below to force it:
+-- [[ MANUAL OVERRIDE FOR STUDIO TESTING ]]
+-- Since the Studio Device Emulator STILL has your physical mouse connected, 
+-- it will load the PC UI. Uncomment the line below to force test Mobile in Studio:
 -- isMobile = true
 
 if isMobile then
