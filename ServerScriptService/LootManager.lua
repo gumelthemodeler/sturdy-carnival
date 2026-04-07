@@ -1,5 +1,7 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- Name: LootManager
+-- @ScriptType: ModuleScript
 local LootManager = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
@@ -24,7 +26,10 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 	local autoSoldDewsCapacity = 0
 	local autoSoldDewsSettings = 0
 	local currentSlots = GetUniqueSlotCount(player)
+
 	local dropMultiplier = player:GetAttribute("HasDoubleDrops") and 2 or 1
+	local isYmirFavored = player:GetAttribute("YmirFavored")
+	local favoredMultiplier = isYmirFavored and 1.5 or 1.0 -- 50% Drop rate buff for #1 Squad
 
 	if enemyDrops and enemyDrops.ItemChance then
 		for itemName, baseChance in pairs(enemyDrops.ItemChance) do
@@ -32,23 +37,29 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			local rarity = iData and iData.Rarity or "Common"
 			local finalChance = baseChance
 
-			if rarity == "Mythical" then
-				finalChance = baseChance * 1.0 
-				if isEndless then finalChance += (currentWave * 0.1) end
-				finalChance = math.min(finalChance, math.max(5, baseChance))
+			-- [[ THE FIX: Rarity and Serum Drop Nerfs / Buffs ]]
+			if string.find(string.lower(itemName), "serum") then
+				finalChance = baseChance * 0.10 -- Massive nerf to Titan Serums
+			elseif rarity == "Mythical" or rarity == "Transcendent" then
+				finalChance = baseChance * 0.25
 			elseif rarity == "Legendary" then
-				finalChance = baseChance * 1.2
-				if isEndless then finalChance += (currentWave * 0.25) end
-				finalChance = math.min(finalChance, math.max(12, baseChance))
+				finalChance = baseChance * 0.50
 			elseif rarity == "Epic" then
+				finalChance = baseChance * 1.0
+			elseif rarity == "Rare" then
 				finalChance = baseChance * 2.0
-				if isEndless then finalChance += (currentWave * 1.0) end
-				finalChance = math.min(finalChance, math.max(40, baseChance))
-			else
-				finalChance = baseChance * 3.0
-				if isEndless then finalChance += (currentWave * 2.5) end
-				finalChance = math.min(finalChance, 100)
+			elseif rarity == "Uncommon" or rarity == "Common" then
+				finalChance = baseChance * 4.0 -- Massive buff to crafting materials
 			end
+
+			if isEndless then
+				if rarity == "Mythical" then finalChance += (currentWave * 0.05)
+				elseif rarity == "Legendary" then finalChance += (currentWave * 0.15)
+				else finalChance += (currentWave * 0.5) end
+			end
+
+			finalChance = finalChance * favoredMultiplier
+			finalChance = math.clamp(finalChance, 0.01, 100)
 
 			local roll = math.random() * 100
 			if roll <= finalChance then
@@ -100,7 +111,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 		end
 	end
 
-	-- [[ THE FIX: Safely separate auto-sell sources ]]
 	if autoSoldDewsSettings > 0 then
 		player.leaderstats.Dews.Value += autoSoldDewsSettings
 		local NotificationEvent = Network:FindFirstChild("NotificationEvent")
@@ -113,7 +123,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 		player.leaderstats.Dews.Value += autoSoldDewsCapacity
 	end
 
-	-- We only return Capacity Dews, so CombatManager only prints the "Inventory Full" text if it was ACTUALLY full.
 	return droppedItems, autoSoldDewsCapacity
 end
 
