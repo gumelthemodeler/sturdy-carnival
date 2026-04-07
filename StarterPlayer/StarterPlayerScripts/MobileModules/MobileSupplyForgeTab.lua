@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MobileSupplyForgeTab
 -- @ScriptType: ModuleScript
 local MobileSupplyForgeTab = {}
@@ -15,6 +16,8 @@ local SharedUI = player:WaitForChild("PlayerScripts"):WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local NotificationManager = require(SharedUI:WaitForChild("NotificationManager"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData")) 
+local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
 
 local CONFIG = {
 	RarityColors = {
@@ -50,6 +53,9 @@ local function CreateSharpButton(parent, text, size, font, textSize)
 	btn.TextColor3 = Color3.fromRGB(245, 245, 245)
 	btn.TextSize = textSize
 	btn.Text = text
+	btn.TextScaled = true
+	local tsc = Instance.new("UITextSizeConstraint", btn)
+	tsc.MaxTextSize = textSize; tsc.MinTextSize = 10
 
 	local stroke = Instance.new("UIStroke", btn)
 	stroke.Color = Color3.fromRGB(70, 70, 80)
@@ -84,13 +90,13 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 
 	local mLayout = Instance.new("UIListLayout", MainFrame)
 	mLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	mLayout.Padding = UDim.new(0, 15)
+	mLayout.Padding = UDim.new(0, 10)
 	mLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	local mPad = Instance.new("UIPadding", MainFrame)
-	mPad.PaddingTop = UDim.new(0, 15)
+	mPad.PaddingTop = UDim.new(0, 10)
 
 	local SubNav = Instance.new("Frame", MainFrame)
-	SubNav.Size = UDim2.new(0.95, 0, 0, 45)
+	SubNav.Size = UDim2.new(1, -10, 0, 40)
 	SubNav.BackgroundTransparency = 1
 	SubNav.LayoutOrder = 1
 
@@ -98,19 +104,19 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	navLayout.FillDirection = Enum.FillDirection.Horizontal
 	navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	navLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	navLayout.Padding = UDim.new(0, 10)
+	navLayout.Padding = UDim.new(0, 8)
 
 	local ContentArea = Instance.new("Frame", MainFrame)
-	ContentArea.Size = UDim2.new(0.95, 0, 1, -75)
+	ContentArea.Size = UDim2.new(1, -10, 1, -60)
 	ContentArea.BackgroundTransparency = 1
 	ContentArea.LayoutOrder = 2
 
-	local subTabs = { "MARKETPLACE", "THE FORGE" }
+	local subTabs = { "MARKET", "FORGE", "FUSION" }
 	local activeSubFrames = {}
 	local subBtns = {}
 
 	for i, tabName in ipairs(subTabs) do
-		local btn, stroke = CreateSharpButton(SubNav, tabName, UDim2.new(0, 160, 0, 35), Enum.Font.GothamBold, 12)
+		local btn, stroke = CreateSharpButton(SubNav, tabName, UDim2.new(0.3, 0, 0, 35), Enum.Font.GothamBold, 12)
 		btn.TextColor3 = UIHelpers.Colors.TextMuted
 		stroke.Color = UIHelpers.Colors.BorderMuted
 
@@ -132,39 +138,45 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 		end)
 	end
 
-	subBtns["MARKETPLACE"].Btn.TextColor3 = UIHelpers.Colors.Gold
-	subBtns["MARKETPLACE"].Stroke.Color = UIHelpers.Colors.Gold
+	subBtns["MARKET"].Btn.TextColor3 = UIHelpers.Colors.Gold
+	subBtns["MARKET"].Stroke.Color = UIHelpers.Colors.Gold
 
 	-- ==========================================
 	-- 1. MARKETPLACE
 	-- ==========================================
-	local MarketTab = activeSubFrames["MARKETPLACE"]
+	local MarketTab = activeSubFrames["MARKET"]
 
-	local marketTitle = UIHelpers.CreateLabel(MarketTab, "MARKETPLACE & SUPPLY", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 20)
+	local marketTitle = UIHelpers.CreateLabel(MarketTab, "MARKETPLACE & SUPPLY", UDim2.new(1, 0, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 18)
 	marketTitle.Position = UDim2.new(0, 0, 0, 0)
 
-	local SplitContainer = Instance.new("Frame", MarketTab)
-	SplitContainer.Size = UDim2.new(1, 0, 1, -40)
-	SplitContainer.Position = UDim2.new(0, 0, 0, 40)
+	local SplitContainer = Instance.new("ScrollingFrame", MarketTab)
+	SplitContainer.Size = UDim2.new(1, 0, 1, -30)
+	SplitContainer.Position = UDim2.new(0, 0, 0, 30)
 	SplitContainer.BackgroundTransparency = 1
+	SplitContainer.ScrollBarThickness = 4
+	SplitContainer.BorderSizePixel = 0
 
 	local scLayout = Instance.new("UIListLayout", SplitContainer)
-	scLayout.FillDirection = Enum.FillDirection.Horizontal
-	scLayout.Padding = UDim.new(0, 20)
+	scLayout.FillDirection = Enum.FillDirection.Vertical
+	scLayout.Padding = UDim.new(0, 15)
+	scLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	scLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+		SplitContainer.CanvasSize = UDim2.new(0, 0, 0, scLayout.AbsoluteContentSize.Y + 20) 
+	end)
 
 	local LeftPanel = Instance.new("Frame", SplitContainer)
-	LeftPanel.Size = UDim2.new(0.48, 0, 1, 0)
+	LeftPanel.Size = UDim2.new(1, -10, 0, 240)
 	LeftPanel.BackgroundTransparency = 1
 
 	local PremContainer = Instance.new("Frame", LeftPanel)
-	PremContainer.Size = UDim2.new(1, 0, 0.65, 0)
-	CreateGrimPanel(PremContainer)
+	PremContainer.Size = UDim2.new(1, 0, 1, -80)
+	PremContainer.BackgroundTransparency = 1
 
-	local pTitle = UIHelpers.CreateLabel(PremContainer, "PREMIUM STORE", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 16)
+	local pTitle = UIHelpers.CreateLabel(PremContainer, "PREMIUM STORE", UDim2.new(1, 0, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
 
 	local PremScroll = Instance.new("ScrollingFrame", PremContainer)
-	PremScroll.Size = UDim2.new(1, -20, 1, -40)
-	PremScroll.Position = UDim2.new(0, 10, 0, 30)
+	PremScroll.Size = UDim2.new(1, -10, 1, -30)
+	PremScroll.Position = UDim2.new(0, 5, 0, 25)
 	PremScroll.BackgroundTransparency = 1
 	PremScroll.ScrollBarThickness = 4
 	PremScroll.BorderSizePixel = 0
@@ -175,23 +187,30 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 
 	local function CreatePremiumCard(titleText, descText, buyAction, giftAction)
 		local pCard = Instance.new("Frame", PremScroll)
-		pCard.Size = UDim2.new(1, -10, 0, 80)
-		pCard.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-		local pStroke = Instance.new("UIStroke", pCard)
-		pStroke.Color = Color3.fromRGB(80, 50, 100)
-		pStroke.Thickness = 2
+		pCard.Size = UDim2.new(1, 0, 0, 75)
+		pCard.BackgroundTransparency = 1
 
-		local pName = UIHelpers.CreateLabel(pCard, string.upper(titleText), UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
-		pName.Position = UDim2.new(0, 10, 0, 5); pName.TextXAlignment = Enum.TextXAlignment.Left
+		local bgGlow = Instance.new("Frame", pCard)
+		bgGlow.Size = UDim2.new(1, 0, 1, 0)
+		bgGlow.BackgroundColor3 = UIHelpers.Colors.Gold
+		bgGlow.BorderSizePixel = 0
+		bgGlow.ZIndex = 1
+		local grad = Instance.new("UIGradient", bgGlow)
+		grad.Rotation = 90
+		grad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.7) }
 
-		local pDesc = UIHelpers.CreateLabel(pCard, descText or "A premium item.", UDim2.new(1, -20, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11)
-		pDesc.Position = UDim2.new(0, 10, 0, 25); pDesc.TextXAlignment = Enum.TextXAlignment.Left
+		local pName = UIHelpers.CreateLabel(pCard, string.upper(titleText), UDim2.new(1, -10, 0, 18), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 12)
+		pName.Position = UDim2.new(0, 5, 0, 5); pName.TextXAlignment = Enum.TextXAlignment.Left; pName.ZIndex = 2
+
+		local pDesc = UIHelpers.CreateLabel(pCard, descText or "A premium item.", UDim2.new(1, -10, 0, 18), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 10)
+		pDesc.Position = UDim2.new(0, 5, 0, 23); pDesc.TextXAlignment = Enum.TextXAlignment.Left; pDesc.ZIndex = 2
 
 		local btnContainer = Instance.new("Frame", pCard)
-		btnContainer.Size = UDim2.new(1, -20, 0, 25)
-		btnContainer.Position = UDim2.new(0, 10, 1, -30)
+		btnContainer.Size = UDim2.new(1, -10, 0, 25)
+		btnContainer.Position = UDim2.new(0, 5, 1, -30)
 		btnContainer.BackgroundTransparency = 1
-		local bcLayout = Instance.new("UIListLayout", btnContainer); bcLayout.FillDirection = Enum.FillDirection.Horizontal; bcLayout.Padding = UDim.new(0, 10)
+		btnContainer.ZIndex = 3
+		local bcLayout = Instance.new("UIListLayout", btnContainer); bcLayout.FillDirection = Enum.FillDirection.Horizontal; bcLayout.Padding = UDim.new(0, 5)
 
 		if giftAction then
 			local buyBtn, buyStroke = CreateSharpButton(btnContainer, "BUY", UDim2.new(0.48, 0, 1, 0), Enum.Font.GothamBlack, 12)
@@ -206,67 +225,48 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	end
 
 	if ItemData.Gamepasses then
-		for _, gp in ipairs(ItemData.Gamepasses) do
-			CreatePremiumCard(gp.Name, gp.Desc, 
-				function() MarketplaceService:PromptGamePassPurchase(player, gp.ID) end,
-				gp.GiftID and function() MarketplaceService:PromptProductPurchase(player, gp.GiftID) end or nil
-			)
-		end
+		for _, gp in ipairs(ItemData.Gamepasses) do CreatePremiumCard(gp.Name, gp.Desc, function() MarketplaceService:PromptGamePassPurchase(player, gp.ID) end, gp.GiftID and function() MarketplaceService:PromptProductPurchase(player, gp.GiftID) end or nil) end
 	end
-
 	if ItemData.Products then
 		for _, prod in ipairs(ItemData.Products) do
-			if not prod.IsReroll and not string.find(prod.Name, "Gift:") then
-				CreatePremiumCard(prod.Name, prod.Desc, 
-					function() MarketplaceService:PromptProductPurchase(player, prod.ID) end, nil
-				)
-			end
+			if not prod.IsReroll and not string.find(prod.Name, "Gift:") then CreatePremiumCard(prod.Name, prod.Desc, function() MarketplaceService:PromptProductPurchase(player, prod.ID) end, nil) end
 		end
 	end
 
 	local CodeContainer = Instance.new("Frame", LeftPanel)
 	CodeContainer.Size = UDim2.new(1, 0, 0.3, 0)
 	CodeContainer.Position = UDim2.new(0, 0, 0.7, 0)
-	CreateGrimPanel(CodeContainer)
+	CodeContainer.BackgroundTransparency = 1 
 
 	local cInput = Instance.new("TextBox", CodeContainer)
-	cInput.Size = UDim2.new(0.8, 0, 0, 30)
-	cInput.Position = UDim2.new(0.5, 0, 0.4, 0)
-	cInput.AnchorPoint = Vector2.new(0.5, 0.5)
+	cInput.Size = UDim2.new(0.65, 0, 0, 30)
+	cInput.Position = UDim2.new(0.05, 0, 0.5, 0)
+	cInput.AnchorPoint = Vector2.new(0, 0.5)
 	cInput.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
 	cInput.TextColor3 = UIHelpers.Colors.Gold
 	cInput.Font = Enum.Font.GothamBlack
-	cInput.TextSize = 14
-	cInput.PlaceholderText = "Redeem Code Here"
+	cInput.TextSize = 12
+	cInput.PlaceholderText = "Redeem Code..."
 	cInput.Text = ""
 	Instance.new("UIStroke", cInput).Color = UIHelpers.Colors.BorderMuted
 
-	local RedeemBtn, redeemStroke = CreateSharpButton(CodeContainer, "REDEEM", UDim2.new(0.8, 0, 0, 35), Enum.Font.GothamBlack, 14)
-	RedeemBtn.Position = UDim2.new(0.5, 0, 0.75, 0)
-	RedeemBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+	local RedeemBtn, redeemStroke = CreateSharpButton(CodeContainer, "REDEEM", UDim2.new(0.25, 0, 0, 30), Enum.Font.GothamBlack, 12)
+	RedeemBtn.Position = UDim2.new(0.95, 0, 0.5, 0)
+	RedeemBtn.AnchorPoint = Vector2.new(1, 0.5)
 	RedeemBtn.TextColor3 = Color3.fromRGB(85, 170, 255)
 	redeemStroke.Color = Color3.fromRGB(85, 170, 255)
-
-	local cHint = UIHelpers.CreateLabel(CodeContainer, "ENTER PROMO CODE:", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 12)
-	cHint.Position = UDim2.new(0, 0, 0, 5)
-
-	RedeemBtn.MouseButton1Click:Connect(function()
-		if cInput.Text ~= "" then
-			Network:WaitForChild("RedeemCode"):FireServer(cInput.Text)
-			cInput.Text = ""
-		end
-	end)
+	RedeemBtn.MouseButton1Click:Connect(function() if cInput.Text ~= "" then Network:WaitForChild("RedeemCode"):FireServer(cInput.Text); cInput.Text = "" end end)
 
 	local RightPanel = Instance.new("Frame", SplitContainer)
-	RightPanel.Size = UDim2.new(0.5, 0, 1, 0)
+	RightPanel.Size = UDim2.new(1, -10, 0, 300)
 	RightPanel.BackgroundTransparency = 1
 
 	local rrContainer = Instance.new("Frame", RightPanel)
 	rrContainer.Size = UDim2.new(1, 0, 0, 40)
 	rrContainer.BackgroundTransparency = 1
-	local rrLayout = Instance.new("UIListLayout", rrContainer); rrLayout.FillDirection = Enum.FillDirection.Horizontal; rrLayout.Padding = UDim.new(0, 10)
+	local rrLayout = Instance.new("UIListLayout", rrContainer); rrLayout.FillDirection = Enum.FillDirection.Horizontal; rrLayout.Padding = UDim.new(0, 10); rrLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-	local rrDews, rrDewsStroke = CreateSharpButton(rrContainer, "RESTOCK (300K Dews)", UDim2.new(0.48, 0, 1, 0), Enum.Font.GothamBlack, 11)
+	local rrDews, rrDewsStroke = CreateSharpButton(rrContainer, "RESTOCK (300K)", UDim2.new(0.48, 0, 1, 0), Enum.Font.GothamBlack, 11)
 	rrDews.TextColor3 = Color3.fromRGB(85, 170, 255)
 	rrDewsStroke.Color = Color3.fromRGB(85, 170, 255)
 
@@ -276,9 +276,8 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	local function UpdateRerollButton()
 		local hasVIP = player:GetAttribute("HasVIP")
 		local lastRoll = player:GetAttribute("LastFreeReroll") or 0
-
 		if hasVIP and (os.time() - lastRoll) >= 86400 then
-			rrPremium.Text = "FREE RESTOCK (VIP)"
+			rrPremium.Text = "FREE (VIP)"
 			rrPremium.TextColor3 = Color3.fromRGB(200, 100, 255)
 			rrPremStroke.Color = Color3.fromRGB(200, 100, 255)
 			isFreeRestock = true
@@ -292,17 +291,10 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	UpdateRerollButton()
 
 	rrDews.MouseButton1Click:Connect(function() Network:WaitForChild("VIPFreeReroll"):FireServer(true) end)
-
 	rrPremium.MouseButton1Click:Connect(function()
-		if isFreeRestock then
-			Network:WaitForChild("VIPFreeReroll"):FireServer(false)
-		else
+		if isFreeRestock then Network:WaitForChild("VIPFreeReroll"):FireServer(false) else
 			local rerollId = nil
-			if ItemData.Products then
-				for _, prod in ipairs(ItemData.Products) do
-					if prod.IsReroll then rerollId = prod.ID break end
-				end
-			end
+			if ItemData.Products then for _, prod in ipairs(ItemData.Products) do if prod.IsReroll then rerollId = prod.ID break end end end
 			if rerollId then MarketplaceService:PromptProductPurchase(player, rerollId) end
 		end
 	end)
@@ -310,55 +302,49 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	local restockTimer = UIHelpers.CreateLabel(RightPanel, "RESTOCKS IN: 00:00", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, Color3.fromRGB(255, 150, 100), 12)
 	restockTimer.Position = UDim2.new(0, 0, 0, 45)
 
-	local SupplyScroll = Instance.new("ScrollingFrame", RightPanel)
-	SupplyScroll.Size = UDim2.new(1, 0, 1, -75)
-	SupplyScroll.Position = UDim2.new(0, 0, 0, 75)
+	local SupplyScroll = Instance.new("Frame", RightPanel)
+	SupplyScroll.Size = UDim2.new(1, 0, 1, -70)
+	SupplyScroll.Position = UDim2.new(0, 0, 0, 70)
 	SupplyScroll.BackgroundTransparency = 1
-	SupplyScroll.ScrollBarThickness = 6
-	SupplyScroll.BorderSizePixel = 0
 
 	local ssLayout = Instance.new("UIListLayout", SupplyScroll)
 	ssLayout.Padding = UDim.new(0, 8)
-	ssLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() SupplyScroll.CanvasSize = UDim2.new(0,0,0, ssLayout.AbsoluteContentSize.Y + 10) end)
+	ssLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+		RightPanel.Size = UDim2.new(1, -10, 0, ssLayout.AbsoluteContentSize.Y + 80)
+	end)
 
 	local function AddSupplyItem(itemName, itemData, cost, isSoldOut)
 		local rarityColor = CONFIG.RarityColors[itemData.Rarity or "Common"] or Color3.fromRGB(200, 200, 200)
 
-		local c, cStroke = CreateGrimPanel(SupplyScroll)
-		c.Size = UDim2.new(1, -10, 0, 70)
-		cStroke.Color = rarityColor
-		cStroke.Thickness = 2
+		local c = Instance.new("Frame", SupplyScroll)
+		c.Size = UDim2.new(1, 0, 0, 65)
+		c.BackgroundTransparency = 1
 
 		local bgGlow = Instance.new("Frame", c)
 		bgGlow.Size = UDim2.new(1, 0, 1, 0)
 		bgGlow.BackgroundColor3 = rarityColor
 		bgGlow.BorderSizePixel = 0
 		bgGlow.ZIndex = 1
-		local grad = Instance.new("UIGradient", bgGlow)
-		grad.Rotation = 90
-		grad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.7) }
+		local grad = Instance.new("UIGradient", bgGlow); grad.Rotation = 90; grad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.8) }
 
-		local nameLbl = UIHelpers.CreateLabel(c, itemName, UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamBlack, rarityColor, 16)
-		nameLbl.Position = UDim2.new(0, 15, 0, 10); nameLbl.TextXAlignment = Enum.TextXAlignment.Left; nameLbl.ZIndex = 2
+		local cStroke = Instance.new("UIStroke", c)
+		cStroke.Color = rarityColor
+		cStroke.Thickness = 2
+		cStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-		local statsTxt = ""
-		if itemData.Bonus then
-			for k, v in pairs(itemData.Bonus) do
-				local s = tostring(k):sub(1,3):upper()
-				statsTxt = statsTxt .. (v > 0 and "+" or "") .. v .. " " .. s .. " | "
-			end
-			statsTxt = statsTxt:sub(1, -3)
-		else statsTxt = itemData.Desc or "A useful item." end
+		local nameLbl = UIHelpers.CreateLabel(c, itemName, UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamBlack, rarityColor, 14)
+		nameLbl.Position = UDim2.new(0, 10, 0, 5); nameLbl.TextXAlignment = Enum.TextXAlignment.Left; nameLbl.ZIndex = 2
 
-		local statsLbl = UIHelpers.CreateLabel(c, statsTxt, UDim2.new(0.6, 0, 0, 15), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 12)
-		statsLbl.Position = UDim2.new(0, 15, 0, 30); statsLbl.TextXAlignment = Enum.TextXAlignment.Left; statsLbl.ZIndex = 2
+		local statsTxt = itemData.Bonus and "Provides Stat Bonuses" or (itemData.Desc or "A useful item.")
+		local statsLbl = UIHelpers.CreateLabel(c, statsTxt, UDim2.new(0.6, 0, 0, 15), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 10)
+		statsLbl.Position = UDim2.new(0, 10, 0, 25); statsLbl.TextXAlignment = Enum.TextXAlignment.Left; statsLbl.ZIndex = 2
 
-		local costLbl = UIHelpers.CreateLabel(c, "Cost: " .. tostring(cost) .. " Dews", UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 11)
-		costLbl.Position = UDim2.new(0, 15, 1, -25); costLbl.TextXAlignment = Enum.TextXAlignment.Left; costLbl.ZIndex = 2
+		local costLbl = UIHelpers.CreateLabel(c, tostring(cost) .. " Dews", UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 11)
+		costLbl.Position = UDim2.new(0, 10, 1, -25); costLbl.TextXAlignment = Enum.TextXAlignment.Left; costLbl.ZIndex = 2
 
 		local actionText = isSoldOut and "SOLD" or "BUY"
-		local buyBtn, buyStroke = CreateSharpButton(c, actionText, UDim2.new(0, 90, 0, 34), Enum.Font.GothamBlack, 12)
-		buyBtn.Position = UDim2.new(1, -15, 0.5, 0); buyBtn.AnchorPoint = Vector2.new(1, 0.5); buyBtn.ZIndex = 3
+		local buyBtn, buyStroke = CreateSharpButton(c, actionText, UDim2.new(0, 80, 0, 30), Enum.Font.GothamBlack, 12)
+		buyBtn.Position = UDim2.new(1, -10, 0.5, 0); buyBtn.AnchorPoint = Vector2.new(1, 0.5); buyBtn.ZIndex = 3
 
 		if isSoldOut then
 			buyBtn.TextColor3 = Color3.fromRGB(100, 100, 100); buyStroke.Color = Color3.fromRGB(70, 70, 80); buyBtn.Active = false
@@ -372,24 +358,16 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	local function RefreshShop()
 		local shopData = Network:WaitForChild("GetShopData"):InvokeServer()
 		if not shopData or not shopData.Items then return end
-
 		for _, c in ipairs(SupplyScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-
 		for _, item in ipairs(shopData.Items) do
 			local itemDef = ItemData.Equipment[item.Name] or ItemData.Consumables[item.Name]
 			if itemDef then AddSupplyItem(item.Name, itemDef, item.Cost, item.SoldOut) end
 		end
-
 		local timeLeft = shopData.TimeLeft or 600
-
-		isShopTimerActive = false 
-		task.wait(1.1)
-		isShopTimerActive = true
-
+		isShopTimerActive = false; task.wait(1.1); isShopTimerActive = true
 		task.spawn(function()
 			while timeLeft > 0 and isShopTimerActive do
-				local m = math.floor(timeLeft / 60)
-				local s = timeLeft % 60
+				local m = math.floor(timeLeft / 60); local s = timeLeft % 60
 				restockTimer.Text = string.format("RESTOCKS IN: %02d:%02d", m, s)
 				task.wait(1); timeLeft -= 1
 			end
@@ -404,68 +382,71 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	RefreshShop()
 
 	-- ==========================================
-	-- 2. THE FORGE
+	-- 2. THE FORGE (NO GRAY BACKGROUNDS)
 	-- ==========================================
-	local ForgeTab = activeSubFrames["THE FORGE"]
+	local ForgeTab = activeSubFrames["FORGE"]
 
-	local fSplitContainer = Instance.new("Frame", ForgeTab)
+	local fSplitContainer = Instance.new("ScrollingFrame", ForgeTab)
 	fSplitContainer.Size = UDim2.new(1, 0, 1, 0)
 	fSplitContainer.BackgroundTransparency = 1
+	fSplitContainer.ScrollBarThickness = 4
+	fSplitContainer.BorderSizePixel = 0
 
 	local fsLayout = Instance.new("UIListLayout", fSplitContainer)
-	fsLayout.FillDirection = Enum.FillDirection.Horizontal
+	fsLayout.FillDirection = Enum.FillDirection.Vertical
 	fsLayout.Padding = UDim.new(0, 15)
+	fsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	fsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+		fSplitContainer.CanvasSize = UDim2.new(0, 0, 0, fsLayout.AbsoluteContentSize.Y + 20) 
+	end)
 
-	local RecipeList = Instance.new("ScrollingFrame", fSplitContainer)
-	RecipeList.Size = UDim2.new(0.4, 0, 1, 0)
-	RecipeList.BackgroundTransparency = 1
-	RecipeList.ScrollBarThickness = 4
-	RecipeList.BorderSizePixel = 0
-	local rlLayout = Instance.new("UIListLayout", RecipeList)
-	rlLayout.Padding = UDim.new(0, 10)
-	rlLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RecipeList.CanvasSize = UDim2.new(0, 0, 0, rlLayout.AbsoluteContentSize.Y + 20) end)
-
+	-- [[ THE FIX: Fully removed the CreateGrimPanel formatting from BlueprintPanel ]]
 	local BlueprintPanel = Instance.new("Frame", fSplitContainer)
-	BlueprintPanel.Size = UDim2.new(0.58, 0, 1, 0)
-	CreateGrimPanel(BlueprintPanel)
+	BlueprintPanel.Size = UDim2.new(1, -10, 0, 350)
+	BlueprintPanel.LayoutOrder = 1
+	BlueprintPanel.BackgroundTransparency = 1
 
 	local InfoView = Instance.new("Frame", BlueprintPanel)
 	InfoView.Size = UDim2.new(1, 0, 1, 0)
 	InfoView.BackgroundTransparency = 1
 
-	local bpTitle = UIHelpers.CreateLabel(InfoView, "SELECT A BLUEPRINT", UDim2.new(1, -40, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 20)
-	bpTitle.Position = UDim2.new(0, 20, 0, 10); bpTitle.TextXAlignment = Enum.TextXAlignment.Left
+	local bpTitle = UIHelpers.CreateLabel(InfoView, "SELECT A BLUEPRINT", UDim2.new(1, -20, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 18)
+	bpTitle.Position = UDim2.new(0, 10, 0, 10); bpTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-	local bpDesc = UIHelpers.CreateLabel(InfoView, "Select an item from the registry to view its crafting requirements.", UDim2.new(1, -40, 0, 40), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 14)
-	bpDesc.Position = UDim2.new(0, 20, 0, 50); bpDesc.TextXAlignment = Enum.TextXAlignment.Left; bpDesc.TextWrapped = true; bpDesc.TextYAlignment = Enum.TextYAlignment.Top
+	local bpDesc = UIHelpers.CreateLabel(InfoView, "Select an item from the registry below to begin forging.", UDim2.new(1, -20, 0, 40), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12)
+	bpDesc.Position = UDim2.new(0, 10, 0, 40); bpDesc.TextXAlignment = Enum.TextXAlignment.Left; bpDesc.TextWrapped = true; bpDesc.TextYAlignment = Enum.TextYAlignment.Top
 
-	local ReqTitle = UIHelpers.CreateLabel(InfoView, "REQUIRED MATERIALS", UDim2.new(1, -40, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14)
-	ReqTitle.Position = UDim2.new(0, 20, 0, 95); ReqTitle.TextXAlignment = Enum.TextXAlignment.Left; ReqTitle.Visible = false
+	local ReqTitle = UIHelpers.CreateLabel(InfoView, "REQUIRED MATERIALS", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14)
+	ReqTitle.Position = UDim2.new(0, 10, 0, 85); ReqTitle.TextXAlignment = Enum.TextXAlignment.Left; ReqTitle.Visible = false
 
 	local ReqList = Instance.new("Frame", InfoView)
-	ReqList.Size = UDim2.new(1, -40, 0, 200)
-	ReqList.Position = UDim2.new(0, 20, 0, 120)
+	ReqList.Size = UDim2.new(1, -20, 0, 150)
+	ReqList.Position = UDim2.new(0, 10, 0, 110)
 	ReqList.BackgroundTransparency = 1
 	local reqLayout = Instance.new("UIListLayout", ReqList); reqLayout.Padding = UDim.new(0, 8)
 
-	local CraftBtn, CraftStroke = CreateSharpButton(InfoView, "FORGE EQUIPMENT", UDim2.new(0.8, 0, 0, 50), Enum.Font.GothamBlack, 16)
+	reqLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		ReqList.Size = UDim2.new(1, -20, 0, reqLayout.AbsoluteContentSize.Y)
+		BlueprintPanel.Size = UDim2.new(1, -10, 0, 115 + reqLayout.AbsoluteContentSize.Y + 70)
+	end)
+
+	local CraftBtn, CraftStroke = CreateSharpButton(InfoView, "FORGE EQUIPMENT", UDim2.new(0.8, 0, 0, 45), Enum.Font.GothamBlack, 16)
 	CraftBtn.Position = UDim2.new(0.5, 0, 1, -15); CraftBtn.AnchorPoint = Vector2.new(0.5, 1); CraftBtn.Visible = false
-	CraftBtn.TextColor3 = Color3.fromRGB(225, 185, 60)
-	CraftStroke.Color = Color3.fromRGB(225, 185, 60)
+	CraftBtn.TextColor3 = Color3.fromRGB(225, 185, 60); CraftStroke.Color = Color3.fromRGB(225, 185, 60)
 
 	local MinigameView = Instance.new("Frame", BlueprintPanel)
 	MinigameView.Size = UDim2.new(1, 0, 1, 0)
 	MinigameView.BackgroundTransparency = 1
 	MinigameView.Visible = false
 
-	local mgTitle = UIHelpers.CreateLabel(MinigameView, "ACTIVE FORGE", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, Color3.fromRGB(255, 100, 100), 24)
+	local mgTitle = UIHelpers.CreateLabel(MinigameView, "ACTIVE FORGE", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, Color3.fromRGB(255, 100, 100), 20)
 	mgTitle.Position = UDim2.new(0, 0, 0, 20)
 
-	local mgInst = UIHelpers.CreateLabel(MinigameView, "Strike when the heat aligns perfectly. (0/3)", UDim2.new(1, 0, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 14)
+	local mgInst = UIHelpers.CreateLabel(MinigameView, "Strike when the heat aligns perfectly. (0/3)", UDim2.new(1, 0, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 12)
 	mgInst.Position = UDim2.new(0, 0, 0, 60)
 
 	local BarContainer, bcStroke = CreateGrimPanel(MinigameView)
-	BarContainer.Size = UDim2.new(0.85, 0, 0, 50)
+	BarContainer.Size = UDim2.new(0.85, 0, 0, 40)
 	BarContainer.Position = UDim2.new(0.5, 0, 0.45, 0)
 	BarContainer.AnchorPoint = Vector2.new(0.5, 0.5)
 
@@ -482,19 +463,16 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	Cursor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	Cursor.BorderSizePixel = 0
 
-	local StrikeBtn, StrikeStroke = CreateSharpButton(MinigameView, "STRIKE", UDim2.new(0.5, 0, 0, 60), Enum.Font.GothamBlack, 24)
+	local StrikeBtn, StrikeStroke = CreateSharpButton(MinigameView, "STRIKE", UDim2.new(0.6, 0, 0, 50), Enum.Font.GothamBlack, 20)
 	StrikeBtn.Position = UDim2.new(0.5, 0, 0.85, 0)
 	StrikeBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-	StrikeBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
-	StrikeStroke.Color = Color3.fromRGB(255, 85, 85)
+	StrikeBtn.TextColor3 = Color3.fromRGB(255, 85, 85); StrikeStroke.Color = Color3.fromRGB(255, 85, 85)
 
 	local selectedRecipeName = nil; local mgActive = false; local mgConn = nil; local strikes = 0; local totalAccuracy = 0; local currentTargetCenter = 0.5
 
 	local function ResetSweetSpot()
 		local w = 0.25; local p = math.random(10, 65) / 100 
-		SweetSpot.Position = UDim2.new(p, 0, 0, 0)
-		currentTargetCenter = p + (w / 2)
-		SweetSpot.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
+		SweetSpot.Position = UDim2.new(p, 0, 0, 0); currentTargetCenter = p + (w / 2); SweetSpot.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
 	end
 
 	local function EndMinigame()
@@ -507,12 +485,8 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 
 		mgInst.Text = "Forge Complete! Quality: <font color='#FFD700'>" .. string.upper(finalQuality) .. "</font>"
 		task.wait(1.5)
-		MinigameView.Visible = false
-		InfoView.Visible = true
-
-		if selectedRecipeName then
-			Network:WaitForChild("ForgeItem"):FireServer(selectedRecipeName, finalQuality)
-		end
+		MinigameView.Visible = false; InfoView.Visible = true
+		if selectedRecipeName then Network:WaitForChild("ForgeItem"):FireServer(selectedRecipeName, finalQuality) end
 	end
 
 	StrikeBtn.MouseButton1Click:Connect(function()
@@ -529,49 +503,29 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 			SweetSpot.BackgroundColor3 = Color3.fromRGB(255, 85, 85) 
 		end
 
-		totalAccuracy += accuracy
-		strikes += 1
+		totalAccuracy += accuracy; strikes += 1
 		mgInst.Text = "Strike when the heat aligns perfectly. (" .. strikes .. "/3)"
 
-		if strikes >= 3 then
-			EndMinigame()
-		else
-			mgActive = false
-			task.wait(0.4)
-			ResetSweetSpot()
-			mgActive = true
-		end
+		if strikes >= 3 then EndMinigame() else mgActive = false; task.wait(0.4); ResetSweetSpot(); mgActive = true end
 	end)
 
 	CraftBtn.MouseButton1Click:Connect(function()
-		if not CraftBtn.Active then return end
-		if not selectedRecipeName then return end
-
+		if not CraftBtn.Active or not selectedRecipeName then return end
 		local recipe = ItemData.ForgeRecipes[selectedRecipeName]
 		if not recipe then return end
 
-		-- MATERIAL VERIFICATION BEFORE GAME STARTS
 		local hasAllMats = true
 		for req, amt in pairs(recipe.ReqItems) do
 			local count = tonumber(player:GetAttribute(req:gsub("[^%w]", "") .. "Count")) or 0
 			if count < amt then hasAllMats = false; break end
 		end
-
 		local dews = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Dews") and player.leaderstats.Dews.Value or 0
 		if dews < recipe.DewCost then hasAllMats = false end
 
-		if not hasAllMats then
-			if NotificationManager then NotificationManager.Show("Insufficient Materials!", "Error") end
-			return
-		end
+		if not hasAllMats then if NotificationManager then NotificationManager.Show("Insufficient Materials!", "Error") end return end
 
-		InfoView.Visible = false
-		MinigameView.Visible = true
-		strikes = 0
-		totalAccuracy = 0
-		mgInst.Text = "Strike when the heat aligns perfectly. (0/3)"
-		ResetSweetSpot()
-		mgActive = true
+		InfoView.Visible = false; MinigameView.Visible = true; strikes = 0; totalAccuracy = 0; mgInst.Text = "Strike when the heat aligns perfectly. (0/3)"; ResetSweetSpot(); mgActive = true
+		BlueprintPanel.Size = UDim2.new(1, -10, 0, 300)
 
 		local t = 0
 		if mgConn then mgConn:Disconnect() end
@@ -579,11 +533,17 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 			if mgActive then
 				local speed = 1.8 + (strikes * 0.6) 
 				t += dt * speed
-				local pos = (math.sin(t) + 1) / 2
-				Cursor.Position = UDim2.new(pos, 0, 0.5, 0)
+				Cursor.Position = UDim2.new((math.sin(t) + 1) / 2, 0, 0.5, 0)
 			end
 		end)
 	end)
+
+	local RecipeList = Instance.new("Frame", fSplitContainer)
+	RecipeList.Size = UDim2.new(1, -10, 0, 180)
+	RecipeList.BackgroundTransparency = 1
+	RecipeList.LayoutOrder = 2
+	local rlLayout = Instance.new("UIListLayout", RecipeList); rlLayout.Padding = UDim.new(0, 8)
+	rlLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RecipeList.Size = UDim2.new(1, -10, 0, rlLayout.AbsoluteContentSize.Y) end)
 
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
 		local resItem = recipeData.Result
@@ -592,40 +552,51 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 		local rColor = CONFIG.RarityColors[rarity] or Color3.fromRGB(200,200,200)
 
 		local rBtn = Instance.new("TextButton", RecipeList)
-		rBtn.Size = UDim2.new(1, -10, 0, 50)
-		rBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-		rBtn.BorderSizePixel = 0
+		rBtn.Size = UDim2.new(1, 0, 0, 50)
+		rBtn.BackgroundTransparency = 1
 		rBtn.AutoButtonColor = false
 		rBtn.Text = ""
 
-		local rStrk = Instance.new("UIStroke", rBtn)
-		rStrk.Color = rColor
-		rStrk.Thickness = 2
-		rStrk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		local bgGlow = Instance.new("Frame", rBtn)
+		bgGlow.Size = UDim2.new(1, 0, 1, 0)
+		bgGlow.BackgroundColor3 = rColor
+		bgGlow.BorderSizePixel = 0
+		bgGlow.ZIndex = 1
+		local grad = Instance.new("UIGradient", bgGlow); grad.Rotation = 90; grad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.8) }
 
-		local rTitleLbl = UIHelpers.CreateLabel(rBtn, string.upper(rec), UDim2.new(1, -15, 0, 20), Enum.Font.GothamBlack, rColor, 13)
-		rTitleLbl.Position = UDim2.new(0, 10, 0, 8); rTitleLbl.TextXAlignment = Enum.TextXAlignment.Left; rTitleLbl.TextScaled = true
-		local tCon = Instance.new("UITextSizeConstraint", rTitleLbl); tCon.MaxTextSize = 13
+		local rTitleLbl = UIHelpers.CreateLabel(rBtn, string.upper(rec), UDim2.new(1, -15, 0, 20), Enum.Font.GothamBlack, rColor, 12)
+		rTitleLbl.Position = UDim2.new(0, 10, 0, 5); rTitleLbl.TextXAlignment = Enum.TextXAlignment.Left; rTitleLbl.ZIndex = 2
 
 		local rTagLbl = UIHelpers.CreateLabel(rBtn, "[" .. string.upper(rarity) .. "]", UDim2.new(1, -15, 0, 15), Enum.Font.GothamBold, Color3.fromRGB(200, 200, 200), 10)
-		rTagLbl.Position = UDim2.new(0, 10, 1, -22); rTagLbl.TextXAlignment = Enum.TextXAlignment.Left
+		rTagLbl.Position = UDim2.new(0, 10, 1, -20); rTagLbl.TextXAlignment = Enum.TextXAlignment.Left; rTagLbl.ZIndex = 2
 
-		rBtn.MouseEnter:Connect(function() rTitleLbl.TextColor3 = UIHelpers.Colors.Gold; rTagLbl.TextColor3 = UIHelpers.Colors.Gold; rStrk.Color = UIHelpers.Colors.Gold end)
-		rBtn.MouseLeave:Connect(function() rTitleLbl.TextColor3 = rColor; rTagLbl.TextColor3 = Color3.fromRGB(200, 200, 200); rStrk.Color = rColor end)
+		local rStrk = Instance.new("UIStroke", rBtn); rStrk.Color = rColor; rStrk.Thickness = 2; rStrk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+		rBtn.InputBegan:Connect(function() rTitleLbl.TextColor3 = UIHelpers.Colors.Gold; rTagLbl.TextColor3 = UIHelpers.Colors.Gold; rStrk.Color = UIHelpers.Colors.Gold end)
+		rBtn.InputEnded:Connect(function() rTitleLbl.TextColor3 = rColor; rTagLbl.TextColor3 = Color3.fromRGB(200, 200, 200); rStrk.Color = rColor end)
 
 		rBtn.MouseButton1Click:Connect(function()
 			selectedRecipeName = rec 
 			bpTitle.Text = string.upper(rec); bpTitle.TextColor3 = rColor
-			bpDesc.Text = "<font color='" .. ColorToHex(rColor) .. "'>[" .. rarity:upper() .. "]</font> " .. (resData and resData.Desc or "A high-tier piece of equipment forged from rare materials."); bpDesc.RichText = true
-			ReqTitle.Visible = true
-			CraftBtn.Visible = true
+			bpDesc.Text = "<font color='" .. ColorToHex(rColor) .. "'>[" .. rarity:upper() .. "]</font> " .. (resData and resData.Desc or "A piece of equipment forged from rare materials."); bpDesc.RichText = true
+			ReqTitle.Visible = true; CraftBtn.Visible = true
 
 			for _, c in ipairs(ReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 
 			local function MakeReq(matName, amt, hasAmt)
-				local rf, rs = CreateGrimPanel(ReqList)
-				rf.Size = UDim2.new(1, 0, 0, 25); rs.Color = hasAmt and UIHelpers.Colors.BorderMuted or Color3.fromRGB(150, 40, 40); rf.ZIndex = 103
-				local l = UIHelpers.CreateLabel(rf, amt .. "x " .. matName, UDim2.new(1, -20, 1, 0), Enum.Font.GothamBold, hasAmt and UIHelpers.Colors.TextWhite or Color3.fromRGB(255, 100, 100), 12)
+				local rf = Instance.new("Frame", ReqList)
+				rf.Size = UDim2.new(1, 0, 0, 25)
+				rf.BackgroundTransparency = 1
+				rf.ZIndex = 103
+
+				local reqBg = Instance.new("Frame", rf)
+				reqBg.Size = UDim2.new(1, 0, 1, 0)
+				reqBg.BackgroundColor3 = hasAmt and UIHelpers.Colors.BorderMuted or Color3.fromRGB(150, 40, 40)
+				reqBg.BackgroundTransparency = hasAmt and 0.5 or 0 -- Slightly faded if successful, solid red if missing
+				reqBg.BorderSizePixel = 0
+				local rGrad = Instance.new("UIGradient", reqBg); rGrad.Rotation = 90; rGrad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.7) }
+
+				local l = UIHelpers.CreateLabel(rf, amt .. "x " .. matName, UDim2.new(1, -10, 1, 0), Enum.Font.GothamBold, hasAmt and UIHelpers.Colors.TextWhite or Color3.fromRGB(255, 100, 100), 11)
 				l.Position = UDim2.new(0, 10, 0, 0); l.TextXAlignment = Enum.TextXAlignment.Left; l.ZIndex = 104
 			end
 
@@ -642,12 +613,137 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 			end
 
 			if hasAllMats then
-				CraftBtn.Active = true; CraftBtn.Text = "START FORGE MINIGAME"; CraftBtn.TextColor3 = rColor; CraftStroke.Color = rColor
+				CraftBtn.Active = true; CraftBtn.Text = "START FORGE"; CraftBtn.TextColor3 = rColor; CraftStroke.Color = rColor
 			else
 				CraftBtn.Active = false; CraftBtn.Text = "INSUFFICIENT MATERIALS"; CraftBtn.TextColor3 = Color3.fromRGB(100, 100, 100); CraftStroke.Color = Color3.fromRGB(50, 50, 60)
 			end
 		end)
 	end
+
+	-- ==========================================
+	-- 3. TITAN FUSION
+	-- ==========================================
+	local FusionTab = activeSubFrames["FUSION"]
+
+	local fTitle = UIHelpers.CreateLabel(FusionTab, "TITAN HYBRIDIZATION", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(170, 85, 255), 18)
+	fTitle.Position = UDim2.new(0, 0, 0, 0)
+
+	local fDesc = UIHelpers.CreateLabel(FusionTab, "Fuse two Pure Titans to create a Hybrid. Irreversible.", UDim2.new(1, -20, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12)
+	fDesc.Position = UDim2.new(0, 10, 0, 30)
+
+	local SlotContainer = Instance.new("Frame", FusionTab)
+	SlotContainer.Size = UDim2.new(1, 0, 0, 220)
+	SlotContainer.Position = UDim2.new(0.5, 0, 0.45, 0)
+	SlotContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+	SlotContainer.BackgroundTransparency = 1
+
+	local function CreateFusionSlot(pos, titleText, isResult)
+		local f = Instance.new("Frame", SlotContainer)
+		f.Size = UDim2.new(0, 100, 0, 100)
+		f.Position = pos
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.BackgroundTransparency = 1 
+
+		local fStroke = Instance.new("UIStroke", f)
+		fStroke.Color = Color3.fromRGB(70, 70, 80)
+		fStroke.Thickness = 2
+		fStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+		local t = UIHelpers.CreateLabel(f, titleText, UDim2.new(1, -10, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 10)
+		t.Position = UDim2.new(0, 5, 0, 5)
+		t.TextScaled = true; t.ZIndex = 2
+
+		if isResult then
+			local qLbl = UIHelpers.CreateLabel(f, "?", UDim2.new(1, 0, 1, -25), Enum.Font.GothamBlack, Color3.fromRGB(80, 70, 90), 40)
+			qLbl.Position = UDim2.new(0, 0, 0, 25); qLbl.ZIndex = 2
+			return f, t, qLbl, nil
+		end
+
+		local addBtn, addStroke = CreateSharpButton(f, "+", UDim2.new(0, 40, 0, 40), Enum.Font.GothamBlack, 20)
+		addBtn.Position = UDim2.new(0.5, 0, 0.5, 10); addBtn.AnchorPoint = Vector2.new(0.5, 0.5); addBtn.ZIndex = 2
+
+		local overBtn = Instance.new("TextButton", f)
+		overBtn.Size = UDim2.new(1, 0, 1, 0); overBtn.BackgroundTransparency = 1; overBtn.Text = ""; overBtn.ZIndex = 10
+		overBtn.InputBegan:Connect(function() fStroke.Color = UIHelpers.Colors.Gold; if addBtn.Visible then addStroke.Color = UIHelpers.Colors.Gold; addBtn.TextColor3 = UIHelpers.Colors.Gold end end)
+		overBtn.InputEnded:Connect(function() if t.TextColor3 ~= UIHelpers.Colors.TextMuted then fStroke.Color = t.TextColor3 else fStroke.Color = Color3.fromRGB(70, 70, 80) end; if addBtn.Visible then addStroke.Color = Color3.fromRGB(70, 70, 80); addBtn.TextColor3 = Color3.fromRGB(245, 245, 245) end end)
+
+		return f, t, addBtn, overBtn
+	end
+
+	local Slot1, Slot1Title, Slot1AddBtn, Slot1OverBtn = CreateFusionSlot(UDim2.new(0.22, 0, 0.25, 0), "ALPHA", false)
+	local Slot2, Slot2Title, Slot2AddBtn, Slot2OverBtn = CreateFusionSlot(UDim2.new(0.78, 0, 0.25, 0), "OMEGA", false)
+	local ResultSlot, ResultTitle, ResultLbl = CreateFusionSlot(UDim2.new(0.5, 0, 0.75, 0), "HYBRID", true)
+
+	local l1 = Instance.new("Frame", SlotContainer); l1.Size = UDim2.new(0, 80, 0, 4); l1.Position = UDim2.new(0.35, 0, 0.5, 0); l1.Rotation = 60; l1.AnchorPoint = Vector2.new(0.5, 0.5); l1.BackgroundColor3 = Color3.fromRGB(50, 40, 60); l1.BorderSizePixel = 0
+	local l2 = Instance.new("Frame", SlotContainer); l2.Size = UDim2.new(0, 80, 0, 4); l2.Position = UDim2.new(0.65, 0, 0.5, 0); l2.Rotation = -60; l2.AnchorPoint = Vector2.new(0.5, 0.5); l2.BackgroundColor3 = Color3.fromRGB(50, 40, 60); l2.BorderSizePixel = 0
+
+	local FuseBtn, FuseStroke = CreateSharpButton(FusionTab, "INITIATE FUSION (300K DEWS)", UDim2.new(0.8, 0, 0, 45), Enum.Font.GothamBlack, 14)
+	FuseBtn.Position = UDim2.new(0.5, 0, 1, -20); FuseBtn.AnchorPoint = Vector2.new(0.5, 1); FuseBtn.TextColor3 = Color3.fromRGB(170, 85, 255); FuseStroke.Color = Color3.fromRGB(170, 85, 255)
+
+	local PopupOverlay = Instance.new("Frame", MainFrame)
+	PopupOverlay.Size = UDim2.new(1, 0, 1, 0); PopupOverlay.BackgroundColor3 = Color3.new(0,0,0); PopupOverlay.BackgroundTransparency = 0.6; PopupOverlay.ZIndex = 50; PopupOverlay.Visible = false; PopupOverlay.Active = true
+	local PopupPanel, _ = CreateGrimPanel(PopupOverlay)
+	PopupPanel.Size = UDim2.new(0.9, 0, 0.8, 0); PopupPanel.Position = UDim2.new(0.5, 0, 0.5, 0); PopupPanel.AnchorPoint = Vector2.new(0.5, 0.5); PopupPanel.ZIndex = 51
+
+	local popTitle = UIHelpers.CreateLabel(PopupPanel, "SELECT A TITAN", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 16); popTitle.ZIndex = 52
+	local closeBtn, _ = CreateSharpButton(PopupPanel, "X", UDim2.new(0, 30, 0, 30), Enum.Font.GothamBlack, 14); closeBtn.Position = UDim2.new(1, -10, 0, 5); closeBtn.AnchorPoint = Vector2.new(1, 0); closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100); closeBtn.ZIndex = 52; closeBtn.MouseButton1Click:Connect(function() PopupOverlay.Visible = false end)
+
+	local TitanScroll = Instance.new("ScrollingFrame", PopupPanel)
+	TitanScroll.Size = UDim2.new(1, -20, 1, -60); TitanScroll.Position = UDim2.new(0, 10, 0, 50); TitanScroll.BackgroundTransparency = 1; TitanScroll.ScrollBarThickness = 6; TitanScroll.BorderSizePixel = 0; TitanScroll.ZIndex = 52
+	local tsLayout = Instance.new("UIListLayout", TitanScroll); tsLayout.Padding = UDim.new(0, 10); tsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() TitanScroll.CanvasSize = UDim2.new(0,0,0, tsLayout.AbsoluteContentSize.Y + 10) end)
+
+	local noTitansLbl = UIHelpers.CreateLabel(PopupPanel, "No Titans found in Vault.", UDim2.new(1, 0, 0, 50), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 14); noTitansLbl.Position = UDim2.new(0, 0, 0.5, 0); noTitansLbl.AnchorPoint = Vector2.new(0, 0.5); noTitansLbl.ZIndex = 52
+
+	local selectedAlpha, selectedOmega, activeSlotIndex = nil, nil, 1
+
+	local function UpdateFusionUI()
+		local function updateSlot(slotData, titleLbl, addBtn, strk, defaultTitle)
+			if slotData then
+				local tName = slotData.Name; local tData = TitanData.Titans[tName]; local rarity = tData and tData.Rarity or "Common"; local rColor = CONFIG.RarityColors[rarity] or Color3.fromRGB(200,200,200)
+				titleLbl.Text = string.upper(tName); titleLbl.TextColor3 = rColor; addBtn.Visible = false; strk.Color = rColor
+			else
+				titleLbl.Text = defaultTitle; titleLbl.TextColor3 = UIHelpers.Colors.TextMuted; addBtn.Visible = true; strk.Color = Color3.fromRGB(70, 70, 80)
+			end
+		end
+
+		updateSlot(selectedAlpha, Slot1Title, Slot1AddBtn, Slot1:FindFirstChild("UIStroke"), "SUBJECT ALPHA")
+		updateSlot(selectedOmega, Slot2Title, Slot2AddBtn, Slot2:FindFirstChild("UIStroke"), "SUBJECT OMEGA")
+
+		if selectedAlpha and selectedOmega then
+			l1.BackgroundColor3 = Color3.fromRGB(170, 85, 255); l2.BackgroundColor3 = Color3.fromRGB(170, 85, 255); ResultLbl.TextColor3 = Color3.fromRGB(170, 85, 255); ResultSlot:FindFirstChild("UIStroke").Color = Color3.fromRGB(170, 85, 255)
+		else
+			l1.BackgroundColor3 = Color3.fromRGB(50, 40, 60); l2.BackgroundColor3 = Color3.fromRGB(50, 40, 60); ResultLbl.TextColor3 = Color3.fromRGB(80, 70, 90); ResultSlot:FindFirstChild("UIStroke").Color = Color3.fromRGB(70, 70, 80)
+		end
+	end
+
+	local function OpenTitanSelection(slotId)
+		activeSlotIndex = slotId; PopupOverlay.Visible = true
+		for _, c in ipairs(TitanScroll:GetChildren()) do if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end end
+
+		local foundAny = false
+		for i = 1, 6 do
+			local tName = player:GetAttribute("Titan_Slot" .. i)
+			if tName and tName ~= "" and tName ~= "None" then
+				if (slotId == 1 and selectedOmega and selectedOmega.Slot == i) or (slotId == 2 and selectedAlpha and selectedAlpha.Slot == i) then continue end
+				foundAny = true
+				local rarityColor = Color3.fromRGB(200, 200, 200)
+				if TitanData.Titans[tName] then rarityColor = CONFIG.RarityColors[TitanData.Titans[tName].Rarity] or rarityColor end
+
+				local tBtn, tBtnStroke = CreateSharpButton(TitanScroll, "SLOT " .. i .. ": " .. string.upper(tName), UDim2.new(1, -10, 0, 45), Enum.Font.GothamBlack, 12); tBtn.ZIndex = 53; tBtn.TextColor3 = rarityColor; tBtnStroke.Color = rarityColor
+				tBtn.MouseButton1Click:Connect(function() if activeSlotIndex == 1 then selectedAlpha = {Slot = i, Name = tName} else selectedOmega = {Slot = i, Name = tName} end; PopupOverlay.Visible = false; UpdateFusionUI() end)
+			end
+		end
+		noTitansLbl.Visible = not foundAny
+	end
+
+	Slot1OverBtn.MouseButton1Click:Connect(function() OpenTitanSelection(1) end)
+	Slot2OverBtn.MouseButton1Click:Connect(function() OpenTitanSelection(2) end)
+
+	FuseBtn.MouseButton1Click:Connect(function()
+		if not selectedAlpha or not selectedOmega then if NotificationManager then NotificationManager.Show("Requires two Subjects.", "Error") end return end
+		Network:WaitForChild("FuseTitan"):FireServer(selectedAlpha.Slot, selectedOmega.Slot)
+		selectedAlpha = nil; selectedOmega = nil; UpdateFusionUI()
+	end)
 end
 
 return MobileSupplyForgeTab
