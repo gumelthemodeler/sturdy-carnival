@@ -1,11 +1,11 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MusicManager
 -- @ScriptType: ModuleScript
 local MusicManager = {}
 
 local TweenService = game:GetService("TweenService")
 local SoundService = game:GetService("SoundService")
-local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- [[ ORGANIZE YOUR TRACKS HERE ]]
@@ -29,9 +29,8 @@ local TRACKS = {
 		139637448871564,
 		138932123500602
 	},
-	-- [[ NEW: Dynamic Enrage Phase Music! ]]
 	["BossEnrage"] = {
-		139637448871564, -- Intense, fast-paced choir/orchestral IDs
+		139637448871564, 
 		138932123500602 
 	}
 }
@@ -42,11 +41,13 @@ local FADE_TIME = 2.0
 local Player1 = Instance.new("Sound")
 Player1.Name = "BGM_Player_1"
 Player1.Volume = 0
+Player1.Looped = false
 Player1.Parent = SoundService
 
 local Player2 = Instance.new("Sound")
 Player2.Name = "BGM_Player_2"
 Player2.Volume = 0
+Player2.Looped = false
 Player2.Parent = SoundService
 
 local ActivePlayer = Player1
@@ -70,8 +71,7 @@ local function PlayNextTrack()
 	nextPlayer.SoundId = "rbxassetid://" .. tostring(nextTrackId)
 
 	task.spawn(function()
-		pcall(function() ContentProvider:PreloadAsync({nextPlayer}) end)
-
+		-- [[ THE FIX: Removed ContentProvider:PreloadAsync so the track plays immediately natively via streaming ]]
 		if nextPlayer.SoundId == "rbxassetid://" .. tostring(nextTrackId) then
 			nextPlayer:Play()
 			TweenService:Create(nextPlayer, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear), {Volume = TARGET_VOLUME}):Play()
@@ -108,13 +108,13 @@ function MusicManager.Initialize()
 
 	local Network = ReplicatedStorage:WaitForChild("Network")
 	local CombatUpdate = Network:WaitForChild("CombatUpdate")
+	local PvPUpdate = Network:FindFirstChild("PvPUpdate")
 
 	CombatUpdate.OnClientEvent:Connect(function(action, data)
 		if not data or not data.Battle then return end
 		local ctx = data.Battle.Context
 		local enemy = data.Battle.Enemy
 
-		-- [[ THE FIX: Adaptive Music shifting based on Boss HP! ]]
 		local hpRatio = (enemy.HP or 1) / (enemy.MaxHP or 1)
 		local isEnraged = enemy.IsBoss and hpRatio <= 0.30
 
@@ -130,6 +130,15 @@ function MusicManager.Initialize()
 			MusicManager.SetCategory(targetCat)
 		end
 	end)
+
+	-- Hook into PvP matches as well
+	if PvPUpdate then
+		PvPUpdate.OnClientEvent:Connect(function(action)
+			if action == "MatchStarted" or action == "SpectateStarted" then
+				MusicManager.SetCategory("Battle")
+			end
+		end)
+	end
 end
 
 return MusicManager
