@@ -1,6 +1,6 @@
 -- @ScriptType: ModuleScript
--- Name: AdminTab
 -- @ScriptType: ModuleScript
+-- Name: AdminTab
 local AdminTab = {}
 
 local Players = game:GetService("Players")
@@ -17,13 +17,59 @@ local playerBtns = {}
 local AdminCommand = Network:WaitForChild("AdminCommand")
 
 local CONFIG = {
-	Actions = {
-		{Name = "Modify Currency", Placeholders = {"Amount"}, BtnText = "SET DEWS", Color = "#FF88FF", Cmd = "SetDews"},
-		{Name = "Modify EXP", Placeholders = {"Amount"}, BtnText = "SET XP", Color = "#55FF55", Cmd = "SetXP"},
-		{Name = "Set Lineage", Placeholders = {"Clan Name"}, BtnText = "SET CLAN", Color = "#55AAFF", Cmd = "SetClan"},
-		{Name = "Set Titan", Placeholders = {"Titan Name"}, BtnText = "SET TITAN", Color = "#FF5555", Cmd = "SetTitan"},
-		{Name = "Give Item", Placeholders = {"Item Name", "Amount"}, BtnText = "GIVE ITEM", Color = "#FFD700", Cmd = "GiveItem"},
-		{Name = "Danger Zone", Placeholders = {}, BtnText = "WIPE PLAYER DATA", Color = "#FF0000", Cmd = "WipePlayer"}
+	Categories = {
+		{
+			Title = "CURRENCIES", Color = "#FFD700",
+			Actions = {
+				{Name = "Set Dews", Placeholders = {"Amount"}, BtnText = "SET", Cmd = "SetDews"},
+				{Name = "Set Player XP", Placeholders = {"Amount"}, BtnText = "SET", Cmd = "SetXP"},
+				{Name = "Set Titan XP", Placeholders = {"Amount"}, BtnText = "SET", Cmd = "SetTitanXP"},
+				{Name = "Set Prestige", Placeholders = {"Amount"}, BtnText = "SET", Cmd = "SetPrestige"},
+				{Name = "Set Elo Rating", Placeholders = {"Amount"}, BtnText = "SET", Cmd = "SetElo"}
+			}
+		},
+		{
+			Title = "BASE STATS", Color = "#55FF55",
+			Actions = {
+				{Name = "Set Health", Placeholders = {"Value"}, BtnText = "SET", Cmd = "SetHealth"},
+				{Name = "Set Gas Cap", Placeholders = {"Value"}, BtnText = "SET", Cmd = "SetGas"},
+				{Name = "Set Strength", Placeholders = {"Value"}, BtnText = "SET", Cmd = "SetStrength"},
+				{Name = "Set Defense", Placeholders = {"Value"}, BtnText = "SET", Cmd = "SetDefense"},
+				{Name = "Set Speed", Placeholders = {"Value"}, BtnText = "SET", Cmd = "SetSpeed"},
+				{Name = "Set Resolve", Placeholders = {"Value"}, BtnText = "SET", Cmd = "SetResolve"}
+			}
+		},
+		{
+			Title = "LOADOUT & INVENTORY", Color = "#55AAFF",
+			Actions = {
+				{Name = "Give Item/Material", Placeholders = {"Item Name", "Amount"}, BtnText = "GIVE", Cmd = "GiveItem"},
+				{Name = "Force Equip Weapon", Placeholders = {"Weapon Name"}, BtnText = "EQUIP", Cmd = "EquipWeapon"},
+				{Name = "Force Equip Accessory", Placeholders = {"Accessory Name"}, BtnText = "EQUIP", Cmd = "EquipAccessory"},
+				{Name = "Force Equip Skill", Placeholders = {"Slot (1-4)", "Skill Name"}, BtnText = "EQUIP", Cmd = "EquipSkill"}
+			}
+		},
+		{
+			Title = "PROGRESSION", Color = "#FF88FF",
+			Actions = {
+				{Name = "Set Story Part", Placeholders = {"Part #"}, BtnText = "SET", Cmd = "SetStoryPart"},
+				{Name = "Set Mission", Placeholders = {"Mission #"}, BtnText = "SET", Cmd = "SetMission"},
+			}
+		},
+		{
+			Title = "IDENTITY & BUFFS", Color = "#FF5555",
+			Actions = {
+				{Name = "Unlock Title", Placeholders = {"Title Name"}, BtnText = "UNLOCK", Cmd = "GiveTitle"},
+				{Name = "Set Lineage (Clan)", Placeholders = {"Clan Name"}, BtnText = "SET", Cmd = "SetClan"},
+				{Name = "Set Titan Shifter", Placeholders = {"Titan Name"}, BtnText = "SET", Cmd = "SetTitan"},
+				{Name = "Grant VIP Status", Placeholders = {"True/False"}, BtnText = "SET", Cmd = "SetVIP"},
+			}
+		},
+		{
+			Title = "DANGER ZONE", Color = "#FF0000",
+			Actions = {
+				{Name = "Wipe Data", Placeholders = {}, BtnText = "WIPE PROFILE", Cmd = "WipePlayer"}
+			}
+		}
 	}
 }
 
@@ -71,17 +117,17 @@ function AdminTab.Initialize(parentFrame)
 	-- LEFT SIDE: PLAYER LIST
 	-- ==========================================
 	local LeftPanel = Instance.new("Frame", SplitFrame)
-	LeftPanel.Size = UDim2.new(0.3, 0, 1, 0)
+	LeftPanel.Size = UDim2.new(0.25, 0, 1, 0)
 	LeftPanel.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 	Instance.new("UIStroke", LeftPanel).Color = Color3.fromRGB(45, 45, 50)
 	Instance.new("UICorner", LeftPanel).CornerRadius = UDim.new(0, 6)
 
-	local ListTitle = UIHelpers.CreateLabel(LeftPanel, "SERVER PLAYERS", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
-	ListTitle.Position = UDim2.new(0, 0, 0, 5)
+	local ListTitle = UIHelpers.CreateLabel(LeftPanel, "SERVER PLAYERS", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 16)
+	ListTitle.Position = UDim2.new(0, 0, 0, 10)
 
 	local PlayerScroll = Instance.new("ScrollingFrame", LeftPanel)
-	PlayerScroll.Size = UDim2.new(1, -10, 1, -40)
-	PlayerScroll.Position = UDim2.new(0, 5, 0, 35)
+	PlayerScroll.Size = UDim2.new(1, -10, 1, -50)
+	PlayerScroll.Position = UDim2.new(0, 5, 0, 45)
 	PlayerScroll.BackgroundTransparency = 1
 	PlayerScroll.ScrollBarThickness = 4
 	PlayerScroll.BorderSizePixel = 0
@@ -94,32 +140,32 @@ function AdminTab.Initialize(parentFrame)
 	-- RIGHT SIDE: ACTIONS
 	-- ==========================================
 	local RightPanel = Instance.new("Frame", SplitFrame)
-	RightPanel.Size = UDim2.new(0.7, -20, 1, 0)
+	RightPanel.Size = UDim2.new(0.75, -20, 1, 0)
 	RightPanel.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 	Instance.new("UIStroke", RightPanel).Color = Color3.fromRGB(45, 45, 50)
 	Instance.new("UICorner", RightPanel).CornerRadius = UDim.new(0, 6)
 
-	local ActionTitle = UIHelpers.CreateLabel(RightPanel, "SELECT A PLAYER", UDim2.new(1, -20, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(255, 255, 255), 18)
-	ActionTitle.Position = UDim2.new(0, 10, 0, 10)
+	local ActionTitle = UIHelpers.CreateLabel(RightPanel, "SELECT A PLAYER", UDim2.new(1, -40, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(255, 255, 255), 20)
+	ActionTitle.Position = UDim2.new(0, 20, 0, 10)
 	ActionTitle.TextXAlignment = Enum.TextXAlignment.Left
 
 	local ActionScroll = Instance.new("ScrollingFrame", RightPanel)
 	ActionScroll.Size = UDim2.new(1, -20, 1, -50)
 	ActionScroll.Position = UDim2.new(0, 10, 0, 45)
 	ActionScroll.BackgroundTransparency = 1
-	ActionScroll.ScrollBarThickness = 4
+	ActionScroll.ScrollBarThickness = 6
 	ActionScroll.BorderSizePixel = 0
 
 	local acLayout = Instance.new("UIListLayout", ActionScroll)
 	acLayout.Padding = UDim.new(0, 15)
 	acLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-	local function CreateActionRow(actionData)
+	local function CreateActionRow(actionData, hexColor)
 		local row = Instance.new("Frame", ActionScroll)
-		row.Size = UDim2.new(1, -10, 0, 40)
+		row.Size = UDim2.new(1, -20, 0, 40)
 		row.BackgroundTransparency = 1
 
-		local lbl = UIHelpers.CreateLabel(row, actionData.Name, UDim2.new(0, 140, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14)
+		local lbl = UIHelpers.CreateLabel(row, actionData.Name, UDim2.new(0, 160, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14)
 		lbl.TextXAlignment = Enum.TextXAlignment.Left
 
 		local layout = Instance.new("UIListLayout", row)
@@ -134,25 +180,32 @@ function AdminTab.Initialize(parentFrame)
 			table.insert(inputBoxes, box)
 		end
 
-		local btn, stroke = UIHelpers.CreateButton(row, actionData.BtnText, UDim2.new(0, 130, 0, 30), Enum.Font.GothamBlack, 12)
-		btn.TextColor3 = Color3.fromHex(actionData.Color:gsub("#", ""))
-		stroke.Color = Color3.fromHex(actionData.Color:gsub("#", ""))
+		local btnColor = hexColor
+		if actionData.Color then btnColor = actionData.Color end
+
+		local btn, stroke = UIHelpers.CreateButton(row, actionData.BtnText, UDim2.new(0, 120, 0, 30), Enum.Font.GothamBlack, 12)
+		btn.TextColor3 = Color3.fromHex(btnColor:gsub("#", ""))
+		stroke.Color = Color3.fromHex(btnColor:gsub("#", ""))
 
 		btn.MouseButton1Click:Connect(function()
 			if not selectedPlayerName then return end
 			local args = {}
 			for _, box in ipairs(inputBoxes) do table.insert(args, box.Text) end
-
-			if actionData.Cmd == "GiveItem" then
-				AdminCommand:FireServer("GiveItem", selectedPlayerName, {Item = args[1], Amount = args[2]})
-			else
-				AdminCommand:FireServer(actionData.Cmd, selectedPlayerName, unpack(args))
-			end
+			AdminCommand:FireServer(actionData.Cmd, selectedPlayerName, unpack(args))
 		end)
 	end
 
-	for _, act in ipairs(CONFIG.Actions) do
-		CreateActionRow(act)
+	for _, category in ipairs(CONFIG.Categories) do
+		local catTitle = UIHelpers.CreateLabel(ActionScroll, category.Title, UDim2.new(1, -20, 0, 30), Enum.Font.GothamBlack, Color3.fromHex(category.Color:gsub("#","")), 18)
+		catTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+		for _, act in ipairs(category.Actions) do
+			CreateActionRow(act, category.Color)
+		end
+
+		local spacer = Instance.new("Frame", ActionScroll)
+		spacer.Size = UDim2.new(1, -20, 0, 5)
+		spacer.BackgroundTransparency = 1
 	end
 
 	acLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() ActionScroll.CanvasSize = UDim2.new(0, 0, 0, acLayout.AbsoluteContentSize.Y + 10) end)
