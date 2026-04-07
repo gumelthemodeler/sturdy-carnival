@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: CombatCore
 -- @ScriptType: ModuleScript
 local CombatCore = {}
@@ -53,7 +54,6 @@ function CombatCore.TickStatuses(combatant)
 		local immunitiesToAdd = {}
 
 		for sName, duration in pairs(combatant.Statuses) do
-			-- [[ THE FIX: Removed SynergyMark_ from the skip list so it correctly expires after 2 turns! ]]
 			if sName == "Transformed" or sName == "Telegraphing" or sName == "Enraged" then
 				continue
 			end
@@ -110,13 +110,14 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
 	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
+	-- [[ THE FIX: Heavily nerfed Titan Stat Scaling (Divided by 80 instead of 35) to prevent 20k damage 1-shots ]]
 	if attacker.IsPlayer and isAttackerTransformed then
 		local titanPower = tonumber(attacker.PlayerObj:GetAttribute("Titan_Power_Val")) or 10
-		atkBuff = atkBuff * (1.0 + (titanPower / 35.0))
+		atkBuff = atkBuff * (1.0 + (titanPower / 80.0))
 	end
 	if defender.IsPlayer and isDefenderTransformed then
 		local titanHardening = tonumber(defender.PlayerObj:GetAttribute("Titan_Hardening_Val")) or 10
-		defBuff = defBuff * (1.0 + (titanHardening / 35.0))
+		defBuff = defBuff * (1.0 + (titanHardening / 80.0))
 	end
 
 	if terrain == "Caverns" then
@@ -158,7 +159,8 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 
 	if armorPen > 0 then effectiveDefense = effectiveDefense * math.max(0.1, 1.0 - armorPen) end
 
-	effectiveAttack = attacker.IsPlayer and (effectiveAttack * 4) or (effectiveAttack * 2.5)
+	-- [[ THE FIX: Player multiplier reduced heavily when transformed to balance the extreme raw base stats ]]
+	effectiveAttack = attacker.IsPlayer and (effectiveAttack * (isAttackerTransformed and 1.5 or 2.5)) or (effectiveAttack * 2.0)
 
 	local mitigationFactor = 250 / (250 + effectiveDefense)
 
@@ -171,7 +173,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	elseif targetLimb == "Legs" or targetLimb == "Arms" then baseDmg = baseDmg * 0.5
 	elseif targetLimb == "Eyes" then baseDmg = baseDmg * 0.2 end
 
-	-- CO-OP SYNERGY MULTIPLIER
 	local synergyOwner = defender.SynergyOwners and defender.SynergyOwners[targetLimb]
 	if defender.Statuses and defender.Statuses["SynergyMark_" .. targetLimb] then
 		if attacker.IsPlayer and synergyOwner ~= attacker.PlayerObj.UserId then
@@ -179,9 +180,7 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		end
 	end
 
-	if defender.IsBoss and isAttackerTransformed then
-		baseDmg = baseDmg * 0.50 
-	end
+	if defender.IsBoss and isAttackerTransformed then baseDmg = baseDmg * 0.50 end
 
 	if defender.Name == "Abyssal Armored Titan" then
 		local aStyle = tostring(attacker.Style or "None")
@@ -191,7 +190,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	end
 
 	baseDmg = baseDmg * (math.random(90, 110) / 100)
-
 	return math.max(1, math.floor(baseDmg))
 end
 
@@ -255,7 +253,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if attacker.Cooldowns then attacker.Cooldowns[skillName] = 0 end 
 	end
 
-	-- [[ THE FIX: Check if the last used skill meets the ComboReq ]]
 	local isSequenceCombo = false; local comboMult = 1.0
 	local lastAtkSkill = tostring(attacker.LastSkill or "None")
 	if skill.ComboReq and lastAtkSkill == skill.ComboReq then 
@@ -330,9 +327,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 	local hitsToDo = tonumber(skill.Hits) or 1; local hitLogs = {}; local didHitAtAll = false; local overallShake = "None"
 
-	-- [[ THE FIX: Formatting the Golden Synergy Text ]]
 	local synergyTag = isSequenceCombo and " <font color='#FFD700'>[SYNERGY: " .. lastAtkSkill .. " -> " .. skillName .. "]</font>" or ""
-
 	local synergyOwner = defender.SynergyOwners and defender.SynergyOwners[targetLimb]
 	if defender.Statuses and defender.Statuses["SynergyMark_" .. targetLimb] and attacker.IsPlayer and synergyOwner ~= attacker.PlayerObj.UserId then
 		synergyTag = synergyTag .. " <font color='#55FFFF'><b>[CO-OP TAKEDOWN!]</b></font>"
@@ -377,7 +372,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if targetLimb == "Nape" and not targetCrip then dodgeChance = dodgeChance + 15 end
 
 		dodgeChance += dStats.DodgeBonus
-
 		if weather == "Rain" then dodgeChance += 15 end
 		if terrain == "Forest" and defender.IsPlayer and not isDefenderTransformed then dodgeChance += 20 end
 		if terrain == "Plains" and defender.IsPlayer and not isDefenderTransformed then dodgeChance -= 20 end
@@ -404,17 +398,24 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 			elseif string.find(titanNameCheck, "Female Titan") then dodgeChance = dodgeChance - 10 end
 		end
 
+		local effectLog = ""
+		local attackerHasSteam = attacker.GateType == "Steam" and (tonumber(attacker.GateHP) or 0) > 0
+
+		-- [[ THE FIX: Makes Doomsday/Colossal Steam dodgeable via the Maneuver skill! ]]
 		if skill.Unavoidable then 
-			if isDodging then dodgeChance = 60 else dodgeChance = 0 end
+			if isDodging and attackerHasSteam then
+				dodgeChance = 100 
+			elseif isDodging then 
+				dodgeChance = 60 
+			else 
+				dodgeChance = 0 
+			end
 		elseif isDodging then dodgeChance = 100 
 		elseif not defender.IsPlayer then dodgeChance = math.clamp(dodgeChance, 0, 20)
 		else dodgeChance = math.clamp(dodgeChance, 0, 75) end
 
-		local effectLog = ""
-
 		if isDodging and defender.Statuses and (tonumber(defender.Statuses.Immobilized) or 0) > 0 then
-			dodgeChance = 0
-			isDodging = false
+			dodgeChance = 0; isDodging = false
 			effectLog = effectLog .. " <font color='#FF5555'>[IMMOBILIZED: Dodge Failed!]</font>"
 		end
 
@@ -465,17 +466,13 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 		if defender.Name == "Abyssal Armored Titan" and attacker.IsPlayer then
 			local aStyle = tostring(attacker.Style or "None")
-			local isAttackerTransformedCheck = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
-			if not isAttackerTransformedCheck and (aStyle == "Ultrahard Steel Blades" or aStyle == "None") then
+			if not isAttackerTransformed and (aStyle == "Ultrahard Steel Blades" or aStyle == "None") then
 				effectLog = effectLog .. " <font color='#555555'>[BLADES DEFLECTED: Minimal Damage!]</font>"
 			end
 		end
 
-		if skill.Effect == "CloseGap" then
-			effectLog = effectLog .. " <font color='#55AAFF'>[CLOSED DISTANCE]</font>"
-		elseif skill.Effect == "FallBack" then
-			effectLog = effectLog .. " <font color='#FFAA55'>[RETREATED]</font>"
-		end
+		if skill.Effect == "CloseGap" then effectLog = effectLog .. " <font color='#55AAFF'>[CLOSED DISTANCE]</font>"
+		elseif skill.Effect == "FallBack" then effectLog = effectLog .. " <font color='#FFAA55'>[RETREATED]</font>" end
 
 		if skill.Effect and skill.Effect ~= "None" and skill.Effect ~= "Block" and skill.Effect ~= "Dodge" and skill.Effect ~= "Rest" and skill.Effect ~= "Flee" and skill.Effect ~= "Transform" and skill.Effect ~= "Eject" and skill.Effect ~= "TitanRest" and skill.Effect ~= "FallBack" and skill.Effect ~= "CloseGap" then
 			if not defender.Statuses then defender.Statuses = {} end
@@ -495,7 +492,17 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 				local isBossImmune = (defender.IsBoss and defender.Statuses and defender.Statuses["Telegraphing"]) or (defender.Statuses and defender.Statuses["Enraged"])
 
-				if isBossImmune and (safeEffect == "Stun" or safeEffect == "Bleed" or safeEffect == "Blinded" or safeEffect == "TrueBlind" or safeEffect == "Crippled" or safeEffect == "Weakened") then
+				-- [[ THE FIX: Shroud Immunity ]]
+				local isShroudImmune = false
+				if safeEffect == "Stun" and defender.IsPlayer then
+					local acc = defender.PlayerObj:GetAttribute("EquippedAccessory")
+					if acc and acc:find("Shroud") then isShroudImmune = true end
+				end
+
+				if isShroudImmune then
+					effectLog = effectLog .. " <font color='#888888'>[SHROUD: STUN IMMUNE]</font>"
+					appliedThisStrike[safeEffect] = true
+				elseif isBossImmune and (safeEffect == "Stun" or safeEffect == "Bleed" or safeEffect == "Blinded" or safeEffect == "TrueBlind" or safeEffect == "Crippled" or safeEffect == "Weakened") then
 					effectLog = effectLog .. " <font color='#FF0000'>[BOSS IMMUNE]</font>"
 					appliedThisStrike[safeEffect] = true
 				elseif isArmored and (safeEffect == "Stun" or safeEffect == "Bleed" or safeEffect == "Blinded" or safeEffect == "TrueBlind" or safeEffect == "Crippled" or safeEffect == "Weakened") then
@@ -626,7 +633,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		table.insert(hitLogs, hitMsg)
 	end
 
-	-- [[ THE FIX: Placing Co-Op Marks ]]
 	if attacker.IsPlayer and didHitAtAll then
 		if not defender.Statuses then defender.Statuses = {} end
 		if not defender.SynergyOwners then defender.SynergyOwners = {} end
@@ -650,9 +656,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		end
 	end
 
-	-- [[ THE FIX: Actually updating LastSkill for Personal Sequence Combos ]]
 	attacker.LastSkill = skillName
-
 	return finalMsg, didHitAtAll, overallShake
 end
 
