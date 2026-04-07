@@ -32,9 +32,8 @@ end
 function MobileExpeditionsTab.Initialize(parentFrame)
 	for _, child in ipairs(parentFrame:GetChildren()) do if child:IsA("GuiObject") then child:Destroy() end end
 
-	-- [[ THE FIX: Split the layout into Top (Missions) and Bottom (Party) ]]
 	local TopContainer = Instance.new("Frame", parentFrame)
-	TopContainer.Size = UDim2.new(1, 0, 1, -120) -- Reserve bottom 120px for the Party Panel
+	TopContainer.Size = UDim2.new(1, 0, 1, -120)
 	TopContainer.Position = UDim2.new(0, 0, 0, 0)
 	TopContainer.BackgroundTransparency = 1
 
@@ -49,9 +48,6 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 	local masterLayout = Instance.new("UIListLayout", MasterScroll); masterLayout.SortOrder = Enum.SortOrder.LayoutOrder; masterLayout.Padding = UDim.new(0, 20); masterLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	local masterPad = Instance.new("UIPadding", MasterScroll); masterPad.PaddingTop = UDim.new(0, 15); masterPad.PaddingBottom = UDim.new(0, 30)
 
-	-- ==========================================
-	-- BOTTOM PANEL: STRIKE TEAM (PARTY SYSTEM)
-	-- ==========================================
 	local PartyPanel, _ = CreateGrimPanel(BottomContainer)
 	PartyPanel.Size = UDim2.new(0.95, 0, 1, 0)
 	PartyPanel.Position = UDim2.new(0.5, 0, 0, 0)
@@ -120,9 +116,6 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 	end
 	RenderPartyUI()
 
-	-- ==========================================
-	-- TOP PANEL: MISSIONS GRID
-	-- ==========================================
 	local MissionsPanel = Instance.new("Frame", MasterScroll)
 	MissionsPanel.Size = UDim2.new(1, 0, 0, 0); MissionsPanel.AutomaticSize = Enum.AutomaticSize.Y; MissionsPanel.BackgroundTransparency = 1; MissionsPanel.LayoutOrder = 2
 	local mpLayout = Instance.new("UIListLayout", MissionsPanel); mpLayout.SortOrder = Enum.SortOrder.LayoutOrder; mpLayout.Padding = UDim.new(0, 15)
@@ -193,6 +186,14 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 
 	local AFKPage = Instance.new("Frame", MissionsPanel); AFKPage.Size = UDim2.new(1, 0, 0, 600); AFKPage.BackgroundTransparency = 1; AFKPage.Visible = false; AFKPage.LayoutOrder = 2
 	Pages["AFK"] = AFKPage; AFKTab.Initialize(AFKPage, InitiateDeployment)
+	
+	local CloseAFKBtn = CreateSharpButton(parentFrame, "X", UDim2.new(0, 40, 0, 40), Enum.Font.GothamBlack, 18, "#FF5555")
+	CloseAFKBtn.Position = UDim2.new(1, -20, 0, 20)
+	CloseAFKBtn.AnchorPoint = Vector2.new(1, 0)
+	CloseAFKBtn.ZIndex = 100
+	CloseAFKBtn.MouseButton1Click:Connect(function()
+		parentFrame.Visible = false
+	end)
 
 	local NightmarePage = CreateSubPage("Nightmare")
 	local nIndex = 1
@@ -233,6 +234,15 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 		else QueueBtn.Text = "ENTER QUEUE"; QueueBtn.TextColor3 = UIHelpers.Colors.TextWhite; Network:WaitForChild("PvPAction"):FireServer("LeaveQueue") end
 	end)
 
+	-- [[ FIX: Automatically un-toggles the queue button if the server successfully matches them ]]
+	Network:WaitForChild("PvPUpdate").OnClientEvent:Connect(function(action)
+		if action == "MatchStarted" then
+			inQueue = false
+			QueueBtn.Text = "ENTER QUEUE"
+			QueueBtn.TextColor3 = UIHelpers.Colors.TextWhite
+		end
+	end)
+
 	local SpecHeader = Instance.new("Frame", PvPPage); SpecHeader.Size = UDim2.new(0.95, 0, 0, 30); SpecHeader.BackgroundTransparency = 1; SpecHeader.LayoutOrder = 2
 	local PvPMatchesTitle = UIHelpers.CreateLabel(SpecHeader, "ACTIVE SPECTATOR MATCHES", UDim2.new(0.7, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16); PvPMatchesTitle.TextXAlignment = Enum.TextXAlignment.Left
 	local RefreshBtn, _ = CreateSharpButton(SpecHeader, "REFRESH", UDim2.new(0, 80, 0, 24), Enum.Font.GothamBlack, 11); RefreshBtn.Position = UDim2.new(1, 0, 0.5, 0); RefreshBtn.AnchorPoint = Vector2.new(1, 0.5)
@@ -245,7 +255,7 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 		local loadingLbl = UIHelpers.CreateLabel(SpectateList, "Scanning for live matches...", UDim2.new(1, 0, 0, 50), Enum.Font.GothamBold, UIHelpers.Colors.Gold, 14)
 
 		task.spawn(function()
-			local matches = Network:WaitForChild("PvPAction"):InvokeServer("GetLiveMatches")
+			local matches = Network:WaitForChild("GetLiveMatches"):InvokeServer()
 			if loadingLbl and loadingLbl.Parent then loadingLbl:Destroy() end
 
 			if type(matches) ~= "table" or #matches == 0 then
