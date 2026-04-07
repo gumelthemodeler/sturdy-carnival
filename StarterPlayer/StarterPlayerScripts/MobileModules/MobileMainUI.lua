@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MobileMainUI
 -- @ScriptType: ModuleScript
 local MobileMainUI = {}
@@ -11,7 +12,7 @@ local MasterGui, MasterWindow, WindowScale, WindowTitle, CurrentOpenTab; local T
 local CONFIG = {
 	Icons = { Background = "rbxassetid://125800917140688", GameLogo = "rbxassetid://129999765135567", RegimentDefault = "rbxassetid://74069077964164" },
 	DockTabs = { {Id = "HOME", Icon = "rbxassetid://129528574378357"}, {Id = "PROFILE", Icon = "rbxassetid://106161709171988"}, {Id = "EXPEDITIONS", Icon = "rbxassetid://115407261158495"}, {Id = "SQUADS", Icon = "rbxassetid://111674249930782"}, {Id = "SUPPLY_FORGE", Icon = "rbxassetid://108619507999123"}, {Id = "REGIMENTS", Icon = "rbxassetid://74069077964164"} },
-	Currencies = { {Id = "XP", Prefix = "XP:", Color = "#55FF55"}, {Id = "TitanXP", Prefix = "T-XP:", Color = "#FF5555"}, {Id = "Dews", Prefix = "$:", Color = "#FF88FF"}, {Id = "Prestige", Prefix = "PR:", Color = "#FFD700"} }
+	Currencies = { {Id = "XP", Prefix = "XP:", Color = "#55FF55"}, {Id = "TitanXP", Prefix = "T-XP:", Color = "#FF5555"}, {Id = "Dews", Prefix = "DEWS:", Color = "#FF88FF"}, {Id = "Prestige", Prefix = "PR:", Color = "#FFD700"} }
 }
 
 local function FormatAbbreviation(value)
@@ -28,7 +29,6 @@ local function BuildMasterWindow()
 	MasterWindow = Instance.new("Frame", MasterGui); MasterWindow.Name = "MasterWindow"; MasterWindow.Size = UDim2.new(1, 0, 1, 0); MasterWindow.Position = UDim2.new(0, 0, 0, 0); MasterWindow.Visible = false; MasterWindow.BackgroundColor3 = Color3.fromRGB(15, 15, 18); MasterWindow.BorderSizePixel = 0
 	WindowScale = Instance.new("UIScale", MasterWindow); WindowScale.Scale = 0
 
-	-- [[ THE FIX: Header Increased to 42px. Currencies Enlarged. Fonts Switched to Gotham. ]]
 	local Header = Instance.new("Frame", MasterWindow); Header.Size = UDim2.new(1, 0, 0, 42); Header.BackgroundColor3 = Color3.fromRGB(12, 12, 15); Header.BorderSizePixel = 0; local headerStroke = Instance.new("UIStroke", Header); headerStroke.Color = Color3.fromRGB(45, 45, 50); headerStroke.Thickness = 1
 	WindowTitle = UIHelpers.CreateLabel(Header, "COMMAND CENTER", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14); WindowTitle.Position = UDim2.new(0, 15, 0, 0); WindowTitle.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -37,7 +37,6 @@ local function BuildMasterWindow()
 
 	local StatsContainer = Instance.new("Frame", Header); StatsContainer.Size = UDim2.new(0.65, 0, 1, 0); StatsContainer.Position = UDim2.new(1, -45, 0, 0); StatsContainer.AnchorPoint = Vector2.new(1, 0); StatsContainer.BackgroundTransparency = 1; local statLayout = Instance.new("UIListLayout", StatsContainer); statLayout.FillDirection = Enum.FillDirection.Horizontal; statLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right; statLayout.VerticalAlignment = Enum.VerticalAlignment.Center; statLayout.Padding = UDim.new(0, 8)
 
-	-- [[ THE FIX: Bigger top boxes, more readable text ]]
 	local function CreateTopBox(prefix, hexColor)
 		local box = Instance.new("Frame", StatsContainer); box.Size = UDim2.new(0, 95, 0, 26); box.BackgroundColor3 = Color3.fromRGB(18, 18, 22); box.BorderSizePixel = 0; local bStroke = Instance.new("UIStroke", box); bStroke.Color = Color3.fromRGB(50, 50, 60); bStroke.Thickness = 1; bStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
 		local vLbl = UIHelpers.CreateLabel(box, prefix .. " 0", UDim2.new(1, -8, 1, 0), Enum.Font.GothamBlack, Color3.fromHex(hexColor:gsub("#","")), 13); vLbl.Position = UDim2.new(0.5, 0, 0.5, 0); vLbl.AnchorPoint = Vector2.new(0.5, 0.5); vLbl.TextXAlignment = Enum.TextXAlignment.Center; vLbl.TextScaled = true; local vCon = Instance.new("UITextSizeConstraint", vLbl); vCon.MaxTextSize = 13; return vLbl
@@ -59,21 +58,109 @@ local function BuildMasterWindow()
 	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS"}; if isAdmin then table.insert(tabs, "ADMIN") end
 	for _, tabName in ipairs(tabs) do local tabFrame = Instance.new("Frame", ContentArea); tabFrame.Name = tabName; tabFrame.Size = UDim2.new(1, 0, 1, 0); tabFrame.BackgroundTransparency = 1; tabFrame.Visible = false; TabContainers[tabName] = tabFrame end
 
+	-- ==========================================
+	-- HOME TAB INJECTION (MOBILE)
+	-- ==========================================
 	local hTab = TabContainers["HOME"]
-	local homeLbl = UIHelpers.CreateLabel(hTab, "WELCOME TO THE VANGUARD", UDim2.new(1,0,1,0), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 22); homeLbl.Position = UDim2.new(0, 0, -0.1, 0)
-	local homeSub = UIHelpers.CreateLabel(hTab, "Select a protocol from the console below to deploy.", UDim2.new(1,0,1,0), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 13)
+
+	local HomeScroll = Instance.new("ScrollingFrame", hTab)
+	HomeScroll.Size = UDim2.new(1, -20, 1, -10)
+	HomeScroll.Position = UDim2.new(0, 10, 0, 5)
+	HomeScroll.BackgroundTransparency = 1
+	HomeScroll.ScrollBarThickness = 4
+	HomeScroll.BorderSizePixel = 0
+
+	local hsLayout = Instance.new("UIListLayout", HomeScroll)
+	hsLayout.Padding = UDim.new(0, 10)
+	hsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	hsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() HomeScroll.CanvasSize = UDim2.new(0, 0, 0, hsLayout.AbsoluteContentSize.Y + 20) end)
+
+	local ChangeLogBox = Instance.new("Frame", HomeScroll)
+	ChangeLogBox.Size = UDim2.new(1, 0, 0, 150)
+	ChangeLogBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+	local clStroke = Instance.new("UIStroke", ChangeLogBox)
+	clStroke.Color = Color3.fromRGB(70, 70, 80); clStroke.Thickness = 2
+
+	local clTitle = UIHelpers.CreateLabel(ChangeLogBox, "CHANGELOG & CODES", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
+	clTitle.Position = UDim2.new(0, 10, 0, 5); clTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+	local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.5.0 - The Global Update</b>\n\n• Added Strike Squads & Global Leaderboards.\n• Overhauled Market & Forge UI.\n• Hero Menu Integration.\n\n<b>ACTIVE CODES:</b>\n[MULTIPLAYERPART2]\n[NIGHTMAREMODE]\n[BUGFIX]", UDim2.new(1, -20, 1, -30), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11)
+	clText.Position = UDim2.new(0, 10, 0, 25); clText.TextXAlignment = Enum.TextXAlignment.Left; clText.TextYAlignment = Enum.TextYAlignment.Top; clText.RichText = true; clText.TextWrapped = true
+
+	local LeaderboardBox = Instance.new("Frame", HomeScroll)
+	LeaderboardBox.Size = UDim2.new(1, 0, 0, 300)
+	LeaderboardBox.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+	local lbStroke = Instance.new("UIStroke", LeaderboardBox)
+	lbStroke.Color = Color3.fromRGB(70, 70, 80); lbStroke.Thickness = 2
+
+	local lbHeader = UIHelpers.CreateLabel(LeaderboardBox, "GLOBAL LEADERBOARDS", UDim2.new(1, -20, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16)
+	lbHeader.Position = UDim2.new(0, 10, 0, 5); lbHeader.TextXAlignment = Enum.TextXAlignment.Left
+
+	local LbNav = Instance.new("Frame", LeaderboardBox)
+	LbNav.Size = UDim2.new(1, -20, 0, 30); LbNav.Position = UDim2.new(0, 10, 0, 30); LbNav.BackgroundTransparency = 1
+	local lnLayout = Instance.new("UIListLayout", LbNav); lnLayout.FillDirection = Enum.FillDirection.Horizontal; lnLayout.Padding = UDim.new(0, 5)
+
+	local LbScroll = Instance.new("ScrollingFrame", LeaderboardBox)
+	LbScroll.Size = UDim2.new(1, -20, 1, -70); LbScroll.Position = UDim2.new(0, 10, 0, 65); LbScroll.BackgroundTransparency = 1; LbScroll.ScrollBarThickness = 4; LbScroll.BorderSizePixel = 0
+	local lsLayout = Instance.new("UIListLayout", LbScroll); lsLayout.Padding = UDim.new(0, 5)
+
+	local lbTabs = {"PRESTIGE", "ELO", "CP"}
+	local lbBtns = {}
+
+	local function FetchLeaderboard(typeKey)
+		for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+		for k, v in pairs(lbBtns) do v.Btn.TextColor3 = (k == typeKey) and UIHelpers.Colors.Gold or UIHelpers.Colors.TextMuted; v.Stroke.Color = (k == typeKey) and UIHelpers.Colors.Gold or UIHelpers.Colors.BorderMuted end
+
+		task.spawn(function()
+			local data = {}
+			if typeKey == "CP" then data = Network:WaitForChild("GetSquadLeaderboard"):InvokeServer()
+			else
+				local rawKey = (typeKey == "ELO") and "Elo" or "Prestige"
+				data = Network:WaitForChild("GetLeaderboardData"):InvokeServer(rawKey)
+			end
+
+			if data then
+				for i, entry in ipairs(data) do
+					local card = Instance.new("Frame", LbScroll); card.Size = UDim2.new(1, -10, 0, 35); card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+					local cStroke = Instance.new("UIStroke", card); cStroke.Color = UIHelpers.Colors.BorderMuted
+					local cColor = (i==1) and UIHelpers.Colors.Gold or ((i==2) and Color3.fromRGB(200, 200, 200) or UIHelpers.Colors.TextWhite)
+
+					local rLbl = UIHelpers.CreateLabel(card, "#" .. entry.Rank, UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, cColor, 12)
+					local nLbl = UIHelpers.CreateLabel(card, entry.Name, UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, cColor, 12); nLbl.Position = UDim2.new(0, 35, 0, 0); nLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+					local valText = (typeKey == "CP") and (entry.CP .. " CP") or tostring(entry.Value)
+					local vLbl = UIHelpers.CreateLabel(card, valText, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 11)
+					vLbl.Position = UDim2.new(1, -5, 0, 0); vLbl.AnchorPoint = Vector2.new(1, 0); vLbl.TextXAlignment = Enum.TextXAlignment.Right
+				end
+				LbScroll.CanvasSize = UDim2.new(0, 0, 0, lsLayout.AbsoluteContentSize.Y + 10)
+			end
+		end)
+	end
+
+	for _, tName in ipairs(lbTabs) do
+		local btn = Instance.new("TextButton", LbNav); btn.Size = UDim2.new(0, 80, 1, 0); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Font = Enum.Font.GothamBold; btn.Text = tName; btn.TextSize = 10
+		local strk = Instance.new("UIStroke", btn)
+		lbBtns[tName] = {Btn = btn, Stroke = strk}
+		btn.MouseButton1Click:Connect(function() FetchLeaderboard(tName) end)
+	end
+	FetchLeaderboard("PRESTIGE")
 
 	local function SafeLoad(mobileName, pcName, tabKey)
 		task.spawn(function() local mod; if MobileModules:FindFirstChild(mobileName) then mod = require(MobileModules[mobileName]) else mod = require(UIModules:WaitForChild(pcName)) end; if mod and mod.Initialize then mod.Initialize(TabContainers[tabKey]) end end)
 	end
-	SafeLoad("MobileHeroMenu", "HeroMenu", "PROFILE"); SafeLoad("MobileExpeditionsTab", "ExpeditionsTab", "EXPEDITIONS"); SafeLoad("MobileSupplyForgeTab", "SupplyForgeTab", "SUPPLY_FORGE"); SafeLoad("SquadsTab", "SquadsTab", "SQUADS"); SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
+
+	SafeLoad("MobileHeroMenu", "HeroMenu", "PROFILE"); 
+	SafeLoad("MobileExpeditionsTab", "ExpeditionsTab", "EXPEDITIONS"); 
+	SafeLoad("MobileSupplyForgeTab", "SupplyForgeTab", "SUPPLY_FORGE"); 
+	SafeLoad("MobileSquadsTab", "SquadsTab", "SQUADS"); 
+	SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
 	if isAdmin then task.spawn(function() local AdminMod = require(UIModules:WaitForChild("AdminTab")); if AdminMod.Initialize then AdminMod.Initialize(TabContainers["ADMIN"]) end end) end
 end
 
 local function OpenMasterTab(tabName, displayTitle)
 	if CurrentOpenTab == tabName and MasterWindow.Visible then CurrentOpenTab = nil; local t = TweenService:Create(WindowScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0}); t:Play(); t.Completed:Wait(); MasterWindow.Visible = false; return end
 	for name, frame in pairs(TabContainers) do frame.Visible = (name == tabName) end
-	CurrentOpenTab = tabName; local titles = { HOME = "COMMAND CENTER", PROFILE = "OPERATIVE", EXPEDITIONS = "COMBAT", SQUADS = "SQUADS", SUPPLY_FORGE = "MARKET & FORGE", REGIMENTS = "REGIMENTS", ADMIN = "DEBUG" }; if WindowTitle then WindowTitle.Text = titles[tabName] or tabName end
+	CurrentOpenTab = tabName; local titles = { HOME = "COMMAND CENTER", PROFILE = "OPERATIVE", EXPEDITIONS = "COMBAT", SQUADS = "STRIKE SQUADS COMMAND", SUPPLY_FORGE = "MARKET & FORGE", REGIMENTS = "REGIMENTS", ADMIN = "DEBUG" }; if WindowTitle then WindowTitle.Text = titles[tabName] or tabName end
 	if not MasterWindow.Visible then MasterWindow.Visible = true; TweenService:Create(WindowScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end
 end
 
