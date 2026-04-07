@@ -34,8 +34,9 @@ local REG_COLORS = { ["Garrison"] = "#FF5555", ["Military Police"] = "#55FF55", 
 
 local UnlockedCosmeticsCache = { Titles = {}, Auras = {} }
 local CosmeticUIUpdaters = {}
+local InitialCachePopulated = false
 
--- [[ THE FIX: Suppress notifications entirely until DataLoaded is true ]]
+-- [[ THE FIX: Silently populates cache on load, only notifies on NEW unlocks ]]
 local function EvaluateCosmetics()
 	if type(CosmeticData.CheckUnlock) ~= "function" then return end
 	local isFullyLoaded = player:GetAttribute("DataLoaded") == true
@@ -45,8 +46,7 @@ local function EvaluateCosmetics()
 		if meetsReq and not UnlockedCosmeticsCache.Titles[key] then
 			UnlockedCosmeticsCache.Titles[key] = true
 
-			-- Only show the notification if their profile has finished loading
-			if isFullyLoaded and NotificationManager and type(NotificationManager.Show) == "function" then 
+			if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then 
 				NotificationManager.Show("New Title Unlocked: " .. data.Name, "Success") 
 			end
 		end
@@ -57,17 +57,21 @@ local function EvaluateCosmetics()
 		if meetsReq and not UnlockedCosmeticsCache.Auras[key] then
 			UnlockedCosmeticsCache.Auras[key] = true
 
-			-- Only show the notification if their profile has finished loading
-			if isFullyLoaded and NotificationManager and type(NotificationManager.Show) == "function" then 
+			if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then 
 				NotificationManager.Show("New Aura Unlocked: " .. data.Name, "Success") 
 			end
 		end
 	end
 
+	if isFullyLoaded then InitialCachePopulated = true end
+
 	for _, updater in ipairs(CosmeticUIUpdaters) do 
 		if type(updater) == "function" then updater() end 
 	end
 end
+
+-- Instantly evaluate silently on boot to populate the cache
+EvaluateCosmetics()
 
 -- Instantly evaluate silently on boot to populate the cache
 EvaluateCosmetics()
