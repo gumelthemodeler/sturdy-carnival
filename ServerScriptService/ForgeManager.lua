@@ -111,7 +111,8 @@ FuseTitan.OnServerEvent:Connect(function(player, baseSlot, sacSlot)
 	if not validSlots[tostring(baseSlot)] or not validSlots[tostring(sacSlot)] then return end
 
 	local dews = player.leaderstats.Dews.Value
-	if dews >= 250000 then
+	-- [[ THE FIX: Synchronized to 300,000 Dews ]]
+	if dews >= 300000 then
 		local baseAttr = (baseSlot == "Equipped") and "Titan" or ("Titan_Slot" .. baseSlot)
 		local sacAttr = (sacSlot == "Equipped") and "Titan" or ("Titan_Slot" .. sacSlot)
 
@@ -120,17 +121,16 @@ FuseTitan.OnServerEvent:Connect(function(player, baseSlot, sacSlot)
 		local result = FusionRecipes[baseTitan] and FusionRecipes[baseTitan][sacTitan]
 
 		if result then
-			player.leaderstats.Dews.Value -= 250000
+			player.leaderstats.Dews.Value -= 300000
 			player:SetAttribute(baseAttr, result)
 			player:SetAttribute(sacAttr, "None")
 
-			-- [[ THE FIX: Trigger the massive UI Cinematic! ]]
 			FusionComplete:FireClient(player, result)
 		else
 			NotificationEvent:FireClient(player, "Invalid Fusion combination.", "Error")
 		end
 	else
-		NotificationEvent:FireClient(player, "Not enough Dews to fuse!", "Error")
+		NotificationEvent:FireClient(player, "Not enough Dews to fuse! Requires 300,000.", "Error")
 	end
 end)
 
