@@ -11,14 +11,6 @@ local BackupDataStore = DataStoreService:GetDataStore("AoT_Backups_V1")
 local RemotesFolder = ReplicatedStorage:WaitForChild("Network")
 
 local ActiveCodes = { 
-	["MULTIPLAYERPART2"] = { 
-		Dews = 5000,
-		XP = 500,
-		Items = {
-			["Clan Blood Vial"] = 15 
-		}
-
-	},
 	["NIGHTMAREMODE"] = { 
 		Dews = 1500,
 		Items = {
@@ -26,14 +18,14 @@ local ActiveCodes = {
 			["Titan Research Notes"] = 1,
 		}
 	},
-	["APRILFOOLS"] = { 
+	["SQUADS"] = { 
 		Dews = 1000,
 		XP = 100,
 		Items = {
 			["Standard Titan Serum"] = 10,
 		}
 	},
-	["BUGFIX"] = { 
+	["CAMPAIGN!"] = { 
 		Items = {
 			["Standard Titan Serum"] = 15,
 			["Clan Blood Vial"] = 15 
