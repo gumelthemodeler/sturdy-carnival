@@ -1,16 +1,5 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
-local Network = ReplicatedStorage:WaitForChild("Network")
-
-local GachaRoll = Network:FindFirstChild("GachaRoll") or Instance.new("RemoteEvent", Network)
-GachaRoll.Name = "GachaRoll"
-local GachaResult = Network:FindFirstChild("GachaResult") or Instance.new("RemoteEvent", Network)
-GachaResult.Name = "GachaResult"
-
--- @ScriptType: Script
 -- Name: GachaManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
