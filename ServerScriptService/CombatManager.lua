@@ -1,4 +1,5 @@
 -- @ScriptType: Script
+-- @ScriptType: Script
 -- Name: CombatManager
 -- @ScriptType: Script
 local Players = game:GetService("Players")
@@ -284,7 +285,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 		local baseDifficulty = 1.0
 		local expectedTurnsToKill = 20
 
-		-- [[ THE FIX: Lowered Boss Lethality - Bosses now take ~7-9 hits to kill a player instead of 4 ]]
+		-- Lowered Boss Lethality
 		local expectedHitsToDie = 8 
 
 		if encounterType == "EngageWorldBoss" then 
@@ -550,7 +551,8 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		local dmgMult = GetDmgScale(targetPart, false, currentWave)
 		local spdMult = GetSpdScale(targetPart, false, currentWave)
 
-		local partData = EnemyData.Parts[currentPart]
+		-- [[ THE FIX: Changed 'currentPart' to 'targetPart' to fix the nil index error! ]]
+		local partData = EnemyData.Parts[targetPart]
 		local waveData = battle.Context.MissionData.Waves[battle.Context.CurrentWave]
 		local nextEnemyTemplate = GetTemplate(partData, waveData.Template)
 
