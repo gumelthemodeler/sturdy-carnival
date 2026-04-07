@@ -1,7 +1,6 @@
 -- @ScriptType: Script
-
 -- @ScriptType: Script
--- @ScriptType: Script
+-- Name: PVPManager
 -- @ScriptType: Script
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,25 +9,29 @@ local Network = ReplicatedStorage:WaitForChild("Network")
 local PvPAction = Network:FindFirstChild("PvPAction") or Instance.new("RemoteEvent", Network); PvPAction.Name = "PvPAction"
 local PvPUpdate = Network:FindFirstChild("PvPUpdate") or Instance.new("RemoteEvent", Network); PvPUpdate.Name = "PvPUpdate"
 local PvPTaunt = Network:FindFirstChild("PvPTaunt") or Instance.new("RemoteEvent", Network); PvPTaunt.Name = "PvPTaunt"
+local GetLiveMatches = Network:FindFirstChild("GetLiveMatches") or Instance.new("RemoteFunction", Network); GetLiveMatches.Name = "GetLiveMatches"
 
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local CombatCore = require(script.Parent:WaitForChild("CombatCore"))
 
 local ActiveMatches = {}
-local PvPQueue = {} -- Format: {Player = PlayerObj, Elo = number, JoinTime = os.time()}
+local PvPQueue = {} 
 local MatchCounter = 0
 local TURN_DURATION = 15 
 
 local function CreatePvPCombatant(player)
 	local wpnName = player:GetAttribute("EquippedWeapon") or "None"
 	local accName = player:GetAttribute("EquippedAccessory") or "None"
-	local wpnBonus = (ItemData.Equipment[wpnName] and ItemData.Equipment[wpnName].Bonus) or {}
-	local accBonus = (ItemData.Equipment[accName] and ItemData.Equipment[accName].Bonus) or {}
+
+	local wpnBonus = (ItemData.Equipment and ItemData.Equipment[wpnName] and ItemData.Equipment[wpnName].Bonus) or {}
+	local accBonus = (ItemData.Equipment and ItemData.Equipment[accName] and ItemData.Equipment[accName].Bonus) or {}
+	local wpnStyle = (ItemData.Equipment and ItemData.Equipment[wpnName] and ItemData.Equipment[wpnName].Style) or "None"
 
 	local safeWpnName = wpnName:gsub("[^%w]", "")
 	local awakenedString = player:GetAttribute(safeWpnName .. "_Awakened")
 	local awakenedStats = { DmgMult = 1.0, DodgeBonus = 0, CritBonus = 0, HpBonus = 0, SpdBonus = 0, GasBonus = 0, HealOnKill = 0, IgnoreArmor = 0 }
+
 	if awakenedString then
 		for stat in string.gmatch(awakenedString, "[^|]+") do
 			stat = stat:match("^%s*(.-)%s*$")
@@ -52,7 +55,7 @@ local function CreatePvPCombatant(player)
 	return {
 		IsPlayer = true, Name = player.Name, PlayerObj = player,
 		Clan = player:GetAttribute("Clan") or "None", Titan = player:GetAttribute("Titan") or "None",
-		Style = ItemData.Equipment[wpnName] and ItemData.Equipment[wpnName].Style or "None",
+		Style = wpnStyle,
 		HP = pMaxHP, MaxHP = pMaxHP, Gas = pMaxGas, MaxGas = pMaxGas,
 		TitanEnergy = 100, MaxTitanEnergy = 100,
 		TotalStrength = (player:GetAttribute("Strength") or 10) + (wpnBonus.Strength or 0) + (accBonus.Strength or 0),
@@ -89,7 +92,6 @@ local function EndMatch(matchId, winnerUserId)
 		Network.NotificationEvent:FireClient(winner, "Victory! +25 Elo, +2500 Dews", "Success")
 		Network.NotificationEvent:FireClient(loser, "Defeat. -15 Elo", "Error")
 
-		-- Pot Distribution System for Betting
 		local winnerPot = 0
 		local loserPot = 0
 		for _, b in pairs(match.Bets[winner.UserId] or {}) do winnerPot += b.Amount end
@@ -107,7 +109,6 @@ local function EndMatch(matchId, winnerUserId)
 			end
 		end
 	else
-		-- Draw Handling
 		if p1 then Network.NotificationEvent:FireClient(p1, "Draw! No Elo lost.", "Info") end
 		if p2 then Network.NotificationEvent:FireClient(p2, "Draw! No Elo lost.", "Info") end
 
@@ -130,6 +131,8 @@ local function StartMatch(p1, p2)
 	MatchCounter += 1
 	local matchId = "Match_" .. MatchCounter
 
+	print("[PvPManager] MATCH STARTED: " .. p1.Name .. " VS " .. p2.Name .. " | ID: " .. matchId)
+
 	ActiveMatches[matchId] = {
 		P1 = CreatePvPCombatant(p1),
 		P2 = CreatePvPCombatant(p2),
@@ -140,7 +143,6 @@ local function StartMatch(p1, p2)
 	PvPUpdate:FireAllClients("MatchStarted", matchId, p1.Name, p2.Name, p1.UserId, p2.UserId, ActiveMatches[matchId].TurnEndTime)
 end
 
--- [[ FIX: Dynamic Elo Matchmaking System ]]
 task.spawn(function()
 	while task.wait(2) do
 		local i = 1
@@ -148,7 +150,7 @@ task.spawn(function()
 			local q1 = PvPQueue[i]
 			local matched = false
 			local waitTime1 = os.time() - q1.JoinTime
-			local eloRange = 100 + (math.floor(waitTime1 / 5) * 50) 
+			local eloRange = 150 + (math.floor(waitTime1 / 3) * 100) 
 
 			for j = i + 1, #PvPQueue do
 				local q2 = PvPQueue[j]
@@ -157,7 +159,9 @@ task.spawn(function()
 					local p2 = q2.Player
 					table.remove(PvPQueue, j)
 					table.remove(PvPQueue, i)
-					if p1 and p1.Parent and p2 and p2.Parent then StartMatch(p1, p2) end
+					if p1 and p1.Parent and p2 and p2.Parent then 
+						StartMatch(p1, p2) 
+					end
 					matched = true
 					break
 				end
@@ -283,23 +287,46 @@ task.spawn(function()
 	end
 end)
 
+GetLiveMatches.OnServerInvoke = function(player)
+	local liveList = {}
+	for matchId, match in pairs(ActiveMatches) do
+		table.insert(liveList, {
+			MatchId = matchId,
+			Player1 = match.P1.Name,
+			Player2 = match.P2.Name
+		})
+	end
+	return liveList
+end
+
 PvPAction.OnServerEvent:Connect(function(player, actionType, matchId, data1, data2)
 	if actionType == "JoinQueue" then
 		for _, m in pairs(ActiveMatches) do if m.P1.PlayerObj == player or m.P2.PlayerObj == player then return end end
 		for _, qp in ipairs(PvPQueue) do if qp.Player == player then return end end
 
 		local pElo = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Elo") and player.leaderstats.Elo.Value or 1000
+		print("[PvPManager] " .. player.Name .. " joined queue with Elo: " .. pElo)
 		table.insert(PvPQueue, {Player = player, Elo = pElo, JoinTime = os.time()})
 		return
 	elseif actionType == "LeaveQueue" then
-		for i, qp in ipairs(PvPQueue) do if qp.Player == player then table.remove(PvPQueue, i); break end end
+		for i, qp in ipairs(PvPQueue) do if qp.Player == player then table.remove(PvPQueue, i); print("[PvPManager] " .. player.Name .. " left queue."); break end end
+		return
+	end
+
+	-- [[ THE FIX: Added Spectator Match Hook ]]
+	if actionType == "SpectateMatch" then
+		local mId = matchId -- data passed through matchId slot
+		local match = ActiveMatches[mId]
+		if match then
+			print("[PvPManager] " .. player.Name .. " is spectating " .. mId)
+			PvPUpdate:FireClient(player, "SpectateStarted", mId, match.P1.Name, match.P2.Name, match.P1.PlayerObj.UserId, match.P2.PlayerObj.UserId, match.TurnEndTime, match.P1.HP, match.P1.MaxHP, match.P2.HP, match.P2.MaxHP)
+		end
 		return
 	end
 
 	local match = ActiveMatches[matchId]
 	if not match then return end
 
-	-- [[ FIX: Implemented Surrender Logic ]]
 	if actionType == "Surrender" then
 		if match.P1.PlayerObj == player then
 			match.P1.HP = 0
@@ -316,7 +343,7 @@ PvPAction.OnServerEvent:Connect(function(player, actionType, matchId, data1, dat
 	if actionType == "SubmitMove" and match.State == "WaitingForMoves" then
 		local moveName = data1
 		local targetLimb = data2 or "Body"
-		if not SkillData.Skills[moveName] then return end
+		if not SkillData.Skills[moveName] and moveName ~= "Recover" then return end
 
 		if match.P1.PlayerObj == player then match.P1.Move = moveName; match.P1.TargetLimb = targetLimb
 		elseif match.P2.PlayerObj == player then match.P2.Move = moveName; match.P2.TargetLimb = targetLimb end
