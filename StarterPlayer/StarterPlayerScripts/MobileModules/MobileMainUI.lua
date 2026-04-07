@@ -12,7 +12,7 @@ local MasterGui, MasterWindow, WindowScale, WindowTitle, CurrentOpenTab; local T
 local CONFIG = {
 	Icons = { Background = "rbxassetid://125800917140688", GameLogo = "rbxassetid://129999765135567", RegimentDefault = "rbxassetid://74069077964164" },
 	DockTabs = { {Id = "HOME", Icon = "rbxassetid://129528574378357"}, {Id = "PROFILE", Icon = "rbxassetid://106161709171988"}, {Id = "EXPEDITIONS", Icon = "rbxassetid://115407261158495"}, {Id = "SQUADS", Icon = "rbxassetid://111674249930782"}, {Id = "SUPPLY_FORGE", Icon = "rbxassetid://108619507999123"}, {Id = "REGIMENTS", Icon = "rbxassetid://74069077964164"} },
-	Currencies = { {Id = "XP", Prefix = "XP:", Color = "#55FF55"}, {Id = "TitanXP", Prefix = "T-XP:", Color = "#FF5555"}, {Id = "Dews", Prefix = "DEWS:", Color = "#FF88FF"}, {Id = "Prestige", Prefix = "PR:", Color = "#FFD700"} }
+	Currencies = { {Id = "XP", Prefix = "XP:", Color = "#55FF55"}, {Id = "TitanXP", Prefix = "T-XP:", Color = "#FF5555"}, {Id = "Dews", Prefix = "DEWS:", Color = "#FF88FF"}, {Id = "Prestige", Prefix = "PR:", Color = "#FFD700"}, {Id = "Elo", Prefix = "ELO:", Color = "#55AAFF"} }
 }
 
 local function FormatAbbreviation(value)
@@ -47,6 +47,7 @@ local function BuildMasterWindow()
 	local function UpdateCurrencies()
 		local ls = player:FindFirstChild("leaderstats")
 		if CurrencyLabels.Prestige then CurrencyLabels.Prestige.Text = CurrencyLabels.Prestige:GetAttribute("Prefix") .. " " .. FormatAbbreviation((ls and ls:FindFirstChild("Prestige")) and ls.Prestige.Value or 0) end
+		if CurrencyLabels.Elo then CurrencyLabels.Elo.Text = CurrencyLabels.Elo:GetAttribute("Prefix") .. " " .. FormatAbbreviation((ls and ls:FindFirstChild("Elo")) and ls.Elo.Value or 1000) end
 		if CurrencyLabels.Dews then CurrencyLabels.Dews.Text = CurrencyLabels.Dews:GetAttribute("Prefix") .. " " .. FormatAbbreviation(player:GetAttribute("Dews") or 0) end
 		if CurrencyLabels.XP then CurrencyLabels.XP.Text = CurrencyLabels.XP:GetAttribute("Prefix") .. " " .. FormatAbbreviation(player:GetAttribute("XP") or 0) end
 		if CurrencyLabels.TitanXP then CurrencyLabels.TitanXP.Text = CurrencyLabels.TitanXP:GetAttribute("Prefix") .. " " .. FormatAbbreviation(player:GetAttribute("TitanXP") or 0) end
@@ -84,7 +85,8 @@ local function BuildMasterWindow()
 	local clTitle = UIHelpers.CreateLabel(ChangeLogBox, "CHANGELOG & CODES", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
 	clTitle.Position = UDim2.new(0, 10, 0, 5); clTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-	local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.5.0 - The Global Update</b>\n\n• Added Strike Squads & Global Leaderboards.\n• Overhauled Market & Forge UI.\n• Hero Menu Integration.\n\n<b>ACTIVE CODES:</b>\n[MULTIPLAYERPART2]\n[NIGHTMAREMODE]\n[BUGFIX]", UDim2.new(1, -20, 1, -30), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11)
+	-- [[ THE FIX: Updated Changelog Text ]]
+	local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.6.0 - Ymir's Favored Update</b>\n\n• Strike Squad 9-Slot Vaults & Global Champion Buffs.\n• Secure Player Trading System.\n• Titan Fusion & Combat Overhauls.\n\n<b>ACTIVE CODES:</b>\n[CAMPAIGN!]\n[NIGHTMAREMODE]\n[SQUADS]", UDim2.new(1, -20, 1, -30), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11)
 	clText.Position = UDim2.new(0, 10, 0, 25); clText.TextXAlignment = Enum.TextXAlignment.Left; clText.TextYAlignment = Enum.TextYAlignment.Top; clText.RichText = true; clText.TextWrapped = true
 
 	local LeaderboardBox = Instance.new("Frame", HomeScroll)
@@ -104,22 +106,25 @@ local function BuildMasterWindow()
 	LbScroll.Size = UDim2.new(1, -20, 1, -70); LbScroll.Position = UDim2.new(0, 10, 0, 65); LbScroll.BackgroundTransparency = 1; LbScroll.ScrollBarThickness = 4; LbScroll.BorderSizePixel = 0
 	local lsLayout = Instance.new("UIListLayout", LbScroll); lsLayout.Padding = UDim.new(0, 5)
 
-	local lbTabs = {"PRESTIGE", "ELO", "CP"}
+	local lbTabs = {"PRESTIGE", "ELO RATING", "SQUAD SP"}
 	local lbBtns = {}
+	local currentLbTab = "PRESTIGE"
 
+	-- [[ THE FIX: Extracted and Auto-Updating Leaderboards ]]
 	local function FetchLeaderboard(typeKey)
+		currentLbTab = typeKey
 		for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 		for k, v in pairs(lbBtns) do v.Btn.TextColor3 = (k == typeKey) and UIHelpers.Colors.Gold or UIHelpers.Colors.TextMuted; v.Stroke.Color = (k == typeKey) and UIHelpers.Colors.Gold or UIHelpers.Colors.BorderMuted end
 
 		task.spawn(function()
 			local data = {}
-			if typeKey == "CP" then data = Network:WaitForChild("GetSquadLeaderboard"):InvokeServer()
+			if typeKey == "SQUAD SP" then data = Network:WaitForChild("GetSquadLeaderboard"):InvokeServer()
 			else
-				local rawKey = (typeKey == "ELO") and "Elo" or "Prestige"
+				local rawKey = (typeKey == "ELO RATING") and "Elo" or "Prestige"
 				data = Network:WaitForChild("GetLeaderboardData"):InvokeServer(rawKey)
 			end
 
-			if data then
+			if data and currentLbTab == typeKey then
 				for i, entry in ipairs(data) do
 					local card = Instance.new("Frame", LbScroll); card.Size = UDim2.new(1, -10, 0, 35); card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 					local cStroke = Instance.new("UIStroke", card); cStroke.Color = UIHelpers.Colors.BorderMuted
@@ -128,7 +133,7 @@ local function BuildMasterWindow()
 					local rLbl = UIHelpers.CreateLabel(card, "#" .. entry.Rank, UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, cColor, 12)
 					local nLbl = UIHelpers.CreateLabel(card, entry.Name, UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, cColor, 12); nLbl.Position = UDim2.new(0, 35, 0, 0); nLbl.TextXAlignment = Enum.TextXAlignment.Left
 
-					local valText = (typeKey == "CP") and (entry.CP .. " CP") or tostring(entry.Value)
+					local valText = (typeKey == "SQUAD SP") and (entry.SP .. " SP") or tostring(entry.Value)
 					local vLbl = UIHelpers.CreateLabel(card, valText, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 11)
 					vLbl.Position = UDim2.new(1, -5, 0, 0); vLbl.AnchorPoint = Vector2.new(1, 0); vLbl.TextXAlignment = Enum.TextXAlignment.Right
 				end
@@ -138,12 +143,22 @@ local function BuildMasterWindow()
 	end
 
 	for _, tName in ipairs(lbTabs) do
-		local btn = Instance.new("TextButton", LbNav); btn.Size = UDim2.new(0, 80, 1, 0); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Font = Enum.Font.GothamBold; btn.Text = tName; btn.TextSize = 10
+		local btn = Instance.new("TextButton", LbNav); btn.Size = UDim2.new(0, 80, 1, 0); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Font = Enum.Font.GothamBold; btn.Text = tName; btn.TextSize = 9
 		local strk = Instance.new("UIStroke", btn)
 		lbBtns[tName] = {Btn = btn, Stroke = strk}
 		btn.MouseButton1Click:Connect(function() FetchLeaderboard(tName) end)
 	end
+
 	FetchLeaderboard("PRESTIGE")
+
+	-- Auto-Refresh Loop
+	task.spawn(function()
+		while task.wait(60) do
+			if MasterWindow and MasterWindow.Visible and CurrentOpenTab == "HOME" then
+				FetchLeaderboard(currentLbTab)
+			end
+		end
+	end)
 
 	local function SafeLoad(mobileName, pcName, tabKey)
 		task.spawn(function() local mod; if MobileModules:FindFirstChild(mobileName) then mod = require(MobileModules[mobileName]) else mod = require(UIModules:WaitForChild(pcName)) end; if mod and mod.Initialize then mod.Initialize(TabContainers[tabKey]) end end)
@@ -154,7 +169,13 @@ local function BuildMasterWindow()
 	SafeLoad("MobileSupplyForgeTab", "SupplyForgeTab", "SUPPLY_FORGE"); 
 	SafeLoad("MobileSquadsTab", "SquadsTab", "SQUADS"); 
 	SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
-	if isAdmin then task.spawn(function() local AdminMod = require(UIModules:WaitForChild("AdminTab")); if AdminMod.Initialize then AdminMod.Initialize(TabContainers["ADMIN"]) end end) end
+
+	if isAdmin then 
+		task.spawn(function() 
+			local AdminMod = require(MobileModules:WaitForChild("MobileAdminTab")); 
+			if AdminMod.Initialize then AdminMod.Initialize(TabContainers["ADMIN"]) end 
+		end) 
+	end
 end
 
 local function OpenMasterTab(tabName, displayTitle)
@@ -170,7 +191,13 @@ local function BuildBottomBar()
 	local dGrad = Instance.new("UIGradient", Dock); dGrad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 35)), ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 18))}; dGrad.Rotation = 90
 	local layout = Instance.new("UIListLayout", Dock); layout.FillDirection = Enum.FillDirection.Horizontal; layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; layout.VerticalAlignment = Enum.VerticalAlignment.Center; layout.Padding = UDim.new(0.02, 0) 
 
-	if isAdmin then table.insert(CONFIG.DockTabs, {Id = "ADMIN", Title = "DEBUG", Icon = "rbxassetid://100709766417970"}) end
+	if isAdmin then
+		local adminExists = false
+		for _, tab in ipairs(CONFIG.DockTabs) do if tab.Id == "ADMIN" then adminExists = true break end end
+		if not adminExists then
+			table.insert(CONFIG.DockTabs, {Id = "ADMIN", Title = "DEVELOPER PANEL", Icon = "rbxassetid://100709766417970"})
+		end
+	end
 
 	for _, btnData in ipairs(CONFIG.DockTabs) do
 		local btn = Instance.new("ImageButton", Dock); btn.Size = UDim2.new(0, 38, 0, 38); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Image = btnData.Icon; btn.BorderSizePixel = 0; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
