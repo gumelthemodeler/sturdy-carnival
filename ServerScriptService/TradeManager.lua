@@ -1,321 +1,287 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- Name: TradingManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local HttpService = game:GetService("HttpService")
-local RemotesFolder = ReplicatedStorage:WaitForChild("Network")
+local Network = ReplicatedStorage:WaitForChild("Network")
 
-local TradeAction = RemotesFolder:FindFirstChild("TradeAction") or Instance.new("RemoteEvent", RemotesFolder); TradeAction.Name = "TradeAction"
-local TradeRequest = RemotesFolder:FindFirstChild("TradeRequest") or Instance.new("RemoteEvent", RemotesFolder); TradeRequest.Name = "TradeRequest"
-local TradeUpdate = RemotesFolder:FindFirstChild("TradeUpdate") or Instance.new("RemoteEvent", RemotesFolder); TradeUpdate.Name = "TradeUpdate"
-
-local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
+local TradeAction = Network:FindFirstChild("TradeAction") or Instance.new("RemoteEvent", Network)
+TradeAction.Name = "TradeAction"
+local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
 local ActiveTrades = {} 
-local TradeRequests = {} 
-local RateLimits = {} 
+local PendingRequests = {} 
 
-local MAX_INVENTORY_CAPACITY = 50
+-- [[ THE FIX: Ensure players never join the game "stuck" in a trade ]]
+Players.PlayerAdded:Connect(function(player)
+	player:SetAttribute("ActiveTradeId", "None")
 
-local function GetUniqueSlotCount(plr)
-	local count = 0
-	for iName, _ in pairs(ItemData.Equipment) do
-		if (plr:GetAttribute(iName:gsub("[^%w]", "") .. "Count") or 0) > 0 then count += 1 end
-	end
-	for iName, _ in pairs(ItemData.Consumables) do
-		if (plr:GetAttribute(iName:gsub("[^%w]", "") .. "Count") or 0) > 0 then count += 1 end
-	end
-	return count
-end
+	-- Fallback chat commands for easy testing/un-sticking
+	player.Chatted:Connect(function(msg)
+		local lowerMsg = msg:lower()
+		if string.sub(lowerMsg, 1, 7) == "/trade " then
+			local targetName = string.sub(msg, 8)
+			TradeAction:FireServer("SendRequest", targetName)
+		elseif lowerMsg == "/fixstrade" then
+			player:SetAttribute("ActiveTradeId", "None")
+			NotificationEvent:FireClient(player, "Trade state forcefully reset.", "Success")
+			TradeAction:FireClient(player, "TradeClosed")
+		end
+	end)
+end)
 
-local function CancelTrade(tradeId, reason)
+local function CancelTrade(tradeId)
 	local trade = ActiveTrades[tradeId]
 	if not trade then return end
-	trade.Version = (trade.Version or 0) + 1 
 
-	if trade.P1 then 
-		trade.P1:SetAttribute("InTrade", false)
-		RemotesFolder.TradeUpdate:FireClient(trade.P1, "TradeCancelled", reason) 
-	end
-	if trade.P2 then 
-		trade.P2:SetAttribute("InTrade", false)
-		RemotesFolder.TradeUpdate:FireClient(trade.P2, "TradeCancelled", reason) 
-	end
+	trade.IsCountingDown = false
+
+	local p1 = Players:GetPlayerByUserId(trade.P1)
+	local p2 = Players:GetPlayerByUserId(trade.P2)
+
+	if p1 then TradeAction:FireClient(p1, "TradeClosed") end
+	if p2 then TradeAction:FireClient(p2, "TradeClosed") end
+
+	if p1 then p1:SetAttribute("ActiveTradeId", "None") end
+	if p2 then p2:SetAttribute("ActiveTradeId", "None") end
+
 	ActiveTrades[tradeId] = nil
-end
 
-local function GetTradeForPlayer(player)
-	for id, trade in pairs(ActiveTrades) do
-		if trade.P1 == player or trade.P2 == player then return id, trade end
+	if trade.CountdownTask and trade.CountdownTask ~= coroutine.running() then 
+		task.cancel(trade.CountdownTask) 
 	end
-	return nil, nil
 end
 
-local function SyncTradeUI(trade)
-	if trade.P1 then RemotesFolder.TradeUpdate:FireClient(trade.P1, "Sync", trade) end
-	if trade.P2 then RemotesFolder.TradeUpdate:FireClient(trade.P2, "Sync", trade) end
+local function AbortCountdown(tradeId)
+	local trade = ActiveTrades[tradeId]
+	if not trade or not trade.IsCountingDown then return end
+
+	trade.IsCountingDown = false
+	if trade.CountdownTask and trade.CountdownTask ~= coroutine.running() then 
+		task.cancel(trade.CountdownTask) 
+	end
+	trade.P1_Ready = false
+	trade.P2_Ready = false
+
+	local p1 = Players:GetPlayerByUserId(trade.P1)
+	local p2 = Players:GetPlayerByUserId(trade.P2)
+
+	if p1 then TradeAction:FireClient(p1, "CountdownAborted") end
+	if p2 then TradeAction:FireClient(p2, "CountdownAborted") end
+
+	if p1 then TradeAction:FireClient(p1, "UpdateStatus", false, false) end
+	if p2 then TradeAction:FireClient(p2, "UpdateStatus", false, false) end
 end
 
 local function ExecuteTrade(tradeId)
 	local trade = ActiveTrades[tradeId]
 	if not trade then return end
 
-	local function ValidateOffer(plr, offer)
-		if plr.leaderstats.Dews.Value < offer.Dews then return false, "Not enough Dews." end
-		for itemName, amount in pairs(offer.Items) do
-			local safeName = itemName:gsub("[^%w]", "") .. "Count"
-			if (plr:GetAttribute(safeName) or 0) < amount then return false, "Missing items. Inventory changed during countdown." end
+	local p1 = Players:GetPlayerByUserId(trade.P1)
+	local p2 = Players:GetPlayerByUserId(trade.P2)
+	if not p1 or not p2 then CancelTrade(tradeId); return end
 
-			if plr:GetAttribute("EquippedWeapon") == itemName or plr:GetAttribute("EquippedAccessory") == itemName then
-				return false, "Cannot trade equipped items."
-			end
+	local function VerifyOffer(plr, offer)
+		if plr.leaderstats.Dews.Value < offer.Dews then return false end
+		for iName, count in pairs(offer.Items) do
+			local attr = iName:gsub("[^%w]", "") .. "Count"
+			if (plr:GetAttribute(attr) or 0) < count then return false end
 		end
-		return true, ""
+		return true
 	end
 
-	local p1Valid, p1Err = ValidateOffer(trade.P1, trade.P1Offer)
-	local p2Valid, p2Err = ValidateOffer(trade.P2, trade.P2Offer)
-
-	if not p1Valid or not p2Valid then
-		CancelTrade(tradeId, "Trade failed: " .. (p1Err ~= "" and p1Err or p2Err ~= "" and p2Err or "Invalid items."))
+	if not VerifyOffer(p1, trade.P1_Offer) or not VerifyOffer(p2, trade.P2_Offer) then
+		NotificationEvent:FireClient(p1, "Trade failed. Someone didn't have the required items.", "Error")
+		NotificationEvent:FireClient(p2, "Trade failed. Someone didn't have the required items.", "Error")
+		CancelTrade(tradeId)
 		return
 	end
 
-	local p1NewSlots = 0
-	for itemName, _ in pairs(trade.P2Offer.Items) do
-		local safeName = itemName:gsub("[^%w]", "") .. "Count"
-		if (trade.P1:GetAttribute(safeName) or 0) == 0 then p1NewSlots += 1 end
+	local function Deduct(plr, offer)
+		plr.leaderstats.Dews.Value -= offer.Dews
+		for iName, count in pairs(offer.Items) do
+			local attr = iName:gsub("[^%w]", "") .. "Count"
+			plr:SetAttribute(attr, (plr:GetAttribute(attr) or 0) - count)
+		end
 	end
 
-	local p2NewSlots = 0
-	for itemName, _ in pairs(trade.P1Offer.Items) do
-		local safeName = itemName:gsub("[^%w]", "") .. "Count"
-		if (trade.P2:GetAttribute(safeName) or 0) == 0 then p2NewSlots += 1 end
+	local function Give(plr, offer)
+		plr.leaderstats.Dews.Value += offer.Dews
+		for iName, count in pairs(offer.Items) do
+			local attr = iName:gsub("[^%w]", "") .. "Count"
+			plr:SetAttribute(attr, (plr:GetAttribute(attr) or 0) + count)
+		end
 	end
 
-	if p1NewSlots > 0 and (GetUniqueSlotCount(trade.P1) + p1NewSlots) > MAX_INVENTORY_CAPACITY then
-		CancelTrade(tradeId, trade.P1.Name .. "'s inventory is full!")
-		return
-	end
-	if p2NewSlots > 0 and (GetUniqueSlotCount(trade.P2) + p2NewSlots) > MAX_INVENTORY_CAPACITY then
-		CancelTrade(tradeId, trade.P2.Name .. "'s inventory is full!")
-		return
-	end
+	Deduct(p1, trade.P1_Offer); Deduct(p2, trade.P2_Offer)
+	Give(p1, trade.P2_Offer); Give(p2, trade.P1_Offer)
 
-	trade.P1.leaderstats.Dews.Value -= trade.P1Offer.Dews
-	for itemName, amount in pairs(trade.P1Offer.Items) do
-		local safeName = itemName:gsub("[^%w]", "") .. "Count"
-		trade.P1:SetAttribute(safeName, trade.P1:GetAttribute(safeName) - amount)
-	end
-	trade.P2.leaderstats.Dews.Value -= trade.P2Offer.Dews
-	for itemName, amount in pairs(trade.P2Offer.Items) do
-		local safeName = itemName:gsub("[^%w]", "") .. "Count"
-		trade.P2:SetAttribute(safeName, trade.P2:GetAttribute(safeName) - amount)
-	end
-
-	trade.P1.leaderstats.Dews.Value += trade.P2Offer.Dews
-	for itemName, amount in pairs(trade.P2Offer.Items) do
-		local safeName = itemName:gsub("[^%w]", "") .. "Count"
-		trade.P1:SetAttribute(safeName, (trade.P1:GetAttribute(safeName) or 0) + amount)
-	end
-	trade.P2.leaderstats.Dews.Value += trade.P1Offer.Dews
-	for itemName, amount in pairs(trade.P1Offer.Items) do
-		local safeName = itemName:gsub("[^%w]", "") .. "Count"
-		trade.P2:SetAttribute(safeName, (trade.P2:GetAttribute(safeName) or 0) + amount)
-	end
-
-	trade.P1:SetAttribute("InTrade", false)
-	trade.P2:SetAttribute("InTrade", false)
-
-	local function FormatItems(itemsTable)
-		local str = ""
-		for k, v in pairs(itemsTable) do str = str .. v .. "x " .. k .. ", " end
-		if str ~= "" then str = str:sub(1, -3) else str = "No items" end
-		return str
-	end
-
-	local p1GivesItems = FormatItems(trade.P1Offer.Items)
-	local p2GivesItems = FormatItems(trade.P2Offer.Items)
-
-	print("[TRADE SECURE LOG] " .. trade.P1.Name .. " traded [" .. p1GivesItems .. " | " .. trade.P1Offer.Dews .. " Dews] TO " .. trade.P2.Name .. " FOR [" .. p2GivesItems .. " | " .. trade.P2Offer.Dews .. " Dews]")
-
-	local p1ReceivedMsg = "Trade Processed! Received: " .. p2GivesItems
-	if trade.P2Offer.Dews > 0 then p1ReceivedMsg = p1ReceivedMsg .. " & " .. trade.P2Offer.Dews .. " Dews" end
-
-	local p2ReceivedMsg = "Trade Processed! Received: " .. p1GivesItems
-	if trade.P1Offer.Dews > 0 then p2ReceivedMsg = p2ReceivedMsg .. " & " .. trade.P1Offer.Dews .. " Dews" end
-
-	RemotesFolder.NotificationEvent:FireClient(trade.P1, p1ReceivedMsg, "Success")
-	RemotesFolder.NotificationEvent:FireClient(trade.P2, p2ReceivedMsg, "Success")
-
-	RemotesFolder.TradeUpdate:FireClient(trade.P1, "TradeComplete")
-	RemotesFolder.TradeUpdate:FireClient(trade.P2, "TradeComplete")
-	ActiveTrades[tradeId] = nil
+	NotificationEvent:FireClient(p1, "Trade Successful!", "Success")
+	NotificationEvent:FireClient(p2, "Trade Successful!", "Success")
+	CancelTrade(tradeId)
 end
 
-local function ResetTradeState(trade)
-	trade.P1Ready = false
-	trade.P2Ready = false
-	trade.P1Confirmed = false
-	trade.P2Confirmed = false
-	trade.Countdown = -1
-	trade.Version += 1
+local function CheckStartCountdown(tradeId)
+	local trade = ActiveTrades[tradeId]
+	if not trade then return end
+
+	if trade.P1_Ready and trade.P2_Ready then
+		trade.IsCountingDown = true
+
+		local p1 = Players:GetPlayerByUserId(trade.P1)
+		local p2 = Players:GetPlayerByUserId(trade.P2)
+		if p1 then TradeAction:FireClient(p1, "StartCountdown") end
+		if p2 then TradeAction:FireClient(p2, "StartCountdown") end
+
+		trade.CountdownTask = task.spawn(function()
+			for i = 10, 1, -1 do
+				if not ActiveTrades[tradeId] or not ActiveTrades[tradeId].IsCountingDown then return end
+				if p1 then TradeAction:FireClient(p1, "UpdateTimer", i) end
+				if p2 then TradeAction:FireClient(p2, "UpdateTimer", i) end
+				task.wait(1)
+			end
+			if ActiveTrades[tradeId] and ActiveTrades[tradeId].IsCountingDown then
+				ExecuteTrade(tradeId)
+			end
+		end)
+	end
 end
 
-RemotesFolder:WaitForChild("TradeAction").OnServerEvent:Connect(function(player, action, data)
-	local now = os.clock()
-	local lastCall = RateLimits[player.UserId] or 0
-	if now - lastCall < 0.1 then return end 
-	RateLimits[player.UserId] = now
-
-	local tradeId, trade = GetTradeForPlayer(player)
+TradeAction.OnServerEvent:Connect(function(player, action, data)
+	local uid = player.UserId
 
 	if action == "SendRequest" then
-		if trade then RemotesFolder.NotificationEvent:FireClient(player, "You are already in a trade!", "Error") return end
-		local target = Players:FindFirstChild(tostring(data))
-		if not target or target == player then return end
-
-		-- [[ FIX: Removed fragile InTrade checks. Relies strictly on ActiveTrades dictionary. ]]
-		if GetTradeForPlayer(target) then 
-			RemotesFolder.NotificationEvent:FireClient(player, "That player is currently busy.", "Error") 
-			return 
+		if player:GetAttribute("ActiveTradeId") and player:GetAttribute("ActiveTradeId") ~= "None" then
+			NotificationEvent:FireClient(player, "You are currently in a trade! (Type /fixstrade if stuck)", "Error") return
 		end
 
-		if not TradeRequests[target.UserId] then TradeRequests[target.UserId] = {} end
-		TradeRequests[target.UserId][player.UserId] = true
-
-		RemotesFolder.TradeRequest:FireClient(target, player.Name)
-		RemotesFolder.NotificationEvent:FireClient(player, "Trade request sent to " .. target.Name, "Info")
-
-	elseif action == "AcceptRequest" then
-		local target = Players:FindFirstChild(tostring(data))
-		if not target then 
-			RemotesFolder.NotificationEvent:FireClient(player, "Player has left the game.", "Error")
-			return 
+		local targetName = tostring(data)
+		local target = nil
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p.Name:lower() == targetName:lower() then target = p; break end
 		end
 
-		if not TradeRequests[player.UserId] or not TradeRequests[player.UserId][target.UserId] then
-			RemotesFolder.NotificationEvent:FireClient(player, "This trade request has expired.", "Error")
+		if not target or target == player then 
+			NotificationEvent:FireClient(player, "Invalid trade target.", "Error") return 
+		end
+
+		if target:GetAttribute("ActiveTradeId") and target:GetAttribute("ActiveTradeId") ~= "None" then
+			NotificationEvent:FireClient(player, target.Name .. " is currently in a trade.", "Error") return
+		end
+
+		if not PendingRequests[target.UserId] then PendingRequests[target.UserId] = {} end
+		PendingRequests[target.UserId][player.UserId] = player.Name
+
+		NotificationEvent:FireClient(player, "Trade request sent to " .. target.Name, "Success")
+		TradeAction:FireClient(target, "IncomingRequest", player.UserId, player.Name)
+
+	elseif action == "ManageRequest" then
+		local senderId = data.SenderId
+		local decision = data.Decision 
+
+		if not PendingRequests[uid] or not PendingRequests[uid][senderId] then return end
+		PendingRequests[uid][senderId] = nil
+
+		if decision == "Accept" then
+			local sender = Players:GetPlayerByUserId(senderId)
+			if not sender then NotificationEvent:FireClient(player, "Player is no longer online.", "Error") return end
+
+			if sender:GetAttribute("ActiveTradeId") and sender:GetAttribute("ActiveTradeId") ~= "None" then
+				NotificationEvent:FireClient(player, sender.Name .. " is already in another trade.", "Error") return
+			end
+
+			local tradeId = "Trade_" .. tostring(os.time()) .. "_" .. tostring(uid)
+			ActiveTrades[tradeId] = {
+				P1 = senderId, P2 = uid,
+				P1_Offer = {Dews = 0, Items = {}},
+				P2_Offer = {Dews = 0, Items = {}},
+				P1_Ready = false, P2_Ready = false,
+				IsCountingDown = false
+			}
+
+			player:SetAttribute("ActiveTradeId", tradeId)
+			sender:SetAttribute("ActiveTradeId", tradeId)
+
+			TradeAction:FireClient(sender, "TradeOpened", {TradeId = tradeId, Opponent = player.Name})
+			TradeAction:FireClient(player, "TradeOpened", {TradeId = tradeId, Opponent = sender.Name})
+		else
+			NotificationEvent:FireClient(player, "Trade request denied.", "Info")
+		end
+
+	elseif action == "UpdateOffer" then
+		local tradeId = player:GetAttribute("ActiveTradeId")
+		local trade = ActiveTrades[tradeId]
+		if not trade then return end
+
+		if trade.IsCountingDown then AbortCountdown(tradeId) end
+
+		local isP1 = (trade.P1 == uid)
+		local myOffer = isP1 and trade.P1_Offer or trade.P2_Offer
+
+		if data.Dews ~= nil then
+			local newDews = tonumber(data.Dews) or 0
+			if newDews < 0 then newDews = 0 end
+			if newDews > player.leaderstats.Dews.Value then newDews = player.leaderstats.Dews.Value end
+			myOffer.Dews = newDews
+		end
+
+		if data.ItemName then
+			local itemName = tostring(data.ItemName)
+			local amount = tonumber(data.Amount) or 1
+			local attrName = itemName:gsub("[^%w]", "") .. "Count"
+			local amountOwned = player:GetAttribute(attrName) or 0
+
+			local currentOffered = myOffer.Items[itemName] or 0
+			local newAmount = currentOffered + amount
+
+			if newAmount <= 0 then
+				myOffer.Items[itemName] = nil
+			elseif newAmount > amountOwned then
+				return 
+			else
+				myOffer.Items[itemName] = newAmount
+			end
+		end
+
+		trade.P1_Ready = false; trade.P2_Ready = false 
+
+		local p1 = Players:GetPlayerByUserId(trade.P1); local p2 = Players:GetPlayerByUserId(trade.P2)
+		if p1 then TradeAction:FireClient(p1, "UpdateOffers", trade.P1_Offer, trade.P2_Offer) end
+		if p2 then TradeAction:FireClient(p2, "UpdateOffers", trade.P2_Offer, trade.P1_Offer) end
+		if p1 then TradeAction:FireClient(p1, "UpdateStatus", false, false) end
+		if p2 then TradeAction:FireClient(p2, "UpdateStatus", false, false) end
+
+	elseif action == "ToggleReady" then
+		local tradeId = player:GetAttribute("ActiveTradeId")
+		local trade = ActiveTrades[tradeId]
+		if not trade then return end
+
+		if trade.IsCountingDown then 
+			AbortCountdown(tradeId)
 			return
 		end
 
-		TradeRequests[player.UserId][target.UserId] = nil
+		if trade.P1 == uid then trade.P1_Ready = not trade.P1_Ready
+		else trade.P2_Ready = not trade.P2_Ready end
 
-		-- [[ FIX: Clear ghost states securely if players aren't actually in ActiveTrades ]]
-		if GetTradeForPlayer(player) or GetTradeForPlayer(target) then 
-			RemotesFolder.NotificationEvent:FireClient(player, "One of the players is currently busy.", "Error")
-			return 
+		local p1 = Players:GetPlayerByUserId(trade.P1); local p2 = Players:GetPlayerByUserId(trade.P2)
+
+		if p1 then TradeAction:FireClient(p1, "UpdateStatus", trade.P1_Ready, trade.P2_Ready) end
+		if p2 then TradeAction:FireClient(p2, "UpdateStatus", trade.P2_Ready, trade.P1_Ready) end
+
+		CheckStartCountdown(tradeId)
+
+	elseif action == "Cancel" then
+		local tradeId = player:GetAttribute("ActiveTradeId")
+		if tradeId and tradeId ~= "None" then
+			CancelTrade(tradeId)
 		end
-
-		player:SetAttribute("InTrade", true)
-		target:SetAttribute("InTrade", true)
-
-		RemotesFolder.NotificationEvent:FireClient(target, player.Name .. " accepted your trade request!", "Success")
-
-		local newTradeId = HttpService:GenerateGUID(false)
-		ActiveTrades[newTradeId] = {
-			P1 = player, P2 = target, 
-			P1Offer = {Dews = 0, Items = {}}, P2Offer = {Dews = 0, Items = {}}, 
-			P1Ready = false, P2Ready = false, 
-			P1Confirmed = false, P2Confirmed = false,
-			Countdown = -1, Version = 1
-		}
-
-		RemotesFolder.TradeUpdate:FireClient(player, "Open", {OtherPlayer = target.Name})
-		RemotesFolder.TradeUpdate:FireClient(target, "Open", {OtherPlayer = player.Name})
-
-		task.delay(0.2, function()
-			if ActiveTrades[newTradeId] then SyncTradeUI(ActiveTrades[newTradeId]) end
-		end)
-
-	elseif action == "DeclineRequest" then
-		local target = Players:FindFirstChild(tostring(data))
-		if target and TradeRequests[player.UserId] then 
-			TradeRequests[player.UserId][target.UserId] = nil 
-			RemotesFolder.NotificationEvent:FireClient(target, player.Name .. " declined your trade request.", "Error")
-		end
-
-	elseif trade then
-		local isP1 = (trade.P1 == player)
-		local myOffer = isP1 and trade.P1Offer or trade.P2Offer
-
-		if action == "Cancel" then
-			CancelTrade(tradeId, player.Name .. " cancelled the trade.")
-
-		elseif action == "UpdateDews" then
-			local amt = math.clamp(tonumber(data) or 0, 0, player.leaderstats.Dews.Value)
-			myOffer.Dews = amt
-			ResetTradeState(trade)
-			SyncTradeUI(trade)
-
-		elseif action == "AddItem" then
-			local itemName = tostring(type(data) == "table" and data.Item or data)
-
-			if not ItemData.Equipment[itemName] and not ItemData.Consumables[itemName] then return end
-
-			local safeName = itemName:gsub("[^%w]", "") .. "Count"
-			local owned = player:GetAttribute(safeName) or 0
-			local currentlyOffered = myOffer.Items[itemName] or 0
-
-			if player:GetAttribute("EquippedWeapon") == itemName or player:GetAttribute("EquippedAccessory") == itemName then
-				RemotesFolder.NotificationEvent:FireClient(player, "Cannot trade equipped items!", "Error")
-				return
-			end
-
-			if currentlyOffered < owned then
-				myOffer.Items[itemName] = currentlyOffered + 1
-				ResetTradeState(trade)
-				SyncTradeUI(trade)
-			end
-
-		elseif action == "RemoveItem" then
-			local itemName = tostring(type(data) == "table" and data.Item or data)
-
-			if myOffer.Items[itemName] and myOffer.Items[itemName] > 0 then
-				myOffer.Items[itemName] -= 1
-				if myOffer.Items[itemName] <= 0 then myOffer.Items[itemName] = nil end
-				ResetTradeState(trade)
-				SyncTradeUI(trade)
-			end
-
-		elseif action == "ToggleReady" then
-			if isP1 then trade.P1Ready = not trade.P1Ready else trade.P2Ready = not trade.P2Ready end
-
-			if not trade.P1Ready then trade.P1Confirmed = false end
-			if not trade.P2Ready then trade.P2Confirmed = false end
-
-			trade.Version += 1
-			trade.Countdown = -1
-			SyncTradeUI(trade)
-
-		elseif action == "ToggleConfirm" then
-			if isP1 then trade.P1Confirmed = not trade.P1Confirmed else trade.P2Confirmed = not trade.P2Confirmed end
-			trade.Version += 1
-
-			if trade.P1Confirmed and trade.P2Confirmed then
-				local currentVersion = trade.Version
-				task.spawn(function()
-					for i = 3, 1, -1 do
-						if not ActiveTrades[tradeId] or trade.Version ~= currentVersion then return end
-						trade.Countdown = i
-						SyncTradeUI(trade)
-						task.wait(1)
-					end
-					if ActiveTrades[tradeId] and trade.Version == currentVersion then
-						ExecuteTrade(tradeId)
-					end
-				end)
-			else
-				trade.Countdown = -1
-				SyncTradeUI(trade)
-			end
-		end
+		player:SetAttribute("ActiveTradeId", "None")
 	end
 end)
 
-Players.PlayerRemoving:Connect(function(plr)
-	RateLimits[plr.UserId] = nil
-	local tid, trade = GetTradeForPlayer(plr)
-	if tid then CancelTrade(tid, plr.Name .. " disconnected.") end
-	TradeRequests[plr.UserId] = nil
+Players.PlayerRemoving:Connect(function(player)
+	local tradeId = player:GetAttribute("ActiveTradeId")
+	if tradeId and tradeId ~= "None" then CancelTrade(tradeId) end
+	PendingRequests[player.UserId] = nil
 end)
