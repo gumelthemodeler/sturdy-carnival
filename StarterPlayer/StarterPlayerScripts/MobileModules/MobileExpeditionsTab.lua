@@ -186,14 +186,7 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 
 	local AFKPage = Instance.new("Frame", MissionsPanel); AFKPage.Size = UDim2.new(1, 0, 0, 600); AFKPage.BackgroundTransparency = 1; AFKPage.Visible = false; AFKPage.LayoutOrder = 2
 	Pages["AFK"] = AFKPage; AFKTab.Initialize(AFKPage, InitiateDeployment)
-	
-	local CloseAFKBtn = CreateSharpButton(parentFrame, "X", UDim2.new(0, 40, 0, 40), Enum.Font.GothamBlack, 18, "#FF5555")
-	CloseAFKBtn.Position = UDim2.new(1, -20, 0, 20)
-	CloseAFKBtn.AnchorPoint = Vector2.new(1, 0)
-	CloseAFKBtn.ZIndex = 100
-	CloseAFKBtn.MouseButton1Click:Connect(function()
-		parentFrame.Visible = false
-	end)
+
 
 	local NightmarePage = CreateSubPage("Nightmare")
 	local nIndex = 1
