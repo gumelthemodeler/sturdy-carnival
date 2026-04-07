@@ -1,7 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: MobileMainUI
--- @ScriptType: ModuleScript
 local MobileMainUI = {}
 local Players = game:GetService("Players"); local TweenService = game:GetService("TweenService"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local Network = ReplicatedStorage:WaitForChild("Network")
 local player = Players.LocalPlayer; local playerScripts = player:WaitForChild("PlayerScripts"); local SharedUI = playerScripts:WaitForChild("SharedUI"); local UIModules = playerScripts:WaitForChild("UIModules"); local MobileModules = playerScripts:WaitForChild("MobileModules"); local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
@@ -59,83 +58,38 @@ local function BuildMasterWindow()
 	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS"}; if isAdmin then table.insert(tabs, "ADMIN") end
 	for _, tabName in ipairs(tabs) do local tabFrame = Instance.new("Frame", ContentArea); tabFrame.Name = tabName; tabFrame.Size = UDim2.new(1, 0, 1, 0); tabFrame.BackgroundTransparency = 1; tabFrame.Visible = false; TabContainers[tabName] = tabFrame end
 
-	-- ==========================================
-	-- HOME TAB INJECTION (MOBILE)
-	-- ==========================================
 	local hTab = TabContainers["HOME"]
-
-	local HomeScroll = Instance.new("ScrollingFrame", hTab)
-	HomeScroll.Size = UDim2.new(1, -20, 1, -10)
-	HomeScroll.Position = UDim2.new(0, 10, 0, 5)
-	HomeScroll.BackgroundTransparency = 1
-	HomeScroll.ScrollBarThickness = 4
-	HomeScroll.BorderSizePixel = 0
-
-	local hsLayout = Instance.new("UIListLayout", HomeScroll)
-	hsLayout.Padding = UDim.new(0, 10)
-	hsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local HomeScroll = Instance.new("ScrollingFrame", hTab); HomeScroll.Size = UDim2.new(1, -20, 1, -10); HomeScroll.Position = UDim2.new(0, 10, 0, 5); HomeScroll.BackgroundTransparency = 1; HomeScroll.ScrollBarThickness = 4; HomeScroll.BorderSizePixel = 0
+	local hsLayout = Instance.new("UIListLayout", HomeScroll); hsLayout.Padding = UDim.new(0, 10); hsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	hsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() HomeScroll.CanvasSize = UDim2.new(0, 0, 0, hsLayout.AbsoluteContentSize.Y + 20) end)
 
-	local ChangeLogBox = Instance.new("Frame", HomeScroll)
-	ChangeLogBox.Size = UDim2.new(1, 0, 0, 150)
-	ChangeLogBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
-	local clStroke = Instance.new("UIStroke", ChangeLogBox)
-	clStroke.Color = Color3.fromRGB(70, 70, 80); clStroke.Thickness = 2
-
-	local clTitle = UIHelpers.CreateLabel(ChangeLogBox, "CHANGELOG & CODES", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
-	clTitle.Position = UDim2.new(0, 10, 0, 5); clTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-	-- [[ THE FIX: Updated Changelog Text ]]
+	local ChangeLogBox = Instance.new("Frame", HomeScroll); ChangeLogBox.Size = UDim2.new(1, 0, 0, 150); ChangeLogBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26); local clStroke = Instance.new("UIStroke", ChangeLogBox); clStroke.Color = Color3.fromRGB(70, 70, 80); clStroke.Thickness = 2
+	local clTitle = UIHelpers.CreateLabel(ChangeLogBox, "CHANGELOG & CODES", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14); clTitle.Position = UDim2.new(0, 10, 0, 5); clTitle.TextXAlignment = Enum.TextXAlignment.Left
 	local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.6.0 - Ymir's Favored Update</b>\n\n• Strike Squad 9-Slot Vaults & Global Champion Buffs.\n• Secure Player Trading System.\n• Titan Fusion & Combat Overhauls.\n\n<b>ACTIVE CODES:</b>\n[CAMPAIGN!]\n[NIGHTMAREMODE]\n[SQUADS]", UDim2.new(1, -20, 1, -30), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11)
 	clText.Position = UDim2.new(0, 10, 0, 25); clText.TextXAlignment = Enum.TextXAlignment.Left; clText.TextYAlignment = Enum.TextYAlignment.Top; clText.RichText = true; clText.TextWrapped = true
 
-	local LeaderboardBox = Instance.new("Frame", HomeScroll)
-	LeaderboardBox.Size = UDim2.new(1, 0, 0, 300)
-	LeaderboardBox.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-	local lbStroke = Instance.new("UIStroke", LeaderboardBox)
-	lbStroke.Color = Color3.fromRGB(70, 70, 80); lbStroke.Thickness = 2
+	local LeaderboardBox = Instance.new("Frame", HomeScroll); LeaderboardBox.Size = UDim2.new(1, 0, 0, 300); LeaderboardBox.BackgroundColor3 = Color3.fromRGB(18, 18, 22); local lbStroke = Instance.new("UIStroke", LeaderboardBox); lbStroke.Color = Color3.fromRGB(70, 70, 80); lbStroke.Thickness = 2
+	local lbHeader = UIHelpers.CreateLabel(LeaderboardBox, "GLOBAL LEADERBOARDS", UDim2.new(1, -20, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16); lbHeader.Position = UDim2.new(0, 10, 0, 5); lbHeader.TextXAlignment = Enum.TextXAlignment.Left
+	local LbNav = Instance.new("Frame", LeaderboardBox); LbNav.Size = UDim2.new(1, -20, 0, 30); LbNav.Position = UDim2.new(0, 10, 0, 30); LbNav.BackgroundTransparency = 1; local lnLayout = Instance.new("UIListLayout", LbNav); lnLayout.FillDirection = Enum.FillDirection.Horizontal; lnLayout.Padding = UDim.new(0, 5)
+	local LbScroll = Instance.new("ScrollingFrame", LeaderboardBox); LbScroll.Size = UDim2.new(1, -20, 1, -70); LbScroll.Position = UDim2.new(0, 10, 0, 65); LbScroll.BackgroundTransparency = 1; LbScroll.ScrollBarThickness = 4; LbScroll.BorderSizePixel = 0; local lsLayout = Instance.new("UIListLayout", LbScroll); lsLayout.Padding = UDim.new(0, 5)
 
-	local lbHeader = UIHelpers.CreateLabel(LeaderboardBox, "GLOBAL LEADERBOARDS", UDim2.new(1, -20, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16)
-	lbHeader.Position = UDim2.new(0, 10, 0, 5); lbHeader.TextXAlignment = Enum.TextXAlignment.Left
+	local lbTabs = {"PRESTIGE", "ELO RATING", "SQUAD SP"}; local lbBtns = {}; local currentLbTab = "PRESTIGE"
 
-	local LbNav = Instance.new("Frame", LeaderboardBox)
-	LbNav.Size = UDim2.new(1, -20, 0, 30); LbNav.Position = UDim2.new(0, 10, 0, 30); LbNav.BackgroundTransparency = 1
-	local lnLayout = Instance.new("UIListLayout", LbNav); lnLayout.FillDirection = Enum.FillDirection.Horizontal; lnLayout.Padding = UDim.new(0, 5)
-
-	local LbScroll = Instance.new("ScrollingFrame", LeaderboardBox)
-	LbScroll.Size = UDim2.new(1, -20, 1, -70); LbScroll.Position = UDim2.new(0, 10, 0, 65); LbScroll.BackgroundTransparency = 1; LbScroll.ScrollBarThickness = 4; LbScroll.BorderSizePixel = 0
-	local lsLayout = Instance.new("UIListLayout", LbScroll); lsLayout.Padding = UDim.new(0, 5)
-
-	local lbTabs = {"PRESTIGE", "ELO RATING", "SQUAD SP"}
-	local lbBtns = {}
-	local currentLbTab = "PRESTIGE"
-
-	-- [[ THE FIX: Extracted and Auto-Updating Leaderboards ]]
 	local function FetchLeaderboard(typeKey)
-		currentLbTab = typeKey
-		for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+		currentLbTab = typeKey; for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 		for k, v in pairs(lbBtns) do v.Btn.TextColor3 = (k == typeKey) and UIHelpers.Colors.Gold or UIHelpers.Colors.TextMuted; v.Stroke.Color = (k == typeKey) and UIHelpers.Colors.Gold or UIHelpers.Colors.BorderMuted end
-
 		task.spawn(function()
 			local data = {}
 			if typeKey == "SQUAD SP" then data = Network:WaitForChild("GetSquadLeaderboard"):InvokeServer()
-			else
-				local rawKey = (typeKey == "ELO RATING") and "Elo" or "Prestige"
-				data = Network:WaitForChild("GetLeaderboardData"):InvokeServer(rawKey)
-			end
-
+			else local rawKey = (typeKey == "ELO RATING") and "Elo" or "Prestige"; data = Network:WaitForChild("GetLeaderboardData"):InvokeServer(rawKey) end
 			if data and currentLbTab == typeKey then
 				for i, entry in ipairs(data) do
-					local card = Instance.new("Frame", LbScroll); card.Size = UDim2.new(1, -10, 0, 35); card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-					local cStroke = Instance.new("UIStroke", card); cStroke.Color = UIHelpers.Colors.BorderMuted
+					local card = Instance.new("Frame", LbScroll); card.Size = UDim2.new(1, -10, 0, 35); card.BackgroundColor3 = Color3.fromRGB(25, 25, 30); local cStroke = Instance.new("UIStroke", card); cStroke.Color = UIHelpers.Colors.BorderMuted
 					local cColor = (i==1) and UIHelpers.Colors.Gold or ((i==2) and Color3.fromRGB(200, 200, 200) or UIHelpers.Colors.TextWhite)
-
 					local rLbl = UIHelpers.CreateLabel(card, "#" .. entry.Rank, UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, cColor, 12)
 					local nLbl = UIHelpers.CreateLabel(card, entry.Name, UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, cColor, 12); nLbl.Position = UDim2.new(0, 35, 0, 0); nLbl.TextXAlignment = Enum.TextXAlignment.Left
-
 					local valText = (typeKey == "SQUAD SP") and (entry.SP .. " SP") or tostring(entry.Value)
-					local vLbl = UIHelpers.CreateLabel(card, valText, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 11)
-					vLbl.Position = UDim2.new(1, -5, 0, 0); vLbl.AnchorPoint = Vector2.new(1, 0); vLbl.TextXAlignment = Enum.TextXAlignment.Right
+					local vLbl = UIHelpers.CreateLabel(card, valText, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 11); vLbl.Position = UDim2.new(1, -5, 0, 0); vLbl.AnchorPoint = Vector2.new(1, 0); vLbl.TextXAlignment = Enum.TextXAlignment.Right
 				end
 				LbScroll.CanvasSize = UDim2.new(0, 0, 0, lsLayout.AbsoluteContentSize.Y + 10)
 			end
@@ -143,39 +97,17 @@ local function BuildMasterWindow()
 	end
 
 	for _, tName in ipairs(lbTabs) do
-		local btn = Instance.new("TextButton", LbNav); btn.Size = UDim2.new(0, 80, 1, 0); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Font = Enum.Font.GothamBold; btn.Text = tName; btn.TextSize = 9
-		local strk = Instance.new("UIStroke", btn)
-		lbBtns[tName] = {Btn = btn, Stroke = strk}
-		btn.MouseButton1Click:Connect(function() FetchLeaderboard(tName) end)
+		local btn = Instance.new("TextButton", LbNav); btn.Size = UDim2.new(0, 80, 1, 0); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Font = Enum.Font.GothamBold; btn.Text = tName; btn.TextSize = 9; local strk = Instance.new("UIStroke", btn)
+		lbBtns[tName] = {Btn = btn, Stroke = strk}; btn.MouseButton1Click:Connect(function() FetchLeaderboard(tName) end)
 	end
-
 	FetchLeaderboard("PRESTIGE")
-
-	-- Auto-Refresh Loop
-	task.spawn(function()
-		while task.wait(60) do
-			if MasterWindow and MasterWindow.Visible and CurrentOpenTab == "HOME" then
-				FetchLeaderboard(currentLbTab)
-			end
-		end
-	end)
+	task.spawn(function() while task.wait(60) do if MasterWindow and MasterWindow.Visible and CurrentOpenTab == "HOME" then FetchLeaderboard(currentLbTab) end end end)
 
 	local function SafeLoad(mobileName, pcName, tabKey)
 		task.spawn(function() local mod; if MobileModules:FindFirstChild(mobileName) then mod = require(MobileModules[mobileName]) else mod = require(UIModules:WaitForChild(pcName)) end; if mod and mod.Initialize then mod.Initialize(TabContainers[tabKey]) end end)
 	end
-
-	SafeLoad("MobileHeroMenu", "HeroMenu", "PROFILE"); 
-	SafeLoad("MobileExpeditionsTab", "ExpeditionsTab", "EXPEDITIONS"); 
-	SafeLoad("MobileSupplyForgeTab", "SupplyForgeTab", "SUPPLY_FORGE"); 
-	SafeLoad("MobileSquadsTab", "SquadsTab", "SQUADS"); 
-	SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
-
-	if isAdmin then 
-		task.spawn(function() 
-			local AdminMod = require(MobileModules:WaitForChild("MobileAdminTab")); 
-			if AdminMod.Initialize then AdminMod.Initialize(TabContainers["ADMIN"]) end 
-		end) 
-	end
+	SafeLoad("MobileHeroMenu", "HeroMenu", "PROFILE"); SafeLoad("MobileExpeditionsTab", "ExpeditionsTab", "EXPEDITIONS"); SafeLoad("MobileSupplyForgeTab", "SupplyForgeTab", "SUPPLY_FORGE"); SafeLoad("MobileSquadsTab", "SquadsTab", "SQUADS"); SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
+	if isAdmin then task.spawn(function() local AdminMod = require(MobileModules:WaitForChild("MobileAdminTab")); if AdminMod.Initialize then AdminMod.Initialize(TabContainers["ADMIN"]) end end) end
 end
 
 local function OpenMasterTab(tabName, displayTitle)
@@ -187,16 +119,13 @@ end
 
 local function BuildBottomBar()
 	local Dock = Instance.new("Frame", MasterGui); Dock.AnchorPoint = Vector2.new(0.5, 1); Dock.Position = UDim2.new(0.5, 0, 1, 0); Dock.Size = UDim2.new(1, 0, 0, 50); Dock.BackgroundColor3 = Color3.fromRGB(18, 18, 22); Dock.BorderSizePixel = 0
-	local dStroke = Instance.new("UIStroke", Dock); dStroke.Color = Color3.fromRGB(60, 60, 70); dStroke.Thickness = 1
-	local dGrad = Instance.new("UIGradient", Dock); dGrad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 35)), ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 18))}; dGrad.Rotation = 90
+	local dStroke = Instance.new("UIStroke", Dock); dStroke.Color = Color3.fromRGB(60, 60, 70); dStroke.Thickness = 1; local dGrad = Instance.new("UIGradient", Dock); dGrad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 35)), ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 18))}; dGrad.Rotation = 90
 	local layout = Instance.new("UIListLayout", Dock); layout.FillDirection = Enum.FillDirection.Horizontal; layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; layout.VerticalAlignment = Enum.VerticalAlignment.Center; layout.Padding = UDim.new(0.02, 0) 
 
 	if isAdmin then
 		local adminExists = false
 		for _, tab in ipairs(CONFIG.DockTabs) do if tab.Id == "ADMIN" then adminExists = true break end end
-		if not adminExists then
-			table.insert(CONFIG.DockTabs, {Id = "ADMIN", Title = "DEVELOPER PANEL", Icon = "rbxassetid://100709766417970"})
-		end
+		if not adminExists then table.insert(CONFIG.DockTabs, {Id = "ADMIN", Title = "DEVELOPER PANEL", Icon = "rbxassetid://100709766417970"}) end
 	end
 
 	for _, btnData in ipairs(CONFIG.DockTabs) do
@@ -210,8 +139,7 @@ local function BuildBottomBar()
 		if btnData.Id == "REGIMENTS" then
 			local function UpdateRegimentIcon()
 				local currentReg = player:GetAttribute("Regiment") or "Cadet Corps"; local hasRegData, regDataModule = pcall(function() return require(game.ReplicatedStorage:WaitForChild("RegimentData")) end); local newIcon = CONFIG.Icons.RegimentDefault
-				if hasRegData and regDataModule and regDataModule.Regiments[currentReg] then newIcon = regDataModule.Regiments[currentReg].Icon end
-				btn.Image = newIcon
+				if hasRegData and regDataModule and regDataModule.Regiments[currentReg] then newIcon = regDataModule.Regiments[currentReg].Icon end; btn.Image = newIcon
 			end
 			player.AttributeChanged:Connect(function(attr) if attr == "Regiment" then UpdateRegimentIcon() end end); UpdateRegimentIcon()
 		end
