@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MobileExpeditionsTab
 -- @ScriptType: ModuleScript
 local MobileExpeditionsTab = {}
@@ -31,47 +32,60 @@ end
 function MobileExpeditionsTab.Initialize(parentFrame)
 	for _, child in ipairs(parentFrame:GetChildren()) do if child:IsA("GuiObject") then child:Destroy() end end
 
-	local MasterScroll = Instance.new("ScrollingFrame", parentFrame)
+	-- [[ THE FIX: Split the layout into Top (Missions) and Bottom (Party) ]]
+	local TopContainer = Instance.new("Frame", parentFrame)
+	TopContainer.Size = UDim2.new(1, 0, 1, -120) -- Reserve bottom 120px for the Party Panel
+	TopContainer.Position = UDim2.new(0, 0, 0, 0)
+	TopContainer.BackgroundTransparency = 1
+
+	local BottomContainer = Instance.new("Frame", parentFrame)
+	BottomContainer.Size = UDim2.new(1, 0, 0, 110)
+	BottomContainer.Position = UDim2.new(0, 0, 1, -10)
+	BottomContainer.AnchorPoint = Vector2.new(0, 1)
+	BottomContainer.BackgroundTransparency = 1
+
+	local MasterScroll = Instance.new("ScrollingFrame", TopContainer)
 	MasterScroll.Size = UDim2.new(1, 0, 1, 0); MasterScroll.BackgroundTransparency = 1; MasterScroll.ScrollBarThickness = 8; MasterScroll.BorderSizePixel = 0; MasterScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	local masterLayout = Instance.new("UIListLayout", MasterScroll); masterLayout.SortOrder = Enum.SortOrder.LayoutOrder; masterLayout.Padding = UDim.new(0, 20); masterLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	local masterPad = Instance.new("UIPadding", MasterScroll); masterPad.PaddingTop = UDim.new(0, 15); masterPad.PaddingBottom = UDim.new(0, 30)
 
 	-- ==========================================
-	-- TOP PANEL: STRIKE TEAM (PARTY SYSTEM)
+	-- BOTTOM PANEL: STRIKE TEAM (PARTY SYSTEM)
 	-- ==========================================
-	local PartyPanel, _ = CreateGrimPanel(MasterScroll)
-	PartyPanel.Size = UDim2.new(0.95, 0, 0, 0); PartyPanel.AutomaticSize = Enum.AutomaticSize.Y; PartyPanel.LayoutOrder = 1
-	local ppLayout = Instance.new("UIListLayout", PartyPanel); ppLayout.Padding = UDim.new(0, 15); ppLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local ppPad = Instance.new("UIPadding", PartyPanel); ppPad.PaddingTop = UDim.new(0, 15); ppPad.PaddingBottom = UDim.new(0, 20)
+	local PartyPanel, _ = CreateGrimPanel(BottomContainer)
+	PartyPanel.Size = UDim2.new(0.95, 0, 1, 0)
+	PartyPanel.Position = UDim2.new(0.5, 0, 0, 0)
+	PartyPanel.AnchorPoint = Vector2.new(0.5, 0)
+	local ppLayout = Instance.new("UIListLayout", PartyPanel); ppLayout.Padding = UDim.new(0, 5); ppLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local ppPad = Instance.new("UIPadding", PartyPanel); ppPad.PaddingTop = UDim.new(0, 10); ppPad.PaddingBottom = UDim.new(0, 10)
 
 	local function RenderPartyUI()
 		for _, child in ipairs(PartyPanel:GetChildren()) do if child:IsA("GuiObject") then child:Destroy() end end
 
 		if IsInParty then
-			local Header = UIHelpers.CreateLabel(PartyPanel, "STRIKE TEAM (" .. #CurrentParty .. "/3)", UDim2.new(0.9, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 18); Header.LayoutOrder = 1; Header.TextXAlignment = Enum.TextXAlignment.Center
+			local Header = UIHelpers.CreateLabel(PartyPanel, "STRIKE TEAM (" .. #CurrentParty .. "/3)", UDim2.new(0.9, 0, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 16); Header.LayoutOrder = 1; Header.TextXAlignment = Enum.TextXAlignment.Center
 
 			local RosterFrame = Instance.new("Frame", PartyPanel); RosterFrame.Size = UDim2.new(0.9, 0, 0, 0); RosterFrame.AutomaticSize = Enum.AutomaticSize.Y; RosterFrame.BackgroundTransparency = 1; RosterFrame.LayoutOrder = 2
-			local rLayout = Instance.new("UIListLayout", RosterFrame); rLayout.Padding = UDim.new(0, 8)
+			local rLayout = Instance.new("UIListLayout", RosterFrame); rLayout.Padding = UDim.new(0, 4)
 
 			for _, member in ipairs(CurrentParty) do
-				local mCard, mStroke = CreateGrimPanel(RosterFrame); mCard.Size = UDim2.new(1, 0, 0, 40)
-				local mName = UIHelpers.CreateLabel(mCard, member.Name, UDim2.new(1, -45, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14); mName.Position = UDim2.new(0, 15, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
-				if member.IsLeader then local crown = UIHelpers.CreateLabel(mCard, "👑", UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 16); crown.Position = UDim2.new(1, -35, 0, 0) end
+				local mCard, mStroke = CreateGrimPanel(RosterFrame); mCard.Size = UDim2.new(1, 0, 0, 30)
+				local mName = UIHelpers.CreateLabel(mCard, member.Name, UDim2.new(1, -45, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 12); mName.Position = UDim2.new(0, 10, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
+				if member.IsLeader then local crown = UIHelpers.CreateLabel(mCard, "👑", UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 12); crown.Position = UDim2.new(1, -30, 0, 0) end
 			end
 
 			if IsPartyLeader then
-				local InviteContainer = Instance.new("Frame", PartyPanel); InviteContainer.Size = UDim2.new(0.9, 0, 0, 40); InviteContainer.BackgroundTransparency = 1; InviteContainer.LayoutOrder = 3
-				local NameInput = Instance.new("TextBox", InviteContainer); NameInput.Size = UDim2.new(0.7, -5, 1, 0); NameInput.BackgroundColor3 = Color3.fromRGB(20, 20, 25); NameInput.TextColor3 = UIHelpers.Colors.TextWhite; NameInput.Font = Enum.Font.GothamMedium; NameInput.TextSize = 14; NameInput.PlaceholderText = "Username..."; NameInput.Text = ""; NameInput.BorderSizePixel = 0; Instance.new("UIStroke", NameInput).Color = UIHelpers.Colors.BorderMuted
+				local InviteContainer = Instance.new("Frame", PartyPanel); InviteContainer.Size = UDim2.new(0.9, 0, 0, 30); InviteContainer.BackgroundTransparency = 1; InviteContainer.LayoutOrder = 3
+				local NameInput = Instance.new("TextBox", InviteContainer); NameInput.Size = UDim2.new(0.7, -5, 1, 0); NameInput.BackgroundColor3 = Color3.fromRGB(20, 20, 25); NameInput.TextColor3 = UIHelpers.Colors.TextWhite; NameInput.Font = Enum.Font.GothamMedium; NameInput.TextSize = 12; NameInput.PlaceholderText = "Username..."; NameInput.Text = ""; NameInput.BorderSizePixel = 0; Instance.new("UIStroke", NameInput).Color = UIHelpers.Colors.BorderMuted
 
-				local InvBtn, _ = CreateSharpButton(InviteContainer, "INVITE", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 12); InvBtn.Position = UDim2.new(1, 0, 0, 0); InvBtn.AnchorPoint = Vector2.new(1, 0)
+				local InvBtn, _ = CreateSharpButton(InviteContainer, "INVITE", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 10); InvBtn.Position = UDim2.new(1, 0, 0, 0); InvBtn.AnchorPoint = Vector2.new(1, 0)
 				InvBtn.MouseButton1Click:Connect(function() if NameInput.Text ~= "" then Network:WaitForChild("PartyAction"):FireServer("Invite", NameInput.Text); NameInput.Text = "" end end)
 			end
 
-			local LeaveBtn, _ = CreateSharpButton(PartyPanel, "LEAVE TEAM", UDim2.new(0.9, 0, 0, 40), Enum.Font.GothamBlack, 14); LeaveBtn.LayoutOrder = 4; LeaveBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+			local LeaveBtn, _ = CreateSharpButton(PartyPanel, "LEAVE TEAM", UDim2.new(0.9, 0, 0, 30), Enum.Font.GothamBlack, 12); LeaveBtn.LayoutOrder = 4; LeaveBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 			LeaveBtn.MouseButton1Click:Connect(function() Network:WaitForChild("PartyAction"):FireServer("Leave") end)
 		else
-			-- [[ THE FIX: Replaced Garamond with GothamBlack here ]]
-			local Header = UIHelpers.CreateLabel(PartyPanel, "SOLO DEPLOYMENT", UDim2.new(0.9, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 20); Header.LayoutOrder = 1
+			local Header = UIHelpers.CreateLabel(PartyPanel, "SOLO DEPLOYMENT", UDim2.new(0.9, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 18); Header.LayoutOrder = 1
 			local CreateBtn, _ = CreateSharpButton(PartyPanel, "CREATE TEAM", UDim2.new(0.9, 0, 0, 45), Enum.Font.GothamBlack, 16); CreateBtn.LayoutOrder = 2
 			CreateBtn.MouseButton1Click:Connect(function() Network:WaitForChild("PartyAction"):FireServer("Create") end)
 
@@ -107,7 +121,7 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 	RenderPartyUI()
 
 	-- ==========================================
-	-- BOTTOM PANEL: MISSIONS GRID
+	-- TOP PANEL: MISSIONS GRID
 	-- ==========================================
 	local MissionsPanel = Instance.new("Frame", MasterScroll)
 	MissionsPanel.Size = UDim2.new(1, 0, 0, 0); MissionsPanel.AutomaticSize = Enum.AutomaticSize.Y; MissionsPanel.BackgroundTransparency = 1; MissionsPanel.LayoutOrder = 2
@@ -141,7 +155,6 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 	end
 
 	local HeaderFrame = Instance.new("Frame", MissionsPanel); HeaderFrame.Size = UDim2.new(1, 0, 0, 40); HeaderFrame.BackgroundTransparency = 1; HeaderFrame.LayoutOrder = 1
-	-- [[ THE FIX: Replaced Garamond ]]
 	local Title = UIHelpers.CreateLabel(HeaderFrame, "COMBAT DEPLOYMENT", UDim2.new(1, -80, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 22); Title.Position = UDim2.new(0, 20, 0, 0); Title.TextXAlignment = Enum.TextXAlignment.Left
 
 	local BackBtn, BackStroke = CreateSharpButton(HeaderFrame, "< BACK", UDim2.new(0, 70, 0, 30), Enum.Font.GothamBlack, 12)
