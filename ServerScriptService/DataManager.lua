@@ -1,5 +1,6 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- Name: DataManager
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -41,9 +42,13 @@ end
 
 local lbRf = RemotesFolder:FindFirstChild("GetLeaderboardData")
 if not lbRf then
-	lbRf = Instance.new("RemoteFunction")
-	lbRf.Name = "GetLeaderboardData"
-	lbRf.Parent = RemotesFolder
+	lbRf = Instance.new("RemoteFunction"); lbRf.Name = "GetLeaderboardData"; lbRf.Parent = RemotesFolder
+end
+
+-- [[ THE FIX: Added the missing PrestigeAction RemoteFunction ]]
+local prestigeRf = RemotesFolder:FindFirstChild("PrestigeAction")
+if not prestigeRf then
+	prestigeRf = Instance.new("RemoteFunction"); prestigeRf.Name = "PrestigeAction"; prestigeRf.Parent = RemotesFolder
 end
 
 lbRf.OnServerInvoke = function(player, lbType)
@@ -74,7 +79,6 @@ lbRf.OnServerInvoke = function(player, lbType)
 	return finalList
 end
 
--- [[ THE FIX: Read base stats directly from GameData to ensure UI doesn't crash on nil stats! ]]
 local DefaultData = { 
 	Prestige = 0, CurrentPart = 1, CurrentMission = 1, CurrentWave = 1, XP = 0, TitanXP = 0, Dews = 0, Elo = 1000, 
 	Titan = "None", FightingStyle = "None", Clan = "None", Regiment = "Cadet Corps", DeployedDistrict = "Trost District",
@@ -426,6 +430,11 @@ local function LoadPlayer(player)
 
 	pcall(function() PrestigeLB:SetAsync(userIdStr, pVal.Value) end)
 	pcall(function() EloLB:SetAsync(userIdStr, eVal.Value) end)
+
+	-- [[ THE FIX: Immediately force save the reset attributes so they don't resend on rejoin ]]
+	task.spawn(function()
+		SavePlayer(player, false)
+	end)
 end
 
 Players.PlayerAdded:Connect(LoadPlayer)
@@ -469,12 +478,13 @@ SavePlayer = function(p, isLeaving)
 		end 
 	end
 
+	-- [[ THE FIX: Removed the 0 start limit which was instantly aborting saves for new servers! ]]
 	local now = os.clock()
 	local lastSave = lastSaveTimes[userIdStr] or 0
-	local timeSince = now - lastSave
-	if timeSince < 6.5 then
+
+	if lastSave ~= 0 and (now - lastSave) < 6.5 then
 		if isLeaving then
-			task.wait(6.5 - timeSince)
+			task.wait(6.5 - (now - lastSave))
 		else
 			return 
 		end
