@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: ExpeditionsTab
 -- @ScriptType: ModuleScript
 local ExpeditionsTab = {}
@@ -119,7 +120,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 	GridContainer.Size = UDim2.new(1, 0, 1, -60); GridContainer.Position = UDim2.new(0, 0, 0, 50); GridContainer.BackgroundTransparency = 1; GridContainer.ScrollBarThickness = 6; GridContainer.BorderSizePixel = 0
 	Pages["Main"] = GridContainer
 
-	-- [[ THE FIX: Padding added to prevent grid elements from bleeding out the top edge! ]]
 	local mainGridPad = Instance.new("UIPadding", GridContainer)
 	mainGridPad.PaddingTop = UDim.new(0, 5)
 	mainGridPad.PaddingBottom = UDim.new(0, 10)
@@ -145,10 +145,22 @@ function ExpeditionsTab.Initialize(parentFrame)
 	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 6, function() ShowPage("PvP", "PVP ARENA") end)
 	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources over long periods.", CONFIG.Decals.AFK, 7, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
 
-	local AFKPage = Instance.new("Frame", MissionsPanel)
-	AFKPage.Size = UDim2.new(1, 0, 1, -60); AFKPage.Position = UDim2.new(0, 0, 0, 50); AFKPage.BackgroundTransparency = 1; AFKPage.Visible = false
-	Pages["AFK"] = AFKPage
-	AFKTab.Initialize(AFKPage, InitiateDeployment)
+	local function CreateSubPage(name)
+		local page = Instance.new("Frame", MissionsPanel); page.Size = UDim2.new(1, 0, 0, 0); page.AutomaticSize = Enum.AutomaticSize.Y; page.BackgroundTransparency = 1; page.Visible = false; page.LayoutOrder = 2
+		Pages[name] = page; local lay = Instance.new("UIGridLayout", page); lay.CellSize = UDim2.new(0.45, 0, 0, 180); lay.CellPadding = UDim2.new(0.05, 0, 0, 20); lay.HorizontalAlignment = Enum.HorizontalAlignment.Center; lay.SortOrder = Enum.SortOrder.LayoutOrder
+		return page
+	end
+
+	local AFKPage = Instance.new("Frame", MissionsPanel); AFKPage.Size = UDim2.new(1, 0, 0, 600); AFKPage.BackgroundTransparency = 1; AFKPage.Visible = false; AFKPage.LayoutOrder = 2
+	Pages["AFK"] = AFKPage; AFKTab.Initialize(AFKPage, InitiateDeployment)
+	
+	local CloseAFKBtn = CreateSharpButton(parentFrame, "X", UDim2.new(0, 40, 0, 40), Enum.Font.GothamBlack, 18, "#FF5555")
+	CloseAFKBtn.Position = UDim2.new(1, -20, 0, 20)
+	CloseAFKBtn.AnchorPoint = Vector2.new(1, 0)
+	CloseAFKBtn.ZIndex = 100
+	CloseAFKBtn.MouseButton1Click:Connect(function()
+		parentFrame.Visible = false
+	end)
 
 	local NightmarePage = Instance.new("ScrollingFrame", MissionsPanel)
 	NightmarePage.Size = UDim2.new(1, 0, 1, -60); NightmarePage.Position = UDim2.new(0, 0, 0, 50); NightmarePage.BackgroundTransparency = 1; NightmarePage.ScrollBarThickness = 6; NightmarePage.BorderSizePixel = 0; NightmarePage.Visible = false
@@ -231,6 +243,15 @@ function ExpeditionsTab.Initialize(parentFrame)
 		end
 	end)
 
+	-- [[ FIX: Automatically un-toggles the queue button if the server successfully matches them ]]
+	Network:WaitForChild("PvPUpdate").OnClientEvent:Connect(function(action)
+		if action == "MatchStarted" then
+			inQueue = false
+			QueueBtn.Text = "ENTER QUEUE"
+			QueueBtn.TextColor3 = UIHelpers.Colors.TextWhite
+		end
+	end)
+
 	local PvPMatchesTitle = UIHelpers.CreateLabel(PvPPage, "ACTIVE SPECTATOR MATCHES", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 18)
 	PvPMatchesTitle.Position = UDim2.new(0, 0, 0, 170); PvPMatchesTitle.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -248,7 +269,7 @@ function ExpeditionsTab.Initialize(parentFrame)
 		local loadingLbl = UIHelpers.CreateLabel(SpectateScroll, "Scanning for live matches...", UDim2.new(1, 0, 0, 50), Enum.Font.GothamBold, UIHelpers.Colors.Gold, 14)
 
 		task.spawn(function()
-			local matches = Network:WaitForChild("PvPAction"):InvokeServer("GetLiveMatches")
+			local matches = Network:WaitForChild("GetLiveMatches"):InvokeServer()
 			if loadingLbl and loadingLbl.Parent then loadingLbl:Destroy() end
 
 			if type(matches) ~= "table" or #matches == 0 then
