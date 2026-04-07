@@ -56,13 +56,21 @@ local isActive = false
 local loopConnection = nil
 local isPressing = false
 
+ClickCatcher.MouseButton1Down:Connect(function()
+	if isActive then isPressing = true end
+end)
+ClickCatcher.MouseButton1Up:Connect(function()
+	if isActive then isPressing = false end
+end)
+
+-- Mobile Touch Support
 ClickCatcher.InputBegan:Connect(function(input)
-	if isActive and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+	if isActive and input.UserInputType == Enum.UserInputType.Touch then
 		isPressing = true
 	end
 end)
 ClickCatcher.InputEnded:Connect(function(input)
-	if isActive and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+	if isActive and input.UserInputType == Enum.UserInputType.Touch then
 		isPressing = false
 	end
 end)
