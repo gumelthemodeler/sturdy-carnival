@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: AFKTab
 -- @ScriptType: ModuleScript
 local AFKTab = {}
@@ -61,8 +62,22 @@ local function CreateSharpButton(parent, text, size, font, textSize)
 end
 
 function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
+	-- [[ THE FIX: Clean, Integrated Return Button ]]
+	local ReturnBtn, rStrk = CreateSharpButton(parentFrame, "◀ RETURN TO EXPEDITIONS", UDim2.new(0.55, 0, 0, 35), Enum.Font.GothamBlack, 14)
+	ReturnBtn.Position = UDim2.new(0, 0, 0, 0)
+	ReturnBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
+	rStrk.Color = Color3.fromRGB(255, 85, 85)
+
+	ReturnBtn.MouseButton1Click:Connect(function()
+		parentFrame.Visible = false
+	end)
+
+	-- Shifted Map down by 45 pixels to perfectly accommodate the Return Button
 	local MapContainer = Instance.new("Frame", parentFrame)
-	MapContainer.Size = UDim2.new(0.55, 0, 0.65, 0); MapContainer.BackgroundColor3 = Color3.fromRGB(15, 18, 15)
+	MapContainer.Size = UDim2.new(0.55, 0, 0.65, -45)
+	MapContainer.Position = UDim2.new(0, 0, 0, 45)
+	MapContainer.BackgroundColor3 = Color3.fromRGB(15, 18, 15)
+
 	local mapStroke = Instance.new("UIStroke", MapContainer); mapStroke.Color = Color3.fromRGB(50, 60, 50); mapStroke.Thickness = 2
 	Instance.new("UICorner", MapContainer).CornerRadius = UDim.new(0, 8)
 
