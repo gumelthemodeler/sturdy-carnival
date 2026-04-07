@@ -10,6 +10,47 @@ GachaRoll.Name = "GachaRoll"
 local GachaResult = Network:FindFirstChild("GachaResult") or Instance.new("RemoteEvent", Network)
 GachaResult.Name = "GachaResult"
 
+-- @ScriptType: Script
+-- Name: GachaManager
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
+local Network = ReplicatedStorage:WaitForChild("Network")
+
+local GachaRoll = Network:FindFirstChild("GachaRoll") or Instance.new("RemoteEvent", Network)
+GachaRoll.Name = "GachaRoll"
+local GachaResult = Network:FindFirstChild("GachaResult") or Instance.new("RemoteEvent", Network)
+GachaResult.Name = "GachaResult"
+
+-- [[ THE FIX: Added the missing ManageStorage server logic for Bloodline/Titan Vaults! ]]
+local ManageStorage = Network:FindFirstChild("ManageStorage") or Instance.new("RemoteEvent", Network)
+ManageStorage.Name = "ManageStorage"
+
+ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
+	if type(slotIndex) ~= "number" then return end
+	if gType ~= "Titan" and gType ~= "Clan" then return end
+
+	-- Verify Gamepass Ownership for extra slots (4, 5, 6)
+	if slotIndex > 3 and not player:GetAttribute("Has" .. gType .. "Vault") then
+		return -- Exploit prevention: Player tried to use a locked slot
+	end
+
+	local activeAttr = gType 
+	local slotAttr = gType .. "_Slot" .. slotIndex
+
+	local currentActive = player:GetAttribute(activeAttr) or "None"
+	local currentSlotted = player:GetAttribute(slotAttr) or "None"
+
+	-- Swap the currently equipped Titan/Clan with the vaulted one
+	player:SetAttribute(activeAttr, currentSlotted)
+	player:SetAttribute(slotAttr, currentActive)
+
+	local NotificationEvent = Network:FindFirstChild("NotificationEvent")
+	if NotificationEvent then
+		NotificationEvent:FireClient(player, "Vault updated successfully.", "Success")
+	end
+end)
+
 GachaRoll.OnServerEvent:Connect(function(player, gType, isPremium)
 	local attrReq = (gType == "Titan") and (isPremium and "SpinalFluidSyringeCount" or "StandardTitanSerumCount") or "ClanBloodVialCount"
 	local itemsOwned = player:GetAttribute(attrReq) or 0
