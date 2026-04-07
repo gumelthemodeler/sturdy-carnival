@@ -1,11 +1,12 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- Name: ProgressionManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 local CosmeticData = require(ReplicatedStorage:WaitForChild("CosmeticData"))
-local SkillData = require(ReplicatedStorage:WaitForChild("SkillData")) -- [[ NEW: Needed for Skill Validation ]]
+local SkillData = require(ReplicatedStorage:WaitForChild("SkillData")) 
 local Network = ReplicatedStorage:WaitForChild("Network")
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
@@ -24,7 +25,8 @@ AdminCommand.OnServerEvent:Connect(function(player, command, targetStr, args)
 	end
 
 	if command == "MaxStats" then
-		local pPrestige = target.leaderstats and target.leaderstats:FindFirstChild("Prestige") and target.leaderstats.Prestige.Value or 0
+		local ls = target:FindFirstChild("leaderstats")
+		local pPrestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
 		local cap = GameData.GetStatCap(pPrestige)
 		local stats = {"Health", "Gas", "Strength", "Defense", "Speed", "Resolve", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 		for _, s in ipairs(stats) do target:SetAttribute(s, cap) end
@@ -39,8 +41,9 @@ AdminCommand.OnServerEvent:Connect(function(player, command, targetStr, args)
 		NotificationEvent:FireClient(player, "Given Titan XP to " .. target.Name, "Success")
 
 	elseif command == "SetDews" or command == "GiveDews" then
-		if target.leaderstats and target.leaderstats:FindFirstChild("Dews") then
-			target.leaderstats.Dews.Value = target.leaderstats.Dews.Value + (tonumber(args) or 100000)
+		local ls = target:FindFirstChild("leaderstats")
+		if ls and ls:FindFirstChild("Dews") then
+			ls.Dews.Value = ls.Dews.Value + (tonumber(args) or 100000)
 		end
 		NotificationEvent:FireClient(player, "Given Dews to " .. target.Name, "Success")
 
@@ -79,7 +82,6 @@ EquipCosmetic.OnServerEvent:Connect(function(player, typeKey, itemKey)
 	end)
 end)
 
--- [[ THE FIX: Endpoint for Custom Skill Loadouts ]]
 local EquipSkill = Network:FindFirstChild("EquipSkill") or Instance.new("RemoteEvent", Network)
 EquipSkill.Name = "EquipSkill"
 
@@ -87,10 +89,8 @@ EquipSkill.OnServerEvent:Connect(function(player, slotIndex, skillName)
 	slotIndex = tonumber(slotIndex)
 	if not slotIndex or slotIndex < 1 or slotIndex > 4 then return end
 
-	-- Verify skill actually exists in the database
 	if not SkillData.Skills[skillName] then return end
 
-	-- Ensure they aren't equipping duplicates
 	for i = 1, 4 do
 		if player:GetAttribute("EquippedSkill_" .. i) == skillName then
 			NotificationEvent:FireClient(player, "Skill already equipped in slot " .. i .. "!", "Error")
@@ -105,7 +105,11 @@ end)
 Network:WaitForChild("TrainAction").OnServerEvent:Connect(function(player, combo, isTitan)
 	combo = tonumber(combo) or 0
 	combo = math.clamp(combo, 0, 150)
-	local prestige = player.leaderstats and player.leaderstats:FindFirstChild("Prestige") and player.leaderstats.Prestige.Value or 0
+
+	-- SAFELY CHECK LEADERSTATS
+	local ls = player:FindFirstChild("leaderstats")
+	local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
+
 	local totalStats = (player:GetAttribute("Strength") or 10) + (player:GetAttribute("Defense") or 10) + (player:GetAttribute("Speed") or 10) + (player:GetAttribute("Resolve") or 10)
 	local baseXP = 1 + (prestige * 50) + math.floor(totalStats / 4)
 	local xpGain = math.floor(baseXP * (1.0 + (combo * 0.02)))
@@ -128,7 +132,10 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 	local currentStat = player:GetAttribute(statName) or 10
 	if type(currentStat) == "string" then currentStat = GameData.TitanRanks[currentStat] or 10 end
 
-	local prestige = player.leaderstats and player.leaderstats:FindFirstChild("Prestige") and player.leaderstats.Prestige.Value or 0
+	-- SAFELY CHECK LEADERSTATS
+	local ls = player:FindFirstChild("leaderstats")
+	local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
+
 	local cleanName = statName:gsub("_Val", ""):gsub("Titan_", "")
 	local base = (prestige == 0) and (GameData.BaseStats[cleanName] or 10) or (prestige * 5)
 	local statCap = GameData.GetStatCap(prestige)
@@ -186,14 +193,54 @@ UnlockPrestigeNode.OnServerEvent:Connect(function(player, nodeId)
 	task.wait(0.2); ActivePrestigeTransactions[player.UserId] = nil
 end)
 
-Network:WaitForChild("PrestigeEvent").OnServerEvent:Connect(function(player)
+local PrestigeAction = Network:FindFirstChild("PrestigeAction") or Instance.new("RemoteFunction", Network)
+PrestigeAction.Name = "PrestigeAction"
+
+PrestigeAction.OnServerInvoke = function(player)
 	local currentPart = player:GetAttribute("CurrentPart") or 1
-	if currentPart > 8 then
-		if player.leaderstats and player.leaderstats:FindFirstChild("Prestige") then player.leaderstats.Prestige.Value += 1 end
-		player:SetAttribute("CurrentPart", 1); player:SetAttribute("CurrentWave", 1)
-		player:SetAttribute("PathsFloor", 1); player:SetAttribute("PrestigePoints", (player:GetAttribute("PrestigePoints") or 0) + 1)
+	if currentPart >= 8 then
+		-- SAFELY CHECK LEADERSTATS
+		local ls = player:FindFirstChild("leaderstats")
+		if ls and ls:FindFirstChild("Prestige") then ls.Prestige.Value += 1 end
+
+		player:SetAttribute("CurrentPart", 1)
+		player:SetAttribute("CurrentWave", 1)
+		player:SetAttribute("PathsFloor", 1)
+		player:SetAttribute("PrestigePoints", (player:GetAttribute("PrestigePoints") or 0) + 1)
 		NotificationEvent:FireClient(player, "You have Prestiged! +1 Prestige Point acquired!", "Success")
+		return true
 	else
 		NotificationEvent:FireClient(player, "You must clear the Campaign (Part 8) before you can Prestige!", "Error")
+		return false
+	end
+end
+
+-- Passive Auto-Training for Gamepass Owners
+task.spawn(function()
+	while task.wait(5) do
+		for _, p in ipairs(Players:GetPlayers()) do
+			-- Check if they have the Gamepass or are the specific developer ID
+			if p:GetAttribute("HasAutoTrain") or p.UserId == 4068160397 then
+				-- SAFELY CHECK LEADERSTATS
+				local ls = p:FindFirstChild("leaderstats")
+				local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
+
+				local totalStats = (p:GetAttribute("Strength") or 10) + (p:GetAttribute("Defense") or 10) + (p:GetAttribute("Speed") or 10) + (p:GetAttribute("Resolve") or 10)
+
+				-- Base passive generation formula
+				local baseXP = 1 + (prestige * 50) + math.floor(totalStats / 4)
+				local xpGain = math.floor(baseXP * 1.5) 
+
+				if p:GetAttribute("HasDoubleXP") then xpGain *= 2 end
+
+				-- Distribute Soldier XP
+				p:SetAttribute("XP", (p:GetAttribute("XP") or 0) + xpGain)
+
+				-- If they own a Titan, distribute Titan XP passively as well
+				if p:GetAttribute("Titan") and p:GetAttribute("Titan") ~= "None" then
+					p:SetAttribute("TitanXP", (p:GetAttribute("TitanXP") or 0) + xpGain)
+				end
+			end
+		end
 	end
 end)
