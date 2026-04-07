@@ -1,7 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: CombatCore
--- @ScriptType: ModuleScript
 local CombatCore = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
@@ -10,6 +9,7 @@ local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local ClanData = require(ReplicatedStorage:WaitForChild("ClanData"))
 
 local function GetSetBonus(playerObj)
+	if not playerObj then return nil end
 	local wpn = playerObj:GetAttribute("EquippedWeapon")
 	local acc = playerObj:GetAttribute("EquippedAccessory")
 	if not wpn or not acc then return nil end
@@ -110,14 +110,14 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
 	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
-	-- [[ THE FIX: Heavily nerfed Titan Stat Scaling (Divided by 80 instead of 35) to prevent 20k damage 1-shots ]]
-	if attacker.IsPlayer and isAttackerTransformed then
+	-- [[ SAFELY APPLY TITAN STATS ]]
+	if attacker.IsPlayer and isAttackerTransformed and attacker.PlayerObj then
 		local titanPower = tonumber(attacker.PlayerObj:GetAttribute("Titan_Power_Val")) or 10
-		atkBuff = atkBuff * (1.0 + (titanPower / 80.0))
+		atkBuff = atkBuff * (1.0 + (titanPower / 80.0)) -- Scaled back from 35.0
 	end
-	if defender.IsPlayer and isDefenderTransformed then
+	if defender.IsPlayer and isDefenderTransformed and defender.PlayerObj then
 		local titanHardening = tonumber(defender.PlayerObj:GetAttribute("Titan_Hardening_Val")) or 10
-		defBuff = defBuff * (1.0 + (titanHardening / 80.0))
+		defBuff = defBuff * (1.0 + (titanHardening / 80.0)) -- Scaled back from 35.0
 	end
 
 	if terrain == "Caverns" then
@@ -126,7 +126,8 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		end
 	end
 
-	if attacker.IsPlayer then
+	-- [[ SAFELY APPLY PLAYER BUFFS (Clans, Sets, Presitge) ]]
+	if attacker.IsPlayer and attacker.PlayerObj then
 		local aStats = ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed)
 		atkBuff = atkBuff * aStats.DmgMult
 
@@ -136,7 +137,7 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 			if setBonus.IgnoreArmor then armorPen = armorPen + setBonus.IgnoreArmor end
 		end
 
-		local expiry = attacker.PlayerObj and tonumber(attacker.PlayerObj:GetAttribute("Buff_Damage_Expiry")) or 0
+		local expiry = tonumber(attacker.PlayerObj:GetAttribute("Buff_Damage_Expiry")) or 0
 		if expiry > os.time() then atkBuff = atkBuff * 1.5 end
 
 		local prestigeDmg = tonumber(attacker.PlayerObj:GetAttribute("Prestige_DmgMult")) or 0
@@ -144,7 +145,7 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		armorPen = armorPen + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_IgnoreArmor")) or 0)
 	end
 
-	if defender.IsPlayer then
+	if defender.IsPlayer and defender.PlayerObj then
 		local dStats = ClanData.GetClanStats(defender.Clan, string.find(tostring(defender.Clan or ""), "Awakened"), defender.Titan, isDefenderTransformed)
 		defBuff = defBuff * dStats.ArmorMult
 	end
@@ -159,13 +160,22 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 
 	if armorPen > 0 then effectiveDefense = effectiveDefense * math.max(0.1, 1.0 - armorPen) end
 
-	-- [[ THE FIX: Player multiplier reduced heavily when transformed to balance the extreme raw base stats ]]
-	effectiveAttack = attacker.IsPlayer and (effectiveAttack * (isAttackerTransformed and 1.5 or 2.5)) or (effectiveAttack * 2.0)
+	-- Reduced global multipliers to stop exponential runaway damage
+	effectiveAttack = attacker.IsPlayer and (effectiveAttack * 2.5) or (effectiveAttack * 1.5)
 
-	local mitigationFactor = 250 / (250 + effectiveDefense)
+	-- [[ DYNAMIC MITIGATION FORMULA ]]
+	-- Defense scales dynamically to match the incoming attack damage
+	local defenseConstant = math.max(250, effectiveAttack * 0.5)
+	local mitigationFactor = effectiveDefense / (effectiveDefense + defenseConstant)
+	mitigationFactor = math.clamp(mitigationFactor, 0, 0.85) -- Hardcap 85% damage reduction
 
 	skillMult = tonumber(skillMult) or 1.0
-	local baseDmg = effectiveAttack * skillMult * mitigationFactor
+	local baseDmg = effectiveAttack * skillMult * (1 - mitigationFactor)
+
+	-- Innate Titan Form Damage Reduction
+	if defender.IsPlayer and isDefenderTransformed then
+		baseDmg = baseDmg * 0.75 
+	end
 
 	targetLimb = tostring(targetLimb or "Body")
 	if targetLimb == "Nape" then
@@ -173,14 +183,28 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	elseif targetLimb == "Legs" or targetLimb == "Arms" then baseDmg = baseDmg * 0.5
 	elseif targetLimb == "Eyes" then baseDmg = baseDmg * 0.2 end
 
+	-- CO-OP SYNERGY MULTIPLIER
 	local synergyOwner = defender.SynergyOwners and defender.SynergyOwners[targetLimb]
 	if defender.Statuses and defender.Statuses["SynergyMark_" .. targetLimb] then
-		if attacker.IsPlayer and synergyOwner ~= attacker.PlayerObj.UserId then
+		if attacker.IsPlayer and attacker.PlayerObj and synergyOwner ~= attacker.PlayerObj.UserId then
 			baseDmg = baseDmg * 2.5
 		end
 	end
 
-	if defender.IsBoss and isAttackerTransformed then baseDmg = baseDmg * 0.50 end
+	-- [[ ANTI-ONE-SHOT SOFT CAP FOR PLAYERS ]]
+	if defender.IsPlayer and not attacker.IsPlayer then
+		local pMaxHP = tonumber(defender.MaxHP) or 100
+		local dmgCeiling = attacker.IsBoss and (pMaxHP * 0.45) or (pMaxHP * 0.25)
+
+		if baseDmg > dmgCeiling then
+			-- Any damage exceeding the ceiling is slashed by 90%
+			baseDmg = dmgCeiling + ((baseDmg - dmgCeiling) * 0.1)
+		end
+	end
+
+	if defender.IsBoss and isAttackerTransformed then
+		baseDmg = baseDmg * 0.50 
+	end
 
 	if defender.Name == "Abyssal Armored Titan" then
 		local aStyle = tostring(attacker.Style or "None")
@@ -190,6 +214,7 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	end
 
 	baseDmg = baseDmg * (math.random(90, 110) / 100)
+
 	return math.max(1, math.floor(baseDmg))
 end
 
@@ -217,7 +242,7 @@ function CombatCore.TakeDamage(combatant, damage, attackerStyle)
 			local survivalChance = math.clamp(resolveStat * 0.7, 0, 45)
 			local maxSurvivals = 1
 
-			if combatant.IsPlayer then
+			if combatant.IsPlayer and combatant.PlayerObj then
 				local cStats = ClanData.GetClanStats(combatant.Clan, string.find(tostring(combatant.Clan or ""), "Awakened"), combatant.Titan, combatant.Statuses and combatant.Statuses["Transformed"])
 				if cStats.SurvivalChance > 0 then survivalChance = cStats.SurvivalChance end
 				if cStats.Survivals > 0 then maxSurvivals = cStats.Survivals end
@@ -329,18 +354,18 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 	local synergyTag = isSequenceCombo and " <font color='#FFD700'>[SYNERGY: " .. lastAtkSkill .. " -> " .. skillName .. "]</font>" or ""
 	local synergyOwner = defender.SynergyOwners and defender.SynergyOwners[targetLimb]
-	if defender.Statuses and defender.Statuses["SynergyMark_" .. targetLimb] and attacker.IsPlayer and synergyOwner ~= attacker.PlayerObj.UserId then
+	if defender.Statuses and defender.Statuses["SynergyMark_" .. targetLimb] and attacker.IsPlayer and attacker.PlayerObj and synergyOwner ~= attacker.PlayerObj.UserId then
 		synergyTag = synergyTag .. " <font color='#55FFFF'><b>[CO-OP TAKEDOWN!]</b></font>"
 		defender.Statuses["SynergyMark_" .. targetLimb] = nil
 	end
+
+	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
+	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
 	local atkSpd = tonumber(attacker.TotalSpeed) or 10
 	local defSpd = tonumber(defender.TotalSpeed) or 10
 	local atkRes = tonumber(attacker.TotalResolve) or 10
 	local defRes = tonumber(defender.TotalResolve) or 10
-
-	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
-	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
 	local aStats = attacker.IsPlayer and ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed) or ClanData.GetClanStats()
 	local dStats = defender.IsPlayer and ClanData.GetClanStats(defender.Clan, string.find(tostring(defender.Clan or ""), "Awakened"), defender.Titan, isDefenderTransformed) or ClanData.GetClanStats()
@@ -377,7 +402,8 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if terrain == "Plains" and defender.IsPlayer and not isDefenderTransformed then dodgeChance -= 20 end
 
 		if defender.AwakenedStats and (tonumber(defender.AwakenedStats.DodgeBonus) or 0) > 0 then dodgeChance = dodgeChance + tonumber(defender.AwakenedStats.DodgeBonus) end
-		if defender.IsPlayer then
+
+		if defender.IsPlayer and defender.PlayerObj then
 			dodgeChance = dodgeChance + (tonumber(defender.PlayerObj:GetAttribute("Prestige_DodgeBonus")) or 0)
 			local accName = defender.PlayerObj:GetAttribute("EquippedAccessory")
 			local accData = accName and ItemData.Equipment[accName]
@@ -401,7 +427,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		local effectLog = ""
 		local attackerHasSteam = attacker.GateType == "Steam" and (tonumber(attacker.GateHP) or 0) > 0
 
-		-- [[ THE FIX: Makes Doomsday/Colossal Steam dodgeable via the Maneuver skill! ]]
+		-- [[ STEAM FIX INJECTED HERE ]]
 		if skill.Unavoidable then 
 			if isDodging and attackerHasSteam then
 				dodgeChance = 100 
@@ -434,7 +460,8 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 		local critChance = 5 + ((atkRes - defRes) * 0.10)
 		if attacker.AwakenedStats and (tonumber(attacker.AwakenedStats.CritBonus) or 0) > 0 then critChance = critChance + tonumber(attacker.AwakenedStats.CritBonus) end
-		if attacker.IsPlayer then
+
+		if attacker.IsPlayer and attacker.PlayerObj then
 			critChance += aStats.CritBonus
 			critChance = critChance + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_CritBonus")) or 0)
 			local setBonus = GetSetBonus(attacker.PlayerObj)
@@ -492,11 +519,11 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 				local isBossImmune = (defender.IsBoss and defender.Statuses and defender.Statuses["Telegraphing"]) or (defender.Statuses and defender.Statuses["Enraged"])
 
-				-- [[ THE FIX: Shroud Immunity ]]
+				-- [[ SHROUD IMMUNITY FIX ]]
 				local isShroudImmune = false
-				if safeEffect == "Stun" and defender.IsPlayer then
+				if safeEffect == "Stun" and defender.IsPlayer and defender.PlayerObj then
 					local acc = defender.PlayerObj:GetAttribute("EquippedAccessory")
-					if acc and acc:find("Shroud") then isShroudImmune = true end
+					if acc and string.find(acc, "Shroud") then isShroudImmune = true end
 				end
 
 				if isShroudImmune then
@@ -633,7 +660,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		table.insert(hitLogs, hitMsg)
 	end
 
-	if attacker.IsPlayer and didHitAtAll then
+	if attacker.IsPlayer and didHitAtAll and attacker.PlayerObj then
 		if not defender.Statuses then defender.Statuses = {} end
 		if not defender.SynergyOwners then defender.SynergyOwners = {} end
 		defender.Statuses["SynergyMark_" .. targetLimb] = 2 
@@ -646,7 +673,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		else finalMsg = fLogName .. " used <b>" .. skillName .. "</b>!" .. synergyTag .. "\n" .. table.concat(hitLogs, "\n") end
 	else finalMsg = hitLogs[1] or "" end
 
-	if attacker.IsPlayer and didHitAtAll then
+	if attacker.IsPlayer and didHitAtAll and attacker.PlayerObj then
 		local wpnName = attacker.PlayerObj:GetAttribute("EquippedWeapon")
 		local wpnData = wpnName and ItemData.Equipment[wpnName]
 		if wpnData and wpnData.SelfDamage then
