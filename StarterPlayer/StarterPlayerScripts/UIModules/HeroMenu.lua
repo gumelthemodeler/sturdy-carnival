@@ -1,6 +1,6 @@
 -- @ScriptType: ModuleScript
--- Name: HeroMenu
 -- @ScriptType: ModuleScript
+-- Name: HeroMenu
 local HeroMenu = {}
 
 local Players = game:GetService("Players")
@@ -8,7 +8,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Network = ReplicatedStorage:WaitForChild("Network")
 
--- [[ ROUTED TO SHARED FOLDER ]]
 local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local notifModule = SharedUI:WaitForChild("NotificationManager", 2)
@@ -28,9 +27,6 @@ local hasSkillData, SkillData = pcall(function() return require(ReplicatedStorag
 
 local player = Players.LocalPlayer
 
--- ==========================================
--- SHARED UTILITIES & CONSTANTS
--- ==========================================
 local RarityColors = { ["Common"] = "#AAAAAA", ["Uncommon"] = "#55FF55", ["Rare"] = "#5588FF", ["Epic"] = "#CC44FF", ["Legendary"] = "#FFD700", ["Mythical"] = "#FF3333", ["Transcendent"] = "#FF55FF" }
 local RarityOrder = { Transcendent = 0, Mythical = 1, Legendary = 2, Epic = 3, Rare = 4, Uncommon = 5, Common = 6 }
 local TEXT_COLORS = { PrestigeYellow = "#FFD700", EloBlue = "#55AAFF", DefaultGreen = "#55FF55", DewsPink = "#FF88FF" }
@@ -39,30 +35,42 @@ local REG_COLORS = { ["Garrison"] = "#FF5555", ["Military Police"] = "#55FF55", 
 local UnlockedCosmeticsCache = { Titles = {}, Auras = {} }
 local CosmeticUIUpdaters = {}
 
-task.spawn(function()
-	player:WaitForChild("leaderstats", 10)
-	if type(CosmeticData.CheckUnlock) == "function" then
-		for key, data in pairs(CosmeticData.Titles or {}) do UnlockedCosmeticsCache.Titles[key] = CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) end
-		for key, data in pairs(CosmeticData.Auras or {}) do UnlockedCosmeticsCache.Auras[key] = CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) end
-	end
-end)
-
+-- [[ THE FIX: Suppress notifications entirely until DataLoaded is true ]]
 local function EvaluateCosmetics()
 	if type(CosmeticData.CheckUnlock) ~= "function" then return end
+	local isFullyLoaded = player:GetAttribute("DataLoaded") == true
+
 	for key, data in pairs(CosmeticData.Titles or {}) do
-		if not UnlockedCosmeticsCache.Titles[key] and CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) then
+		local meetsReq = CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue)
+		if meetsReq and not UnlockedCosmeticsCache.Titles[key] then
 			UnlockedCosmeticsCache.Titles[key] = true
-			if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("New Title Unlocked: " .. data.Name, "Success") end
+
+			-- Only show the notification if their profile has finished loading
+			if isFullyLoaded and NotificationManager and type(NotificationManager.Show) == "function" then 
+				NotificationManager.Show("New Title Unlocked: " .. data.Name, "Success") 
+			end
 		end
 	end
+
 	for key, data in pairs(CosmeticData.Auras or {}) do
-		if not UnlockedCosmeticsCache.Auras[key] and CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) then
+		local meetsReq = CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue)
+		if meetsReq and not UnlockedCosmeticsCache.Auras[key] then
 			UnlockedCosmeticsCache.Auras[key] = true
-			if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("New Aura Unlocked: " .. data.Name, "Success") end
+
+			-- Only show the notification if their profile has finished loading
+			if isFullyLoaded and NotificationManager and type(NotificationManager.Show) == "function" then 
+				NotificationManager.Show("New Aura Unlocked: " .. data.Name, "Success") 
+			end
 		end
 	end
-	for _, updater in ipairs(CosmeticUIUpdaters) do if type(updater) == "function" then updater() end end
+
+	for _, updater in ipairs(CosmeticUIUpdaters) do 
+		if type(updater) == "function" then updater() end 
+	end
 end
+
+-- Instantly evaluate silently on boot to populate the cache
+EvaluateCosmetics()
 
 local function CreateGrimPanel(parent)
 	local frame = Instance.new("Frame", parent)
@@ -106,10 +114,6 @@ local function GetRankColor(rank)
 	elseif rank == "C" then return Color3.fromRGB(170, 85, 255)
 	else return Color3.fromRGB(170, 170, 170) end
 end
-
--- ==========================================
--- TAB BUILDER FUNCTIONS (ISOLATED SCOPES)
--- ==========================================
 
 local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	local function DrawLineScale(parent, p1x, p1y, p2x, p2y, color, thickness, zindex)
@@ -305,7 +309,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			table.insert(CosmeticUIUpdaters, UpdateState)
 			btn.MouseButton1Click:Connect(function() 
 				if type(CosmeticData.CheckUnlock) ~= "function" or CosmeticData.CheckUnlock(player, item.Data.ReqType, item.Data.ReqValue) then 
-					Network.EquipCosmetic:FireServer(typeKey, item.Key) 
+					Network:WaitForChild("EquipCosmetic"):FireServer(typeKey, item.Key) 
 				end 
 			end)
 			UpdateState()
@@ -460,13 +464,13 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 				if item.Data.Type ~= nil then 
 					local isEq = (player:GetAttribute("EquippedWeapon") == item.Name) or (player:GetAttribute("EquippedAccessory") == item.Name)
 					if isEq then equipBtn.Text = "UNEQUIP"; equipBtn.TextColor3 = Color3.fromRGB(255, 100, 100) else equipBtn.Text = "EQUIP"; equipBtn.TextColor3 = Color3.fromRGB(245, 245, 245) end
-					equipBtn.MouseButton1Click:Connect(function() buttonConsumed = true; if isEq then Network.EquipItem:FireServer("Unequip_" .. item.Data.Type) else Network.EquipItem:FireServer(item.Name) end; ActionsOverlay.Visible = false end)
+					equipBtn.MouseButton1Click:Connect(function() buttonConsumed = true; if isEq then Network:WaitForChild("EquipItem"):FireServer("Unequip_" .. item.Data.Type) else Network:WaitForChild("EquipItem"):FireServer(item.Name) end; ActionsOverlay.Visible = false end)
 				elseif item.Data.Action ~= nil then 
 					equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
-					equipBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network.ConsumeItem:FireServer(item.Name); ActionsOverlay.Visible = false end)
+					equipBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
 				else equipBtn.Visible = false end
 
-				sellBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network.SellItem:FireServer(item.Name, false); ActionsOverlay.Visible = false end)
+				sellBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, false); ActionsOverlay.Visible = false end)
 				lockBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network:WaitForChild("ToggleLock"):FireServer(item.Name); ActionsOverlay.Visible = false end)
 
 				local function CloseAllOverlays() for _, c in ipairs(InvGrid:GetChildren()) do if c.Name == "ItemCard" then local ov = c:FindFirstChild("ActionsOverlay"); if ov then ov.Visible = false end end end end
@@ -647,7 +651,7 @@ local function BuildAttributesTab(parentFrame)
 
 			CreateFloatingText("+" .. xpGain .. (isTitan and " T-XP" or " XP"), Color3.fromRGB(100, 255, 100), currentPos)
 			tBtn.Position = UDim2.new(math.random(25, 75)/100, 0, math.random(30, 80)/100, 0)
-			Network.TrainAction:FireServer(activeCombo, isTitan)
+			Network:WaitForChild("TrainAction"):FireServer(activeCombo, isTitan)
 		end
 
 		tBtn.MouseButton1Down:Connect(TriggerTrain)
@@ -815,7 +819,7 @@ local function BuildSkillsTab(parentFrame)
 
 						for sIndex = 1, 4 do
 							local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 26), Enum.Font.GothamBlack, 11); slotBtn.ZIndex = 11
-							slotBtn.MouseButton1Click:Connect(function() Network.EquipSkill:FireServer(sIndex, sName); player:SetAttribute("EquippedSkill_"..sIndex, sName); ActionsOverlay.Visible = false; RefreshSkills() end)
+							slotBtn.MouseButton1Click:Connect(function() Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName); player:SetAttribute("EquippedSkill_"..sIndex, sName); ActionsOverlay.Visible = false; RefreshSkills() end)
 						end
 						local closeBtn, _ = CreateSharpButton(ActionsOverlay, "CANCEL", UDim2.new(0.8, 0, 0, 26), Enum.Font.GothamBlack, 11); closeBtn.ZIndex = 11; closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 						closeBtn.MouseButton1Click:Connect(function() ActionsOverlay.Visible = false end)
@@ -881,7 +885,7 @@ local function BuildPrestigeTab(parentFrame)
 	local DReq = CreateSharpLabel(DetailPanel, "", UDim2.new(0.5, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.Border, 14); DReq.Position = UDim2.new(0, 20, 1, -30); DReq.TextXAlignment = Enum.TextXAlignment.Left
 
 	local UnlockBtn, UBtnStroke = CreateSharpButton(DetailPanel, "UNLOCK", UDim2.new(0.25, 0, 0, 45), Enum.Font.GothamBlack, 16); UnlockBtn.Position = UDim2.new(0.98, 0, 1, -55); UnlockBtn.AnchorPoint = Vector2.new(1, 0)
-	UnlockBtn.MouseButton1Click:Connect(function() if SelectedNodeId then Network.UnlockPrestigeNode:FireServer(SelectedNodeId) end end)
+	UnlockBtn.MouseButton1Click:Connect(function() if SelectedNodeId then Network:WaitForChild("UnlockPrestigeNode"):FireServer(SelectedNodeId) end end)
 
 	local function UpdateUI()
 		local pts = player:GetAttribute("PrestigePoints") or 0; if PointsLabel then PointsLabel.Text = "AVAILABLE POINTS: " .. pts end
@@ -1054,7 +1058,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 					task.delay(1.5, function() if cachedTooltipMgr and type(cachedTooltipMgr.Hide) == "function" then cachedTooltipMgr.Hide() end end)
 					return
 				end
-				Network.ManageStorage:FireServer(gType, i)
+				Network:WaitForChild("ManageStorage"):FireServer(gType, i)
 			end)
 			storageBtns[i] = { Btn = sBtn, Stroke = stroke }
 		end
@@ -1075,7 +1079,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 			local count = player:GetAttribute(attrReq) or 0
 			if count > 0 then
 				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network.GachaRoll:FireServer(gType, false)
+				Network:WaitForChild("GachaRoll"):FireServer(gType, false)
 				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end) -- UI updates via AttributeChanged
 			else
 				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
@@ -1088,7 +1092,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 			local count = player:GetAttribute("SpinalFluidSyringeCount") or 0
 			if count > 0 then
 				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network.GachaRoll:FireServer(gType, true)
+				Network:WaitForChild("GachaRoll"):FireServer(gType, true)
 				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end)
 			else
 				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
@@ -1102,7 +1106,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 			if count > 0 then
 				isAutoRolling[gType] = true; isRolling[gType] = true; ResultLbl.Text = "<i>Auto-Rolling...</i>"
 				currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network.GachaRoll:FireServer(gType, false)
+				Network:WaitForChild("GachaRoll"):FireServer(gType, false)
 				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end)
 			else
 				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
@@ -1159,7 +1163,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 	player.AttributeChanged:Connect(UpdateUI); UpdateUI()
 
-	Network.GachaResult.OnClientEvent:Connect(function(gType, resultName, resultRarity)
+	Network:WaitForChild("GachaResult").OnClientEvent:Connect(function(gType, resultName, resultRarity)
 		if resultName == "Error" then isRolling[gType] = false; isAutoRolling[gType] = false; UpdateUI(); if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end return end
 
 		local targetLbl = (gType == "Titan") and tResult or cResult
@@ -1194,7 +1198,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				if (player:GetAttribute(attrReq) or 0) > 0 then
 					targetLbl.Text = "<i>Auto-Rolling...</i>"
 					currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-					Network.GachaRoll:FireServer(gType, false)
+					Network:WaitForChild("GachaRoll"):FireServer(gType, false)
 					task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; UpdateUI() end end)
 				else
 					isAutoRolling[gType] = false; isRolling[gType] = false; targetLbl.Text = "<font color='#FF5555'>Out of items!</font>"; task.delay(1.5, function() if not isRolling[gType] then UpdateUI() end end)
