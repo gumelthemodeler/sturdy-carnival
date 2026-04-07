@@ -1,4 +1,5 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MainUI
 -- @ScriptType: ModuleScript
 local MainUI = {}
@@ -8,7 +9,6 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Network = ReplicatedStorage:WaitForChild("Network")
 
--- [[ FIXED: Pointing correctly to SharedUI ]]
 local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 
@@ -19,9 +19,6 @@ local MasterGui, MasterWindow, WindowScale, WindowTitle, CurrentOpenTab
 local TabContainers = {}
 local CurrencyLabels = {}
 
--- ==========================================
--- CONFIGURATION TABLES
--- ==========================================
 local CONFIG = {
 	Icons = {
 		Background = "rbxassetid://125800917140688",
@@ -45,9 +42,6 @@ local CONFIG = {
 	}
 }
 
--- ==========================================
--- CORE FUNCTIONS
--- ==========================================
 local function FormatAbbreviation(value)
 	local num = tonumber(value)
 	if not num then return "0" end
@@ -153,7 +147,7 @@ local function BuildMasterWindow()
 		box.Size = UDim2.new(0, 130, 0, 36)
 		box.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 		local bStroke = Instance.new("UIStroke", box)
-		bStroke.Color = Color3.fromRGB(70, 70, 80)
+		bStroke.Color = Color3.fromRGB(50, 50, 60)
 		bStroke.Thickness = 2
 
 		local tLbl = UIHelpers.CreateLabel(box, title, UDim2.new(0.5, -5, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 10)
@@ -259,7 +253,8 @@ local function BuildMasterWindow()
 		clTitle.Position = UDim2.new(0, 10, 0, 10)
 		clTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-		local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.5.0 - The Global Update</b>\n\n• Added Strike Squads & Global Leaderboards.\n• Overhauled Market & Forge UI.\n• Hero Menu Integration.\n\n<b>ACTIVE CODES:</b>\n[MULTIPLAYERPART2]\n[NIGHTMAREMODE]\n[BUGFIX]", UDim2.new(1, -20, 1, -50), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 14)
+		-- [[ THE FIX: Updated Changelog Text ]]
+		local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.6.0 - Ymir's Favored Update</b>\n\n• Strike Squad 9-Slot Vaults & Global Champion Buffs.\n• Secure Player Trading System.\n• Titan Fusion & Combat Overhauls.\n\n<b>ACTIVE CODES:</b>\n[CAMPAIGN!]\n[NIGHTMAREMODE]\n[SQUADS]", UDim2.new(1, -20, 1, -50), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 14)
 		clText.Position = UDim2.new(0, 10, 0, 45)
 		clText.TextXAlignment = Enum.TextXAlignment.Left
 		clText.TextYAlignment = Enum.TextYAlignment.Top
@@ -294,10 +289,13 @@ local function BuildMasterWindow()
 		local lsLayout = Instance.new("UIListLayout", LbScroll)
 		lsLayout.Padding = UDim.new(0, 5)
 
-		local lbTabs = {"PRESTIGE", "ELO RATING", "SQUAD CP"}
+		local lbTabs = {"PRESTIGE", "ELO RATING", "SQUAD SP"}
 		local lbBtns = {}
+		local currentLbTab = "PRESTIGE"
 
+		-- [[ THE FIX: Extracted and Auto-Updating Leaderboards ]]
 		local function FetchLeaderboard(typeKey)
+			currentLbTab = typeKey
 			for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 
 			for k, v in pairs(lbBtns) do
@@ -307,14 +305,14 @@ local function BuildMasterWindow()
 
 			task.spawn(function()
 				local data = {}
-				if typeKey == "SQUAD CP" then
+				if typeKey == "SQUAD SP" then
 					data = Network:WaitForChild("GetSquadLeaderboard"):InvokeServer()
 				else
 					local rawKey = (typeKey == "ELO RATING") and "Elo" or "Prestige"
 					data = Network:WaitForChild("GetLeaderboardData"):InvokeServer(rawKey)
 				end
 
-				if data then
+				if data and currentLbTab == typeKey then -- Ensure they haven't rapidly switched tabs
 					for i, entry in ipairs(data) do
 						local card = Instance.new("Frame", LbScroll)
 						card.Size = UDim2.new(1, -10, 0, 40)
@@ -328,7 +326,7 @@ local function BuildMasterWindow()
 						local nLbl = UIHelpers.CreateLabel(card, entry.Name, UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, cColor, 15)
 						nLbl.Position = UDim2.new(0, 50, 0, 0); nLbl.TextXAlignment = Enum.TextXAlignment.Left
 
-						local valText = (typeKey == "SQUAD CP") and (entry.CP .. " CP") or tostring(entry.Value)
+						local valText = (typeKey == "SQUAD SP") and (entry.SP .. " SP") or tostring(entry.Value)
 						local vLbl = UIHelpers.CreateLabel(card, valText, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 14)
 						vLbl.Position = UDim2.new(1, -10, 0, 0); vLbl.AnchorPoint = Vector2.new(1, 0); vLbl.TextXAlignment = Enum.TextXAlignment.Right
 					end
@@ -351,6 +349,15 @@ local function BuildMasterWindow()
 		end
 
 		FetchLeaderboard("PRESTIGE")
+
+		-- Auto-Refresh Loop
+		task.spawn(function()
+			while task.wait(60) do
+				if MasterWindow and MasterWindow.Visible and CurrentOpenTab == "HOME" then
+					FetchLeaderboard(currentLbTab)
+				end
+			end
+		end)
 	end
 	BuildHomeTab()
 
@@ -406,6 +413,11 @@ local function BuildBottomBar()
 
 	if isAdmin then
 		Dock.Size = UDim2.new(0, 540, 0, 70) 
+		local adminExists = false
+		for _, tab in ipairs(CONFIG.DockTabs) do if tab.Id == "ADMIN" then adminExists = true break end end
+		if not adminExists then
+			table.insert(CONFIG.DockTabs, {Id = "ADMIN", Title = "DEVELOPER PANEL", Icon = "rbxassetid://100709766417970"})
+		end
 	else
 		Dock.Size = UDim2.new(0, 460, 0, 70) 
 	end
