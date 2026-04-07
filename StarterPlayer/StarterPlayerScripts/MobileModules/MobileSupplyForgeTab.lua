@@ -55,7 +55,7 @@ local function CreateSharpButton(parent, text, size, font, textSize)
 	btn.Text = text
 	btn.TextScaled = true
 	local tsc = Instance.new("UITextSizeConstraint", btn)
-	tsc.MaxTextSize = textSize; tsc.MinTextSize = 10
+	tsc.MaxTextSize = textSize; tsc.MinTextSize = 9
 
 	local stroke = Instance.new("UIStroke", btn)
 	stroke.Color = Color3.fromRGB(70, 70, 80)
@@ -104,19 +104,19 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	navLayout.FillDirection = Enum.FillDirection.Horizontal
 	navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	navLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	navLayout.Padding = UDim.new(0, 8)
+	navLayout.Padding = UDim.new(0, 5)
 
 	local ContentArea = Instance.new("Frame", MainFrame)
 	ContentArea.Size = UDim2.new(1, -10, 1, -60)
 	ContentArea.BackgroundTransparency = 1
 	ContentArea.LayoutOrder = 2
 
-	local subTabs = { "MARKET", "FORGE", "FUSION" }
+	local subTabs = { "MARKET", "FORGE", "FUSION", "TRADE" }
 	local activeSubFrames = {}
 	local subBtns = {}
 
 	for i, tabName in ipairs(subTabs) do
-		local btn, stroke = CreateSharpButton(SubNav, tabName, UDim2.new(0.3, 0, 0, 35), Enum.Font.GothamBold, 12)
+		local btn, stroke = CreateSharpButton(SubNav, tabName, UDim2.new(0.23, 0, 0, 35), Enum.Font.GothamBold, 11)
 		btn.TextColor3 = UIHelpers.Colors.TextMuted
 		stroke.Color = UIHelpers.Colors.BorderMuted
 
@@ -234,8 +234,8 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	end
 
 	local CodeContainer = Instance.new("Frame", LeftPanel)
-	CodeContainer.Size = UDim2.new(1, 0, 0.3, 0)
-	CodeContainer.Position = UDim2.new(0, 0, 0.7, 0)
+	CodeContainer.Size = UDim2.new(1, 0, 0, 70)
+	CodeContainer.Position = UDim2.new(0, 0, 1, -70)
 	CodeContainer.BackgroundTransparency = 1 
 
 	local cInput = Instance.new("TextBox", CodeContainer)
@@ -282,7 +282,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 			rrPremStroke.Color = Color3.fromRGB(200, 100, 255)
 			isFreeRestock = true
 		else
-			rrPremium.Text = "RESTOCK (50 R$)"
+			rrPremium.Text = "RESTOCK (15 R$)"
 			rrPremium.TextColor3 = Color3.fromRGB(85, 255, 85)
 			rrPremStroke.Color = Color3.fromRGB(85, 255, 85)
 			isFreeRestock = false
@@ -382,7 +382,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	RefreshShop()
 
 	-- ==========================================
-	-- 2. THE FORGE (NO GRAY BACKGROUNDS)
+	-- 2. THE FORGE
 	-- ==========================================
 	local ForgeTab = activeSubFrames["FORGE"]
 
@@ -400,7 +400,6 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 		fSplitContainer.CanvasSize = UDim2.new(0, 0, 0, fsLayout.AbsoluteContentSize.Y + 20) 
 	end)
 
-	-- [[ THE FIX: Fully removed the CreateGrimPanel formatting from BlueprintPanel ]]
 	local BlueprintPanel = Instance.new("Frame", fSplitContainer)
 	BlueprintPanel.Size = UDim2.new(1, -10, 0, 350)
 	BlueprintPanel.LayoutOrder = 1
@@ -525,7 +524,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 		if not hasAllMats then if NotificationManager then NotificationManager.Show("Insufficient Materials!", "Error") end return end
 
 		InfoView.Visible = false; MinigameView.Visible = true; strikes = 0; totalAccuracy = 0; mgInst.Text = "Strike when the heat aligns perfectly. (0/3)"; ResetSweetSpot(); mgActive = true
-		BlueprintPanel.Size = UDim2.new(1, -10, 0, 300)
+		BlueprintPanel.Size = UDim2.new(1, -10, 0, 300) 
 
 		local t = 0
 		if mgConn then mgConn:Disconnect() end
@@ -592,7 +591,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 				local reqBg = Instance.new("Frame", rf)
 				reqBg.Size = UDim2.new(1, 0, 1, 0)
 				reqBg.BackgroundColor3 = hasAmt and UIHelpers.Colors.BorderMuted or Color3.fromRGB(150, 40, 40)
-				reqBg.BackgroundTransparency = hasAmt and 0.5 or 0 -- Slightly faded if successful, solid red if missing
+				reqBg.BackgroundTransparency = hasAmt and 0.5 or 0 
 				reqBg.BorderSizePixel = 0
 				local rGrad = Instance.new("UIGradient", reqBg); rGrad.Rotation = 90; rGrad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.7) }
 
@@ -638,16 +637,11 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	SlotContainer.BackgroundTransparency = 1
 
 	local function CreateFusionSlot(pos, titleText, isResult)
-		local f = Instance.new("Frame", SlotContainer)
+		local f, fStroke = CreateGrimPanel(SlotContainer)
 		f.Size = UDim2.new(0, 100, 0, 100)
 		f.Position = pos
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
-		f.BackgroundTransparency = 1 
-
-		local fStroke = Instance.new("UIStroke", f)
 		fStroke.Color = Color3.fromRGB(70, 70, 80)
-		fStroke.Thickness = 2
-		fStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 		local t = UIHelpers.CreateLabel(f, titleText, UDim2.new(1, -10, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 10)
 		t.Position = UDim2.new(0, 5, 0, 5)
@@ -743,6 +737,96 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 		if not selectedAlpha or not selectedOmega then if NotificationManager then NotificationManager.Show("Requires two Subjects.", "Error") end return end
 		Network:WaitForChild("FuseTitan"):FireServer(selectedAlpha.Slot, selectedOmega.Slot)
 		selectedAlpha = nil; selectedOmega = nil; UpdateFusionUI()
+	end)
+
+	-- ==========================================
+	-- 4. PLAYER TRADE
+	-- ==========================================
+	local TradeTab = activeSubFrames["TRADE"]
+
+	local tTitle = UIHelpers.CreateLabel(TradeTab, "SECURE TRADING", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(85, 170, 255), 18)
+	tTitle.Position = UDim2.new(0, 0, 0, 0)
+
+	local tDesc = UIHelpers.CreateLabel(TradeTab, "Initiate a secure item exchange with another operative.", UDim2.new(1, -20, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12)
+	tDesc.Position = UDim2.new(0, 10, 0, 30)
+
+	local TradePanel, tpStroke = CreateGrimPanel(TradeTab)
+	TradePanel.Size = UDim2.new(0.95, 0, 0, 120)
+	TradePanel.Position = UDim2.new(0.5, 0, 0, 60)
+	TradePanel.AnchorPoint = Vector2.new(0.5, 0)
+
+	local pInput = Instance.new("TextBox", TradePanel)
+	pInput.Size = UDim2.new(0.8, 0, 0, 35)
+	pInput.Position = UDim2.new(0.5, 0, 0, 15)
+	pInput.AnchorPoint = Vector2.new(0.5, 0)
+	pInput.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+	pInput.TextColor3 = UIHelpers.Colors.TextWhite
+	pInput.Font = Enum.Font.GothamMedium
+	pInput.TextSize = 14
+	pInput.PlaceholderText = "Target Username..."
+	pInput.Text = ""
+	Instance.new("UIStroke", pInput).Color = UIHelpers.Colors.BorderMuted
+
+	local SendBtn, sendStroke = CreateSharpButton(TradePanel, "SEND REQUEST", UDim2.new(0.8, 0, 0, 35), Enum.Font.GothamBlack, 14)
+	SendBtn.Position = UDim2.new(0.5, 0, 0, 65)
+	SendBtn.AnchorPoint = Vector2.new(0.5, 0)
+	SendBtn.TextColor3 = Color3.fromRGB(85, 170, 255)
+	sendStroke.Color = Color3.fromRGB(85, 170, 255)
+
+	SendBtn.MouseButton1Click:Connect(function()
+		if pInput.Text ~= "" then
+			Network:WaitForChild("TradeAction"):FireServer("SendRequest", pInput.Text)
+			pInput.Text = ""
+		end
+	end)
+
+	local incTitle = UIHelpers.CreateLabel(TradeTab, "INCOMING REQUESTS", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
+	incTitle.Position = UDim2.new(0, 10, 0, 190); incTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+	local ReqScroll = Instance.new("ScrollingFrame", TradeTab)
+	ReqScroll.Size = UDim2.new(1, -20, 1, -220)
+	ReqScroll.Position = UDim2.new(0, 10, 0, 220)
+	ReqScroll.BackgroundTransparency = 1
+	ReqScroll.ScrollBarThickness = 4
+	ReqScroll.BorderSizePixel = 0
+
+	local reqLayout = Instance.new("UIListLayout", ReqScroll)
+	reqLayout.Padding = UDim.new(0, 8)
+	reqLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		ReqScroll.CanvasSize = UDim2.new(0, 0, 0, reqLayout.AbsoluteContentSize.Y + 10)
+	end)
+
+	local PendingTrades = {}
+	local function UpdateTradeRequests()
+		for _, c in ipairs(ReqScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+		for reqName, _ in pairs(PendingTrades) do
+			local rCard, _ = CreateGrimPanel(ReqScroll)
+			rCard.Size = UDim2.new(1, 0, 0, 50)
+
+			local nameLbl = UIHelpers.CreateLabel(rCard, reqName, UDim2.new(0.5, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14)
+			nameLbl.Position = UDim2.new(0, 10, 0, 0); nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+			local accBtn, accStrk = CreateSharpButton(rCard, "ACCEPT", UDim2.new(0, 70, 0, 30), Enum.Font.GothamBlack, 11)
+			accBtn.Position = UDim2.new(1, -50, 0.5, 0); accBtn.AnchorPoint = Vector2.new(1, 0.5)
+			accBtn.TextColor3 = Color3.fromRGB(85, 255, 85); accStrk.Color = Color3.fromRGB(85, 255, 85)
+
+			local decBtn, decStrk = CreateSharpButton(rCard, "X", UDim2.new(0, 30, 0, 30), Enum.Font.GothamBlack, 14)
+			decBtn.Position = UDim2.new(1, -10, 0.5, 0); decBtn.AnchorPoint = Vector2.new(1, 0.5)
+			decBtn.TextColor3 = Color3.fromRGB(255, 85, 85); decStrk.Color = Color3.fromRGB(255, 85, 85)
+
+			accBtn.MouseButton1Click:Connect(function() Network:WaitForChild("TradeAction"):FireServer("AcceptRequest", reqName) end)
+			decBtn.MouseButton1Click:Connect(function() PendingTrades[reqName] = nil; UpdateTradeRequests(); Network:WaitForChild("TradeAction"):FireServer("DeclineRequest", reqName) end)
+		end
+	end
+
+	Network:WaitForChild("TradeUpdate").OnClientEvent:Connect(function(action, data)
+		if action == "IncomingRequest" then
+			PendingTrades[data.Sender] = true
+			UpdateTradeRequests()
+		elseif action == "CancelRequest" then
+			PendingTrades[data.Sender] = nil
+			UpdateTradeRequests()
+		end
 	end)
 end
 
