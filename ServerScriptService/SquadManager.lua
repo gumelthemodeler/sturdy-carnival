@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
+local MessagingService = game:GetService("MessagingService") -- [NEW] Cross-server sync
 
 local SquadStore = DataStoreService:GetDataStore("StrikeSquads_V2")
 local SquadLeaderboard = DataStoreService:GetOrderedDataStore("Global_Squad_SP_V1")
@@ -14,7 +15,7 @@ local SquadAction = Network:FindFirstChild("SquadAction") or Instance.new("Remot
 SquadAction.Name = "SquadAction"
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
--- [NEW] BindableEvent to listen for SP gains from other scripts like CombatManager
+-- BindableEvent to listen for SP gains from other scripts like CombatManager
 local AddSquadSP = Network:FindFirstChild("AddSquadSP") or Instance.new("BindableEvent", Network)
 AddSquadSP.Name = "AddSquadSP"
 
@@ -26,11 +27,31 @@ local GetSquadRequests = Instance.new("RemoteFunction", Network); GetSquadReques
 local ActiveSquads = {}
 local GlobalSquadCache = {}
 local isFetchingCache = false
-local PendingRequests = {} -- [SquadName] = { [UserId] = UserName }
 
-local function SaveSquadData(squadName, data)
-	pcall(function() SquadStore:SetAsync(squadName, data); SquadLeaderboard:SetAsync(squadName, data.SP or 0) end)
-end
+-- [NEW] Catch messages from other servers to update live squad cache and apply changes across all servers instantly
+pcall(function()
+	MessagingService:SubscribeAsync("SquadUpdate", function(message)
+		local sqName = message.Data.SquadName
+		if ActiveSquads[sqName] then
+			pcall(function()
+				local latestData = SquadStore:GetAsync(sqName)
+				if latestData then
+					ActiveSquads[sqName] = latestData
+					-- Update the clients in THIS server so they see the fresh data
+					local vaultStr = HttpService:JSONEncode(latestData.Vault or {"None","None","None","None","None","None","None","None","None"})
+					for _, p in ipairs(Players:GetPlayers()) do
+						if p:GetAttribute("SquadName") == sqName then
+							p:SetAttribute("SquadSP", latestData.SP)
+							p:SetAttribute("SquadVault", vaultStr)
+							p:SetAttribute("SquadIsLeader", latestData.Leader == p.UserId)
+							p:SetAttribute("YmirFavored", latestData.IsYmirFavored or false)
+						end
+					end
+				end
+			end)
+		end
+	end)
+end)
 
 local function UpdateOnlineMembers(sqName)
 	local sqData = ActiveSquads[sqName]
@@ -46,7 +67,17 @@ local function UpdateOnlineMembers(sqName)
 	end
 end
 
--- [NEW] Listen for SP updates
+local function SaveSquadData(squadName, data)
+	pcall(function() 
+		SquadStore:SetAsync(squadName, data)
+		SquadLeaderboard:SetAsync(squadName, data.SP or 0) 
+	end)
+	-- [NEW] Tell all other servers that this squad has been updated
+	pcall(function() 
+		MessagingService:PublishAsync("SquadUpdate", {SquadName = squadName}) 
+	end)
+end
+
 AddSquadSP.Event:Connect(function(sqName, amount)
 	local sqData = ActiveSquads[sqName]
 	if sqData then
@@ -150,10 +181,12 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local memCount = 0; for _, _ in pairs(sqData.Members) do memCount += 1 end
 		if memCount >= 15 then NotificationEvent:FireClient(player, "That Squad is currently full!", "Error") return end
 
-		if not PendingRequests[sqName] then PendingRequests[sqName] = {} end
-		if PendingRequests[sqName][tostring(player.UserId)] then NotificationEvent:FireClient(player, "You already have a pending request for this Squad.", "Error") return end
+		if not sqData.Requests then sqData.Requests = {} end
+		if sqData.Requests[tostring(player.UserId)] then NotificationEvent:FireClient(player, "You already have a pending request for this Squad.", "Error") return end
 
-		PendingRequests[sqName][tostring(player.UserId)] = player.Name
+		-- [NEW] Requests are now bound to the datastore table to persist across servers
+		sqData.Requests[tostring(player.UserId)] = player.Name
+		SaveSquadData(sqName, sqData)
 
 		for _, p in ipairs(Players:GetPlayers()) do
 			if p.UserId == sqData.Leader then NotificationEvent:FireClient(p, player.Name .. " has requested to join your Squad!", "Info") end
@@ -167,10 +200,10 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 
 		local sqData = ActiveSquads[sqName]
 		if not sqData or sqData.Leader ~= player.UserId then return end
-		if not PendingRequests[sqName] or not PendingRequests[sqName][targetId] then return end
+		if not sqData.Requests or not sqData.Requests[targetId] then return end
 
-		local targetName = PendingRequests[sqName][targetId]
-		PendingRequests[sqName][targetId] = nil 
+		local targetName = sqData.Requests[targetId]
+		sqData.Requests[targetId] = nil 
 
 		if decision == "Accept" then
 			local memCount = 0; for _, _ in pairs(sqData.Members) do memCount += 1 end
@@ -240,37 +273,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		SaveSquadData(sqName, sqData)
 		UpdateOnlineMembers(sqName)
 		NotificationEvent:FireClient(player, "Deposited " .. itemName .. " into Vault.", "Success")
-		local slot = tonumber(data.Slot)
-		local itemName = tostring(data.ItemName)
-		local sqName = player:GetAttribute("SquadName")
-		if not sqName or sqName == "None" then return end
-
-		local sqData = ActiveSquads[sqName]
-		if not sqData then return end
-
-		if slot > 6 and not sqData.IsYmirFavored then
-			NotificationEvent:FireClient(player, "Bonus Vault slots are locked! Reach #1 Globally to unlock.", "Error")
-			return
-		end
-
-		if not sqData.Vault then sqData.Vault = {"None", "None", "None", "None", "None", "None", "None", "None", "None"} end
-		if sqData.Vault[slot] and sqData.Vault[slot] ~= "None" then
-			NotificationEvent:FireClient(player, "That slot is already full!", "Error")
-			return
-		end
-
-		local attrName = itemName:gsub("[^%w]", "") .. "Count"
-		local pCount = player:GetAttribute(attrName) or 0
-		if pCount <= 0 then
-			NotificationEvent:FireClient(player, "You do not own this item.", "Error")
-			return
-		end
-
-		player:SetAttribute(attrName, pCount - 1)
-		sqData.Vault[slot] = itemName
-		SaveSquadData(sqName, sqData)
-		UpdateOnlineMembers(sqName)
-		NotificationEvent:FireClient(player, "Deposited " .. itemName .. " into Vault.", "Success")
 
 	elseif action == "WithdrawItem" then
 		local slot = tonumber(data.Slot)
@@ -329,7 +331,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		end
 
 		ActiveSquads[sqName] = nil
-		PendingRequests[sqName] = nil
 		pcall(function()
 			SquadStore:RemoveAsync(sqName)
 			SquadLeaderboard:RemoveAsync(sqName)
@@ -358,7 +359,8 @@ GetSquadRequests.OnServerInvoke = function(player)
 	if not sqData or sqData.Leader ~= player.UserId then return {} end
 
 	local reqs = {}
-	for uid, uname in pairs(PendingRequests[sqName] or {}) do table.insert(reqs, {UserId = uid, Name = uname}) end
+	-- [NEW] Pull directly from persistent datastore table
+	for uid, uname in pairs(sqData.Requests or {}) do table.insert(reqs, {UserId = uid, Name = uname}) end
 	return reqs
 end
 
