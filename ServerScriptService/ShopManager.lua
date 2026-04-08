@@ -49,7 +49,10 @@ local RarePathsItems = {
 local itemPool = {}
 
 for name, data in pairs(ItemData.Equipment or {}) do 
-	if not data.IsGift then table.insert(itemPool, {Name = name, Data = data}) end
+	-- [[ THE FIX: Prevent Cursed and Transcendent items from ever entering the shop pool ]]
+	if not data.IsGift and not data.Cursed and data.Rarity ~= "Transcendent" then 
+		table.insert(itemPool, {Name = name, Data = data}) 
+	end
 end
 
 for name, data in pairs(ItemData.Consumables or {}) do 
@@ -60,6 +63,7 @@ for name, data in pairs(ItemData.Consumables or {}) do
 		or string.find(lowerName, "itemized") 
 		or name == "Ymir's Clay Fragment"
 		or name == "Titan Hardening Extract"
+		or data.Rarity == "Transcendent" -- Ensure Transcendent consumables stay out too
 
 	if not data.IsGift and not isBannedFromShop then table.insert(itemPool, {Name = name, Data = data}) end
 end
@@ -282,7 +286,7 @@ BuyAction.OnServerEvent:Connect(function(player, actionType, itemName)
 		local attrName = targetItem.Name:gsub("[^%w]", "") .. "Count"
 		local currentCount = player:GetAttribute(attrName) or 0
 
-		-- [[ THE FIX: Validating Inventory using the new local function instead of GameData ]]
+		-- Validating Inventory using the local counter
 		if currentCount == 0 then
 			local maxInv = player:GetAttribute("HasBackpackExpansion") and 100 or MAX_INVENTORY_CAPACITY
 			if GetUniqueSlotCount(player) >= maxInv then
