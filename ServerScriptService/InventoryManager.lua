@@ -1,5 +1,6 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- Name: InventoryManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
@@ -47,7 +48,6 @@ Network:WaitForChild("AutoSell").OnServerEvent:Connect(function(player, rarity)
 	player:SetAttribute(attrName, not player:GetAttribute(attrName))
 end)
 
--- [[ ADDED: Locking System ]]
 local ToggleLock = Network:FindFirstChild("ToggleLock") or Instance.new("RemoteEvent", Network)
 ToggleLock.Name = "ToggleLock"
 ToggleLock.OnServerEvent:Connect(function(player, itemName)
@@ -78,18 +78,6 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 			end
 		end
 	end
-end)
-
-Network:WaitForChild("ManageStorage").OnServerEvent:Connect(function(player, gType, slotIndex)
-	slotIndex = tonumber(slotIndex)
-	if not slotIndex or slotIndex < 1 or slotIndex > 6 then return end
-	if slotIndex > 3 and not player:GetAttribute("Has" .. gType .. "Vault") then return end
-	local currentAttr = (gType == "Titan") and "Titan" or "Clan"
-	local slotAttr = currentAttr .. "_Slot" .. slotIndex
-	local currentVal = player:GetAttribute(currentAttr) or "None"
-	local slotVal = player:GetAttribute(slotAttr) or "None"
-	player:SetAttribute(currentAttr, slotVal)
-	player:SetAttribute(slotAttr, currentVal)
 end)
 
 local EquipCosmetic = Network:FindFirstChild("EquipCosmetic") or Instance.new("RemoteEvent", Network)
