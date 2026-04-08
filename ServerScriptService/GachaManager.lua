@@ -14,12 +14,15 @@ GachaResult.Name = "GachaResult"
 local ManageStorage = Network:FindFirstChild("ManageStorage") or Instance.new("RemoteEvent", Network)
 ManageStorage.Name = "ManageStorage"
 
--- [[ THE FIX: Strict 1-second server debounce to eradicate mobile double-taps ]]
+-- [[ THE FIX: Unbreakable Time-Lock Debounce ]]
 local SwapDebounce = {}
 
 ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
 	local now = os.clock()
-	if SwapDebounce[player.UserId] and (now - SwapDebounce[player.UserId]) < 1.0 then return end
+	-- If this player sent a request less than 0.5 seconds ago, ignore it completely.
+	if SwapDebounce[player.UserId] and (now - SwapDebounce[player.UserId]) < 0.5 then 
+		return 
+	end
 	SwapDebounce[player.UserId] = now
 
 	local safeGType = tostring(gType)
@@ -35,38 +38,25 @@ ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
 	local activeAttr = safeGType 
 	local slotAttr = safeGType .. "_Slot" .. safeIndex
 
-	-- [[ THE FIX: Intercept ghost string data and force "None" ]]
+	-- Sanitize attributes to guarantee "None" is used instead of ghost strings or nils
 	local currentActive = player:GetAttribute(activeAttr)
 	if not currentActive or currentActive == "" then currentActive = "None" end
 
 	local currentSlotted = player:GetAttribute(slotAttr)
 	if not currentSlotted or currentSlotted == "" then currentSlotted = "None" end
 
-	local NotificationEvent = Network:FindFirstChild("NotificationEvent")
-
-	-- If both slots are empty, send an error and abort
+	-- Abort if both are empty
 	if currentActive == "None" and currentSlotted == "None" then
-		if NotificationEvent then
-			NotificationEvent:FireClient(player, "Nothing to swap in this slot.", "Error")
-		end
 		return
 	end
 
-	-- Execute the explicit swap
+	-- Execute the Swap
 	player:SetAttribute(activeAttr, currentSlotted)
 	player:SetAttribute(slotAttr, currentActive)
 
+	local NotificationEvent = Network:FindFirstChild("NotificationEvent")
 	if NotificationEvent then
-		-- Explicitly tell the user what just happened so there is zero confusion
-		local actionText = ""
-		if currentActive ~= "None" and currentSlotted == "None" then
-			actionText = "Vaulted " .. currentActive .. "!"
-		elseif currentActive == "None" and currentSlotted ~= "None" then
-			actionText = "Equipped " .. currentSlotted .. "!"
-		else
-			actionText = "Swapped " .. currentActive .. " with " .. currentSlotted .. "!"
-		end
-		NotificationEvent:FireClient(player, actionText, "Success")
+		NotificationEvent:FireClient(player, safeGType .. " Vault Updated Successfully.", "Success")
 	end
 end)
 
