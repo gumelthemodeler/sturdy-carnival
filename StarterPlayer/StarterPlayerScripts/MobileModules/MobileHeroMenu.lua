@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MobileHeroMenu
 local MobileHeroMenu = {}
 local Players = game:GetService("Players"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local TweenService = game:GetService("TweenService"); local Network = ReplicatedStorage:WaitForChild("Network")
@@ -74,7 +75,6 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	SubTabs["Inventory"], _ = CreateGrimPanel(ContentArea); SubTabs["Inventory"].Size = UDim2.new(1, 0, 0, 0); SubTabs["Inventory"].AutomaticSize = Enum.AutomaticSize.Y; SubTabs["Inventory"].Visible = true; local invPadd = Instance.new("UIPadding", SubTabs["Inventory"]); invPadd.PaddingBottom = UDim.new(0, 15)
 	local InvTitle = CreateSharpLabel(SubTabs["Inventory"], "INVENTORY (0/50)", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(225, 185, 60), 16)
 
-	-- [[ THE FIX: Formatting perfectly constrained responsive buttons for the Inventory Filters ]]
 	local FilterFrame = Instance.new("Frame", SubTabs["Inventory"]); FilterFrame.Size = UDim2.new(1, -10, 0, 35); FilterFrame.Position = UDim2.new(0, 5, 0, 35); FilterFrame.BackgroundTransparency = 1; local ffLayout = Instance.new("UIListLayout", FilterFrame); ffLayout.FillDirection = Enum.FillDirection.Horizontal; ffLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; ffLayout.Padding = UDim.new(0.02, 0)
 
 	local currentInvFilter = "All"; local FilterBtns = {}; local RefreshProfile 
@@ -176,16 +176,44 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			if not item.Data.IsGift then
 				local ActionsOverlay = Instance.new("Frame", card); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.05; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
 				local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-				local buttonConsumed = false; local function MakeOverlayBtn(text) local obtn, _ = CreateSharpButton(ActionsOverlay, text, UDim2.new(0.9, 0, 0, 24), Enum.Font.GothamBlack, 11); obtn.ZIndex = 11; return obtn end
-				local equipBtn = MakeOverlayBtn("EQUIP"); local sellBtn = MakeOverlayBtn("SELL 1x"); local lockBtn = MakeOverlayBtn(isLocked and "UNLOCK" or "LOCK")
-				if isLocked then lockBtn.TextColor3 = Color3.fromRGB(255, 100, 100); sellBtn.Visible = false else lockBtn.TextColor3 = Color3.fromRGB(100, 255, 100) end
+
+				local buttonConsumed = false; 
+				local function MakeOverlayBtn(text) 
+					local obtn, _ = CreateSharpButton(ActionsOverlay, text, UDim2.new(0.9, 0, 0, 20), Enum.Font.GothamBlack, 10)
+					obtn.ZIndex = 11; return obtn 
+				end
+
+				local equipBtn = MakeOverlayBtn("EQUIP")
+				local sellBtn = MakeOverlayBtn("SELL 1x")
+				local sellAllBtn = MakeOverlayBtn("SELL ALL")
+				local lockBtn = MakeOverlayBtn(isLocked and "UNLOCK" or "LOCK")
+
+				if isLocked then 
+					lockBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+					sellBtn.Visible = false 
+					sellAllBtn.Visible = false
+				else 
+					lockBtn.TextColor3 = Color3.fromRGB(100, 255, 100) 
+					if item.Count <= 1 then
+						sellAllBtn.Visible = false
+					end
+				end
+
 				if item.Data.Type ~= nil then 
-					local isEq = (player:GetAttribute("EquippedWeapon") == item.Name) or (player:GetAttribute("EquippedAccessory") == item.Name); if isEq then equipBtn.Text = "UNEQUIP"; equipBtn.TextColor3 = Color3.fromRGB(255, 100, 100) else equipBtn.Text = "EQUIP"; equipBtn.TextColor3 = Color3.fromRGB(245, 245, 245) end
+					local isEq = (player:GetAttribute("EquippedWeapon") == item.Name) or (player:GetAttribute("EquippedAccessory") == item.Name)
+					if isEq then equipBtn.Text = "UNEQUIP"; equipBtn.TextColor3 = Color3.fromRGB(255, 100, 100) else equipBtn.Text = "EQUIP"; equipBtn.TextColor3 = Color3.fromRGB(245, 245, 245) end
 					equipBtn.Activated:Connect(function() buttonConsumed = true; if isEq then Network:WaitForChild("EquipItem"):FireServer("Unequip_" .. item.Data.Type) else Network:WaitForChild("EquipItem"):FireServer(item.Name) end; ActionsOverlay.Visible = false end)
-				elseif item.Data.Action ~= nil then equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255); equipBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
-				else equipBtn.Visible = false end
+				elseif item.Data.Action ~= nil then 
+					equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+					equipBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
+				else 
+					equipBtn.Visible = false 
+				end
+
 				sellBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, false); ActionsOverlay.Visible = false end)
+				sellAllBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, true); ActionsOverlay.Visible = false end)
 				lockBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ToggleLock"):FireServer(item.Name); ActionsOverlay.Visible = false end)
+
 				local function CloseAllOverlays() for _, c in ipairs(InvGrid:GetChildren()) do if c.Name == "ItemCard" then local ov = c:FindFirstChild("ActionsOverlay"); if ov then ov.Visible = false end end end end
 				btnCover.Activated:Connect(function() if buttonConsumed then buttonConsumed = false; return end; if ActionsOverlay.Visible then ActionsOverlay.Visible = false else CloseAllOverlays(); ActionsOverlay.Visible = true end end)
 			end
@@ -359,7 +387,7 @@ local function BuildSkillsTab(parentFrame)
 
 					if hasWep then
 						local ActionsOverlay = Instance.new("Frame", sCard); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.1; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
-						local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.FillDirection = Enum.FillDirection.Vertical; actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+						local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.FillDirection = Enum.FillDirection.Vertical; actLayout.Padding = UDim.new(0, 6); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
 						for sIndex = 1, 4 do local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); slotBtn.ZIndex = 11; slotBtn.Activated:Connect(function() Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName); player:SetAttribute("EquippedSkill_"..sIndex, sName); ActionsOverlay.Visible = false; RefreshSkills() end) end
 						local closeBtn, _ = CreateSharpButton(ActionsOverlay, "CANCEL", UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); closeBtn.ZIndex = 11; closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100); closeBtn.Activated:Connect(function() ActionsOverlay.Visible = false end)
@@ -498,8 +526,9 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local MainScroll = Instance.new("ScrollingFrame", parentFrame); MainScroll.Size = UDim2.new(1, 0, 1, 0); MainScroll.BackgroundTransparency = 1; MainScroll.Visible = true; MainScroll.ScrollBarThickness = 0; MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
 	local isRolling = { Titan = false, Clan = false }; local isAutoRolling = { Titan = false, Clan = false }; local currentRollSeq = { Titan = 0, Clan = 0 }
-	MainScroll:GetPropertyChangedSignal("Visible"):Connect(function() if not MainScroll.Visible then isAutoRolling.Titan = false; isAutoRolling.Clan = false end end)
+	local autoRollBtns = {}
 
+	MainScroll:GetPropertyChangedSignal("Visible"):Connect(function() if not MainScroll.Visible then isAutoRolling.Titan = false; isAutoRolling.Clan = false end end)
 	local titleLayout = Instance.new("UIListLayout", MainScroll); titleLayout.SortOrder = Enum.SortOrder.LayoutOrder; titleLayout.Padding = UDim.new(0, 15); titleLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	local pad = Instance.new("UIPadding", MainScroll); pad.PaddingTop = UDim.new(0, 10); pad.PaddingBottom = UDim.new(0, 30)
 
@@ -522,6 +551,45 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		["Awakened Yeager"] = "+50% Titan Damage\n<font color='#FFD700'>[Attack Titan Synergy]: +30% Dmg</font>",
 		["Awakened Ackerman"] = "+50% Weapon Damage, Extreme Agility"
 	}
+
+	local function ResetAutoRollVisuals(gType)
+		if autoRollBtns[gType] then
+			autoRollBtns[gType].Text = "ROLL TILL LEGENDARY+"
+			autoRollBtns[gType].BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+		end
+	end
+
+	local function IsHighTier(gType)
+		local current = player:GetAttribute(gType)
+		if not current or current == "None" then return false end
+		if gType == "Titan" and type(TitanData) == "table" and TitanData.Titans and TitanData.Titans[current] then
+			local rarity = TitanData.Titans[current].Rarity
+			return rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent"
+		elseif gType == "Clan" then
+			if string.find(current, "Awakened") then return true end
+			if type(TitanData) == "table" and TitanData.ClanWeights and TitanData.ClanWeights[current] then
+				return TitanData.ClanWeights[current] <= 4.0
+			end
+		end
+		return false
+	end
+
+	local function PromptConfirmation(message, callback)
+		local overlay = Instance.new("Frame", parentFrame)
+		overlay.Size = UDim2.new(1, 0, 1, 0); overlay.BackgroundColor3 = Color3.new(0, 0, 0); overlay.BackgroundTransparency = 0.5; overlay.Active = true; overlay.ZIndex = 100
+
+		local popup, _ = CreateGrimPanel(overlay)
+		popup.Size = UDim2.new(0, 300, 0, 150); popup.Position = UDim2.new(0.5, 0, 0.5, 0); popup.AnchorPoint = Vector2.new(0.5, 0.5); popup.BackgroundColor3 = Color3.fromRGB(20, 20, 25); popup.ZIndex = 101
+		Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
+
+		local textLabel = CreateSharpLabel(popup, message, UDim2.new(1, -20, 0.6, 0), Enum.Font.GothamBold, Color3.new(1, 1, 1), 14); textLabel.Position = UDim2.new(0, 10, 0, 10); textLabel.TextWrapped = true; textLabel.ZIndex = 102
+
+		local confirmBtn, cStroke = CreateSharpButton(popup, "SPIN IT", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); confirmBtn.Position = UDim2.new(0.05, 0, 1, -45); confirmBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40); confirmBtn.ZIndex = 102; cStroke.Color = Color3.fromRGB(255, 100, 100)
+		local cancelBtn, caStroke = CreateSharpButton(popup, "KEEP IT", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); cancelBtn.Position = UDim2.new(0.55, 0, 1, -45); cancelBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40); cancelBtn.ZIndex = 102; caStroke.Color = Color3.fromRGB(100, 255, 100)
+
+		confirmBtn.Activated:Connect(function() overlay:Destroy(); callback(true) end)
+		cancelBtn.Activated:Connect(function() overlay:Destroy(); callback(false) end)
+	end
 
 	local function CreateGachaPanel(gType, order)
 		local Panel, _ = CreateGrimPanel(PanelsContainer); Panel.Size = UDim2.new(0.95, 0, 0, 520); Panel.LayoutOrder = order
@@ -564,7 +632,26 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		task.delay(0.05, function() ListContainer.CanvasSize = UDim2.new(0, 0, 0, SList.AbsoluteContentSize.Y + 10) end)
 
 		local BottomArea = Instance.new("Frame", Panel); BottomArea.Size = UDim2.new(1, 0, 0, 240); BottomArea.Position = UDim2.new(0, 0, 0, 270); BottomArea.BackgroundTransparency = 1
-		local ResultLbl = CreateSharpLabel(BottomArea, "Current: None", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16); ResultLbl.RichText = true
+
+		local ResultLbl = CreateSharpLabel(BottomArea, "Current: None", UDim2.new(0.6, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16); ResultLbl.RichText = true; ResultLbl.TextXAlignment = Enum.TextXAlignment.Left; ResultLbl.Position = UDim2.new(0.05, 0, 0, 0)
+
+		if gType == "Titan" then
+			local ItemizeBtn, iStroke = CreateSharpButton(BottomArea, "ITEMIZE (100K)", UDim2.new(0.3, 0, 0, 24), Enum.Font.GothamBold, 10)
+			ItemizeBtn.Position = UDim2.new(0.95, 0, 0, 3)
+			ItemizeBtn.AnchorPoint = Vector2.new(1, 0)
+			ItemizeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+			iStroke.Color = Color3.fromRGB(150, 50, 50)
+
+			ItemizeBtn.Activated:Connect(function()
+				if isRolling.Titan or isAutoRolling.Titan then return end
+				local tName = player:GetAttribute("Titan")
+				if not tName or tName == "None" then
+					if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("No Titan equipped to itemize!", "Error") end
+					return
+				end
+				Network:WaitForChild("ItemizeTitan"):FireServer("Equipped")
+			end)
+		end
 
 		local StorageArea = Instance.new("Frame", BottomArea); StorageArea.Size = UDim2.new(0.9, 0, 0, 90); StorageArea.Position = UDim2.new(0.05, 0, 0, 35); StorageArea.BackgroundTransparency = 1
 		local sg = Instance.new("UIGridLayout", StorageArea); sg.CellSize = UDim2.new(0.3, 0, 0, 40); sg.CellPadding = UDim2.new(0.03, 0, 0, 8); sg.HorizontalAlignment = Enum.HorizontalAlignment.Center
@@ -594,46 +681,75 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local AutoRollBtn, aStroke = CreateSharpButton(RollActions, "ROLL TILL LEGENDARY+", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
 
 		local attrReq = (gType == "Titan") and "StandardTitanSerumCount" or "ClanBloodVialCount"
+		autoRollBtns[gType] = AutoRollBtn
 
-		RollBtn.Activated:Connect(function()
-			if isRolling[gType] or isAutoRolling[gType] then return end
-			local count = player:GetAttribute(attrReq) or 0
+		local function DoRoll(isPremium)
+			local countAttr = isPremium and "SpinalFluidSyringeCount" or attrReq
+			local count = player:GetAttribute(countAttr) or 0
 			if count > 0 then
 				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network:WaitForChild("GachaRoll"):FireServer(gType, false)
-				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end) 
+				Network:WaitForChild("GachaRoll"):FireServer(gType, isPremium)
+				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType) end end) 
 			else
 				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
 				task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+			end
+		end
+
+		RollBtn.Activated:Connect(function()
+			if isRolling[gType] or isAutoRolling[gType] then return end
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then DoRoll(false) end
+				end)
+			else
+				DoRoll(false)
 			end
 		end)
 
 		PremiumRollBtn.Activated:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
-			local count = player:GetAttribute("SpinalFluidSyringeCount") or 0
-			if count > 0 then
-				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network:WaitForChild("GachaRoll"):FireServer(gType, true)
-				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end)
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then DoRoll(true) end
+				end)
 			else
-				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
-				task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+				DoRoll(true)
 			end
 		end)
 
 		AutoRollBtn.Activated:Connect(function()
-			if isRolling[gType] or isAutoRolling[gType] then return end
-			local count = player:GetAttribute(attrReq) or 0
-			if count > 0 then
-				isAutoRolling[gType] = true; isRolling[gType] = true; ResultLbl.Text = "<i>Auto-Rolling...</i>"
-				currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network:WaitForChild("GachaRoll"):FireServer(gType, false)
-				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end)
+			if isAutoRolling[gType] then
+				isAutoRolling[gType] = false
+				ResetAutoRollVisuals(gType)
+				return
+			end
+			if isRolling[gType] then return end
+
+			local function StartAuto()
+				local count = player:GetAttribute(attrReq) or 0
+				if count > 0 then
+					isAutoRolling[gType] = true; isRolling[gType] = true; ResultLbl.Text = "<i>Auto-Rolling...</i>"
+					AutoRollBtn.Text = "STOP"
+					AutoRollBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+					currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
+					Network:WaitForChild("GachaRoll"):FireServer(gType, false)
+					task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType) end end)
+				else
+					ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
+					task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+				end
+			end
+
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then StartAuto() end
+				end)
 			else
-				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
-				task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+				StartAuto()
 			end
 		end)
+
 		return ResultLbl, PityLbl, RollBtn, PremiumRollBtn, AutoRollBtn, storageBtns
 	end
 
@@ -641,11 +757,8 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local cResult, cPity, cRoll, cPrem, cAuto, cStores = CreateGachaPanel("Clan", 2)
 
 	local function UpdateUI()
-		local tActive = player:GetAttribute("Titan"); if not tActive or tActive == "" then tActive = "None" end
-		local cActive = player:GetAttribute("Clan"); if not cActive or cActive == "" then cActive = "None" end
-
-		if not isRolling.Titan and not isAutoRolling.Titan then tResult.Text = "Current: " .. tActive end
-		if not isRolling.Clan and not isAutoRolling.Clan then cResult.Text = "Current: " .. cActive end
+		if not isRolling.Titan and not isAutoRolling.Titan then tResult.Text = "Current: " .. (player:GetAttribute("Titan") or "None") end
+		if not isRolling.Clan and not isAutoRolling.Clan then cResult.Text = "Current: " .. (player:GetAttribute("Clan") or "None") end
 
 		for i = 1, 6 do
 			local tStoreName = player:GetAttribute("Titan_Slot"..i); if not tStoreName or tStoreName == "" then tStoreName = "None" end
@@ -686,7 +799,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	player.AttributeChanged:Connect(UpdateUI); UpdateUI()
 
 	Network:WaitForChild("GachaResult").OnClientEvent:Connect(function(gType, resultName, resultRarity)
-		if resultName == "Error" then isRolling[gType] = false; isAutoRolling[gType] = false; UpdateUI(); if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end return end
+		if resultName == "Error" then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI(); if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end return end
 
 		local targetLbl = (gType == "Titan") and tResult or cResult
 		local names = {}
@@ -714,20 +827,20 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		if isAutoRolling[gType] and MainScroll.Visible then
 			if resultRarity == "Legendary" or resultRarity == "Mythical" or resultRarity == "Transcendent" then
-				isAutoRolling[gType] = false; isRolling[gType] = false; UpdateUI()
+				isAutoRolling[gType] = false; isRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI()
 			else
 				local attrReq = (gType == "Titan") and "StandardTitanSerumCount" or "ClanBloodVialCount"
 				if (player:GetAttribute(attrReq) or 0) > 0 then
 					targetLbl.Text = "<i>Auto-Rolling...</i>"
 					currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
 					Network:WaitForChild("GachaRoll"):FireServer(gType, false)
-					task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; UpdateUI() end end)
+					task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI() end end)
 				else
-					isAutoRolling[gType] = false; isRolling[gType] = false; targetLbl.Text = "<font color='#FF5555'>Out of items!</font>"; task.delay(1.5, function() if not isRolling[gType] then UpdateUI() end end)
+					isAutoRolling[gType] = false; isRolling[gType] = false; ResetAutoRollVisuals(gType); targetLbl.Text = "<font color='#FF5555'>Out of items!</font>"; task.delay(1.5, function() if not isRolling[gType] then UpdateUI() end end)
 				end
 			end
 		else
-			isRolling[gType] = false; UpdateUI()
+			isRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI()
 		end
 	end)
 end
