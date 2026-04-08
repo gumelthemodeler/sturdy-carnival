@@ -333,6 +333,10 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 			return fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. fLogName .. " " .. regroupWord .. ", recovering HP and Gas.</font>", false, "None"
 
 		elseif skill.Effect == "Transform" then
+			local cName = attacker.Clan or "None"
+			if attacker.IsPlayer and (cName == "Ackerman" or cName == "Awakened Ackerman" or attacker.Titan == "None") then
+				return fLogName .. " attempted to use <b>" .. skillName .. "</b>, but their lineage prevents Titan transformation!", false, "None"
+			end
 			if not attacker.Statuses then attacker.Statuses = {} end
 			attacker.Statuses["Transformed"] = 999; attacker.LastSkill = skillName; attacker.HP = tonumber(attacker.MaxHP) or 100
 			attacker.TitanEnergy = tonumber(attacker.MaxTitanEnergy) or 100
