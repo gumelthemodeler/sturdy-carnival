@@ -1,6 +1,4 @@
 -- @ScriptType: ModuleScript
-
--- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 local ClanData = {
 	Clans = {
@@ -13,10 +11,15 @@ local ClanData = {
 			TitanSynergies = { ["War Hammer"] = { DmgMult = 0.30 } }
 		},
 		["Ackerman"] = {
-			BaseDmgMult = 1.25, AwakenedDmgMult = 1.50,
-			BaseSpdMult = 1.0, AwakenedSpdMult = 1.50,
+			BaseDmgMult = 1.25, AwakenedDmgMult = 1.60,
+			BaseSpdMult = 1.20, AwakenedSpdMult = 1.60,
 			BaseSurvivals = 1, AwakenedSurvivals = 3,
-			SurvivalChance = 100
+			SurvivalChance = 100,
+			-- [[ ACKERMAN OVERHAUL PROPERTIES ]]
+			NapeCritMultiplier = 4.0, 
+			MomentumDamagePerHit = 0.02, 
+			MaxMomentumStacks = 25,
+			GasEfficiency = 0.50 
 		},
 		["Galliard"] = {
 			BaseDmgMult = 1.05, AwakenedDmgMult = 1.15,
@@ -25,7 +28,7 @@ local ClanData = {
 		},
 		["Braun"] = {
 			BaseArmorMult = 1.20, AwakenedArmorMult = 1.40,
-			TitanSynergies = { ["Armored Titan"] = { ArmorMult = 0.50 } } -- Added as +50%
+			TitanSynergies = { ["Armored Titan"] = { ArmorMult = 0.50 } } 
 		},
 		["Arlert"] = {
 			BaseResolveMult = 1.15, AwakenedResolveMult = 1.30,
@@ -47,10 +50,11 @@ function ClanData.GetClanStats(clanNameStr, isAwakened, titanNameStr, isTransfor
 	local baseName = string.gsub(clanNameStr or "None", "Awakened ", "")
 	local data = ClanData.Clans[baseName]
 
-	-- Default empty stats if clan isn't found
+	-- Added new default empty stats for the Ackerman overhaul variables
 	local stats = {
 		DmgMult = 1.0, ArmorMult = 1.0, SpdMult = 1.0, ResolveMult = 1.0, HpMult = 1.0,
-		CritBonus = 0, DodgeBonus = 0, Survivals = 0, SurvivalChance = 0
+		CritBonus = 0, DodgeBonus = 0, Survivals = 0, SurvivalChance = 0,
+		NapeCritMultiplier = 2.0, MomentumDamagePerHit = 0, MaxMomentumStacks = 0, GasEfficiency = 1.0
 	}
 
 	if data then
@@ -63,6 +67,12 @@ function ClanData.GetClanStats(clanNameStr, isAwakened, titanNameStr, isTransfor
 		stats.Survivals = isAwakened and (data.AwakenedSurvivals or 0) or (data.BaseSurvivals or 0)
 		stats.SurvivalChance = data.SurvivalChance or 0
 		stats.DodgeBonus = data.DodgeBonus or 0
+
+		-- Pass through Ackerman mechanics
+		stats.NapeCritMultiplier = data.NapeCritMultiplier or 2.0
+		stats.MomentumDamagePerHit = data.MomentumDamagePerHit or 0
+		stats.MaxMomentumStacks = data.MaxMomentumStacks or 0
+		stats.GasEfficiency = data.GasEfficiency or 1.0
 
 		-- Apply Titan Specific Synergies if transformed
 		if isTransformed and titanNameStr and data.TitanSynergies then
