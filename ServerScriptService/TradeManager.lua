@@ -95,11 +95,22 @@ local function ExecuteTrade(tradeId)
 		return
 	end
 
+	-- [[ SECURITY FIX: Force unequip if item is completely traded away ]]
 	local function Deduct(plr, offer)
 		plr.leaderstats.Dews.Value -= offer.Dews
 		for iName, count in pairs(offer.Items) do
 			local attr = iName:gsub("[^%w]", "") .. "Count"
-			plr:SetAttribute(attr, (plr:GetAttribute(attr) or 0) - count)
+			local newCount = (plr:GetAttribute(attr) or 0) - count
+			plr:SetAttribute(attr, newCount)
+
+			if newCount <= 0 then
+				if plr:GetAttribute("EquippedWeapon") == iName then
+					plr:SetAttribute("EquippedWeapon", "None")
+					plr:SetAttribute("FightingStyle", "None")
+				elseif plr:GetAttribute("EquippedAccessory") == iName then
+					plr:SetAttribute("EquippedAccessory", "None")
+				end
+			end
 		end
 	end
 
@@ -169,7 +180,6 @@ TradeAction.OnServerEvent:Connect(function(player, action, data)
 
 		if not PendingRequests[target.UserId] then PendingRequests[target.UserId] = {} end
 
-		-- Memory Leak Protection: Auto-delete the request after 30 seconds
 		PendingRequests[target.UserId][uid] = player.Name
 		task.delay(30, function()
 			if PendingRequests[target.UserId] then PendingRequests[target.UserId][uid] = nil end
@@ -223,20 +233,26 @@ TradeAction.OnServerEvent:Connect(function(player, action, data)
 		local isP1 = (trade.P1 == uid)
 		local myOffer = isP1 and trade.P1_Offer or trade.P2_Offer
 
-		-- [[ THE FIX: Strict Dews Sanitization ]]
 		if data.Dews ~= nil then
 			local newDews = math.floor(tonumber(data.Dews) or 0)
-			if newDews ~= newDews then newDews = 0 end -- NaN Check
+			if newDews ~= newDews then newDews = 0 end 
 			if newDews < 0 then newDews = 0 end
 			if newDews > player.leaderstats.Dews.Value then newDews = player.leaderstats.Dews.Value end
 			myOffer.Dews = newDews
 		end
 
-		-- [[ THE FIX: Strict Item Amount Sanitization ]]
 		if data.ItemName then
 			local itemName = tostring(data.ItemName)
+
+			-- [[ SECURITY FIX: Do not allow Locked items to be traded ]]
+			local isLocked = player:GetAttribute(itemName:gsub("[^%w]", "") .. "_Locked")
+			if isLocked then
+				NotificationEvent:FireClient(player, "You cannot trade Locked items!", "Error")
+				return
+			end
+
 			local amount = math.floor(tonumber(data.Amount) or 1)
-			if amount ~= amount then return end -- NaN check
+			if amount ~= amount then return end 
 
 			local attrName = itemName:gsub("[^%w]", "") .. "Count"
 			local amountOwned = player:GetAttribute(attrName) or 0
