@@ -16,30 +16,13 @@ local VFXManager = require(script.Parent.Parent:WaitForChild("VFXManager"))
 local player = Players.LocalPlayer
 local TradeAction = Network:WaitForChild("TradeAction")
 
-local MasterGui = nil
-local RequestContainer = nil
-local TradeOverlay = nil
-local TradePanel = nil
-
-local MyOfferGrid, TheirOfferGrid
-local MyDewsInput, TheirDewsLbl
-local MyStatusLbl, TheirStatusLbl
-local ReadyBtn, CancelBtn
-local InventoryGrid
-local OpponentNameLbl
-
+local MasterGui, RequestContainer, TradeOverlay, TradePanel
+local MyOfferGrid, TheirOfferGrid, MyDewsInput, TheirDewsLbl
+local MyStatusLbl, TheirStatusLbl, ReadyBtn, CancelBtn, InventoryGrid, OpponentNameLbl
 local CountdownOverlay, CountdownText
-
 local isReady = false
 
-local RARITY_COLORS = {
-	Common = "#A0A0A0",
-	Uncommon = "#55FF55",
-	Rare = "#55AAFF",
-	Epic = "#AA55FF",
-	Legendary = "#FFD700",
-	Mythical = "#FF5555"
-}
+local RARITY_COLORS = { Common = "#A0A0A0", Uncommon = "#55FF55", Rare = "#55AAFF", Epic = "#AA55FF", Legendary = "#FFD700", Mythical = "#FF5555", Transcendent = "#FF55FF" }
 
 local function GetItemRarity(itemName)
 	local data = ItemData.Equipment[itemName] or ItemData.Consumables[itemName]
@@ -49,14 +32,9 @@ end
 
 local function CreateGrimPanel(parent)
 	local frame = Instance.new("Frame", parent)
-	frame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-	frame.BackgroundTransparency = 0.2
-	frame.BorderSizePixel = 0
-	local stroke = Instance.new("UIStroke", frame)
-	stroke.Color = Color3.fromRGB(70, 70, 80)
-	stroke.Thickness = 2
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+	frame.BackgroundColor3 = Color3.fromRGB(15, 15, 18); frame.BorderSizePixel = 0
+	local stroke = Instance.new("UIStroke", frame); stroke.Color = Color3.fromRGB(70, 70, 80); stroke.Thickness = 2; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
 	return frame, stroke
 end
 
@@ -65,7 +43,6 @@ local function CreateSharpButton(parent, text, size, font, textSize, hexColor)
 	btn.Size = size; btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34); btn.BorderSizePixel = 0; btn.AutoButtonColor = false; btn.Font = font; btn.TextColor3 = Color3.fromHex(hexColor:gsub("#","")); btn.TextSize = textSize; btn.Text = text
 	local stroke = Instance.new("UIStroke", btn); stroke.Color = Color3.fromHex(hexColor:gsub("#","")); stroke.Thickness = 2; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-
 	btn.InputBegan:Connect(function() if btn.Active then stroke.Color = UIHelpers.Colors.TextWhite; btn.TextColor3 = UIHelpers.Colors.TextWhite end end)
 	btn.InputEnded:Connect(function() if btn.Active then stroke.Color = Color3.fromHex(hexColor:gsub("#","")); btn.TextColor3 = Color3.fromHex(hexColor:gsub("#","")) end end)
 	return btn, stroke
@@ -74,8 +51,7 @@ end
 local function CreateItemCard(parent, itemName, amount, isInventory)
 	local rarity = GetItemRarity(itemName)
 	local rColor = RARITY_COLORS[rarity] or "#FFFFFF"
-
-	local card, stroke = CreateSharpButton(parent, "", UDim2.new(0, 65, 0, 65), Enum.Font.GothamBold, 10, rColor)
+	local card, stroke = CreateSharpButton(parent, "", UDim2.new(0, 70, 0, 70), Enum.Font.GothamBold, 10, rColor)
 	card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 
 	local nameLbl = UIHelpers.CreateLabel(card, itemName, UDim2.new(1, -4, 0.6, 0), Enum.Font.GothamBold, Color3.fromHex(rColor:gsub("#","")), 10)
@@ -85,23 +61,14 @@ local function CreateItemCard(parent, itemName, amount, isInventory)
 	local amtLbl = UIHelpers.CreateLabel(card, "x" .. amount, UDim2.new(1, 0, 0.3, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 12)
 	amtLbl.Position = UDim2.new(0.5, 0, 0.95, 0); amtLbl.AnchorPoint = Vector2.new(0.5, 1)
 
-	-- [[ THE FIX: Use .Activated for perfect mobile tap recognition ]]
-	if isInventory then
-		card.Activated:Connect(function()
-			if not isReady then TradeAction:FireServer("UpdateOffer", {ItemName = itemName, Amount = 1}) end
-		end)
-	else
-		card.Activated:Connect(function()
-			if not isReady then TradeAction:FireServer("UpdateOffer", {ItemName = itemName, Amount = -1}) end
-		end)
-	end
-
+	card.MouseButton1Click:Connect(function()
+		if not isReady then TradeAction:FireServer("UpdateOffer", {ItemName = itemName, Amount = isInventory and 1 or -1}) end
+	end)
 	return card
 end
 
 local function RefreshInventory()
 	for _, c in ipairs(InventoryGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-
 	local function ScanItems(dictionary)
 		for itemName, _ in pairs(dictionary) do
 			local safeName = itemName:gsub("[^%w]", "") .. "Count"
@@ -109,16 +76,12 @@ local function RefreshInventory()
 			if count > 0 then CreateItemCard(InventoryGrid, itemName, count, true) end
 		end
 	end
-
-	ScanItems(ItemData.Equipment or {})
-	ScanItems(ItemData.Consumables or {})
+	ScanItems(ItemData.Equipment or {}); ScanItems(ItemData.Consumables or {})
 end
 
 local function RenderOfferGrid(gridFrame, offerData, isMine)
 	for _, c in ipairs(gridFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-	for itemName, amount in pairs(offerData.Items or {}) do
-		CreateItemCard(gridFrame, itemName, amount, not isMine) 
-	end
+	for itemName, amount in pairs(offerData.Items or {}) do CreateItemCard(gridFrame, itemName, amount, not isMine) end
 end
 
 local function BuildTradingUI()
@@ -129,107 +92,72 @@ local function BuildTradingUI()
 	TradeOverlay = Instance.new("Frame", MasterGui)
 	TradeOverlay.Size = UDim2.new(1, 0, 1, 0); TradeOverlay.BackgroundColor3 = Color3.new(0,0,0); TradeOverlay.BackgroundTransparency = 0.5; TradeOverlay.ZIndex = 250; TradeOverlay.Visible = false; TradeOverlay.Active = true
 
+	-- [[ THE FIX: Dynamically scaled panels for mobile landscape layout ]]
 	TradePanel, _ = CreateGrimPanel(TradeOverlay)
-	TradePanel.Size = UDim2.new(0.95, 0, 0.9, 0); TradePanel.Position = UDim2.new(0.5, 0, 0.5, 0); TradePanel.AnchorPoint = Vector2.new(0.5, 0.5); TradePanel.ZIndex = 251
-	TradePanel.BackgroundTransparency = 0 -- Keep trade opaque
+	TradePanel.Size = UDim2.new(0.95, 0, 0.95, 0); TradePanel.Position = UDim2.new(0.5, 0, 0.5, 0); TradePanel.AnchorPoint = Vector2.new(0.5, 0.5); TradePanel.ZIndex = 251
 
-	local Header = UIHelpers.CreateLabel(TradePanel, "SECURE TRADE", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 18); Header.ZIndex = 252
+	local Header = UIHelpers.CreateLabel(TradePanel, "SECURE TRADE", UDim2.new(1, 0, 0, 35), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 18); Header.ZIndex = 252
+	local HeaderCancelBtn = CreateSharpButton(TradePanel, "X", UDim2.new(0, 35, 0, 35), Enum.Font.GothamBlack, 16, "#FF5555"); HeaderCancelBtn.Position = UDim2.new(1, -5, 0, 5); HeaderCancelBtn.AnchorPoint = Vector2.new(1, 0); HeaderCancelBtn.ZIndex = 252
+	HeaderCancelBtn.MouseButton1Click:Connect(function() TradeAction:FireServer("Cancel") end)
 
-	local HeaderCancelBtn = CreateSharpButton(TradePanel, "X", UDim2.new(0, 35, 0, 35), Enum.Font.GothamBlack, 16, "#FF5555")
-	HeaderCancelBtn.Position = UDim2.new(1, -5, 0, 5); HeaderCancelBtn.AnchorPoint = Vector2.new(1, 0); HeaderCancelBtn.ZIndex = 252
-	HeaderCancelBtn.Activated:Connect(function() TradeAction:FireServer("Cancel") end)
+	-- Left Panel: My Offer
+	local LeftPanel, _ = CreateGrimPanel(TradePanel)
+	LeftPanel.Size = UDim2.new(0.48, 0, 0.42, 0); LeftPanel.Position = UDim2.new(0.01, 0, 0.08, 0); LeftPanel.ZIndex = 253
 
-	-- [[ THE FIX: Single Master Scrolling Frame to enable fluid mobile scrolling ]]
-	local ContentScroll = Instance.new("ScrollingFrame", TradePanel)
-	ContentScroll.Size = UDim2.new(1, 0, 1, -120)
-	ContentScroll.Position = UDim2.new(0, 0, 0, 45)
-	ContentScroll.BackgroundTransparency = 1
-	ContentScroll.ScrollBarThickness = 4
-	ContentScroll.BorderSizePixel = 0
-	ContentScroll.ZIndex = 252
-	ContentScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	local lTitle = UIHelpers.CreateLabel(LeftPanel, "YOUR OFFER", UDim2.new(0.5, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14); lTitle.Position = UDim2.new(0, 10, 0, 0); lTitle.TextXAlignment = Enum.TextXAlignment.Left; lTitle.ZIndex = 254
+	MyDewsInput = Instance.new("TextBox", LeftPanel)
+	MyDewsInput.Size = UDim2.new(0.4, 0, 0, 25); MyDewsInput.Position = UDim2.new(1, -10, 0, 5); MyDewsInput.AnchorPoint = Vector2.new(1, 0); MyDewsInput.BackgroundColor3 = Color3.fromRGB(15, 15, 18); MyDewsInput.TextColor3 = Color3.fromRGB(255, 136, 255); MyDewsInput.Font = Enum.Font.GothamBlack; MyDewsInput.TextSize = 12; MyDewsInput.PlaceholderText = "Add Dews..."; MyDewsInput.Text = ""; MyDewsInput.ZIndex = 254
+	Instance.new("UICorner", MyDewsInput).CornerRadius = UDim.new(0, 4); Instance.new("UIStroke", MyDewsInput).Color = Color3.fromRGB(45, 45, 50)
+	MyDewsInput.FocusLost:Connect(function() TradeAction:FireServer("UpdateOffer", {Dews = tonumber(MyDewsInput.Text) or 0}) end)
 
-	local csLayout = Instance.new("UIListLayout", ContentScroll)
-	csLayout.Padding = UDim.new(0, 15)
-	csLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local csPad = Instance.new("UIPadding", ContentScroll)
-	csPad.PaddingBottom = UDim.new(0, 15)
+	MyOfferGrid = Instance.new("ScrollingFrame", LeftPanel)
+	MyOfferGrid.Size = UDim2.new(1, -10, 1, -40); MyOfferGrid.Position = UDim2.new(0, 5, 0, 35); MyOfferGrid.BackgroundTransparency = 1; MyOfferGrid.ScrollBarThickness = 4; MyOfferGrid.BorderSizePixel = 0; MyOfferGrid.ZIndex = 254
+	local moLayout = Instance.new("UIGridLayout", MyOfferGrid); moLayout.CellSize = UDim2.new(0, 70, 0, 70); moLayout.CellPadding = UDim2.new(0, 8, 0, 8); moLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	moLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() MyOfferGrid.CanvasSize = UDim2.new(0, 0, 0, moLayout.AbsoluteContentSize.Y + 10) end)
 
-	-- ==========================================
-	-- THEIR OFFER (TOP)
-	-- ==========================================
-	local RightPanel, _ = CreateGrimPanel(ContentScroll)
-	RightPanel.Size = UDim2.new(0.95, 0, 0, 100); RightPanel.AutomaticSize = Enum.AutomaticSize.Y; RightPanel.BackgroundColor3 = Color3.fromRGB(22, 22, 26); RightPanel.ZIndex = 253
+	-- Right Panel: Their Offer
+	local RightPanel, _ = CreateGrimPanel(TradePanel)
+	RightPanel.Size = UDim2.new(0.48, 0, 0.42, 0); RightPanel.Position = UDim2.new(0.51, 0, 0.08, 0); RightPanel.ZIndex = 253
 
 	OpponentNameLbl = UIHelpers.CreateLabel(RightPanel, "OPPONENT'S OFFER", UDim2.new(0.6, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14); OpponentNameLbl.Position = UDim2.new(0, 10, 0, 0); OpponentNameLbl.TextXAlignment = Enum.TextXAlignment.Left; OpponentNameLbl.ZIndex = 254
 	TheirDewsLbl = UIHelpers.CreateLabel(RightPanel, "0 Dews", UDim2.new(0.4, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(255, 136, 255), 14); TheirDewsLbl.Position = UDim2.new(1, -10, 0, 0); TheirDewsLbl.AnchorPoint = Vector2.new(1, 0); TheirDewsLbl.TextXAlignment = Enum.TextXAlignment.Right; TheirDewsLbl.ZIndex = 254
 
-	-- Nested scroll frames removed: Now it's a dynamic auto-sizing frame
-	TheirOfferGrid = Instance.new("Frame", RightPanel)
-	TheirOfferGrid.Size = UDim2.new(1, -10, 0, 70); TheirOfferGrid.AutomaticSize = Enum.AutomaticSize.Y; TheirOfferGrid.Position = UDim2.new(0.5, 0, 0, 35); TheirOfferGrid.AnchorPoint = Vector2.new(0.5, 0); TheirOfferGrid.BackgroundTransparency = 1; TheirOfferGrid.ZIndex = 254
-	local toLayout = Instance.new("UIGridLayout", TheirOfferGrid); toLayout.CellSize = UDim2.new(0, 65, 0, 65); toLayout.CellPadding = UDim2.new(0, 5, 0, 5); toLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local toPad = Instance.new("UIPadding", TheirOfferGrid); toPad.PaddingBottom = UDim.new(0, 10)
+	TheirOfferGrid = Instance.new("ScrollingFrame", RightPanel)
+	TheirOfferGrid.Size = UDim2.new(1, -10, 1, -40); TheirOfferGrid.Position = UDim2.new(0, 5, 0, 35); TheirOfferGrid.BackgroundTransparency = 1; TheirOfferGrid.ScrollBarThickness = 4; TheirOfferGrid.BorderSizePixel = 0; TheirOfferGrid.ZIndex = 254
+	local toLayout = Instance.new("UIGridLayout", TheirOfferGrid); toLayout.CellSize = UDim2.new(0, 70, 0, 70); toLayout.CellPadding = UDim2.new(0, 8, 0, 8); toLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	toLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() TheirOfferGrid.CanvasSize = UDim2.new(0, 0, 0, toLayout.AbsoluteContentSize.Y + 10) end)
 
-	-- ==========================================
-	-- MY OFFER (MIDDLE)
-	-- ==========================================
-	local LeftPanel, _ = CreateGrimPanel(ContentScroll)
-	LeftPanel.Size = UDim2.new(0.95, 0, 0, 100); LeftPanel.AutomaticSize = Enum.AutomaticSize.Y; LeftPanel.BackgroundColor3 = Color3.fromRGB(22, 22, 26); LeftPanel.ZIndex = 253
-
-	local lTitle = UIHelpers.CreateLabel(LeftPanel, "YOUR OFFER", UDim2.new(0.5, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14); lTitle.Position = UDim2.new(0, 10, 0, 0); lTitle.TextXAlignment = Enum.TextXAlignment.Left; lTitle.ZIndex = 254
-
-	MyDewsInput = Instance.new("TextBox", LeftPanel)
-	MyDewsInput.Size = UDim2.new(0.4, 0, 0, 25); MyDewsInput.Position = UDim2.new(1, -10, 0, 5); MyDewsInput.AnchorPoint = Vector2.new(1, 0); MyDewsInput.BackgroundColor3 = Color3.fromRGB(15, 15, 18); MyDewsInput.TextColor3 = Color3.fromRGB(255, 136, 255); MyDewsInput.Font = Enum.Font.GothamBlack; MyDewsInput.TextSize = 12; MyDewsInput.PlaceholderText = "Add Dews..."; MyDewsInput.Text = ""; MyDewsInput.ZIndex = 254
-	Instance.new("UICorner", MyDewsInput).CornerRadius = UDim.new(0, 4)
-	Instance.new("UIStroke", MyDewsInput).Color = Color3.fromRGB(45, 45, 50)
-	MyDewsInput.FocusLost:Connect(function()
-		local amount = tonumber(MyDewsInput.Text) or 0
-		TradeAction:FireServer("UpdateOffer", {Dews = amount})
-	end)
-
-	MyOfferGrid = Instance.new("Frame", LeftPanel)
-	MyOfferGrid.Size = UDim2.new(1, -10, 0, 70); MyOfferGrid.AutomaticSize = Enum.AutomaticSize.Y; MyOfferGrid.Position = UDim2.new(0.5, 0, 0, 35); MyOfferGrid.AnchorPoint = Vector2.new(0.5, 0); MyOfferGrid.BackgroundTransparency = 1; MyOfferGrid.ZIndex = 254
-	local moLayout = Instance.new("UIGridLayout", MyOfferGrid); moLayout.CellSize = UDim2.new(0, 65, 0, 65); moLayout.CellPadding = UDim2.new(0, 5, 0, 5); moLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local moPad = Instance.new("UIPadding", MyOfferGrid); moPad.PaddingBottom = UDim.new(0, 10)
-
-	-- ==========================================
-	-- INVENTORY (BOTTOM)
-	-- ==========================================
-	local InvPanel, _ = CreateGrimPanel(ContentScroll)
-	InvPanel.Size = UDim2.new(0.95, 0, 0, 100); InvPanel.AutomaticSize = Enum.AutomaticSize.Y; InvPanel.BackgroundColor3 = Color3.fromRGB(18, 18, 22); InvPanel.ZIndex = 253
+	-- InvPanel
+	local InvPanel, _ = CreateGrimPanel(TradePanel)
+	InvPanel.Size = UDim2.new(0.98, 0, 0.35, 0); InvPanel.Position = UDim2.new(0.01, 0, 0.52, 0); InvPanel.ZIndex = 253
 
 	local InvTitle = UIHelpers.CreateLabel(InvPanel, "YOUR INVENTORY (Tap to Offer)", UDim2.new(1, 0, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 12); InvTitle.ZIndex = 254
 
-	InventoryGrid = Instance.new("Frame", InvPanel)
-	InventoryGrid.Size = UDim2.new(1, -10, 0, 70); InventoryGrid.AutomaticSize = Enum.AutomaticSize.Y; InventoryGrid.Position = UDim2.new(0.5, 0, 0, 25); InventoryGrid.AnchorPoint = Vector2.new(0.5, 0); InventoryGrid.BackgroundTransparency = 1; InventoryGrid.ZIndex = 254
-	local igLayout = Instance.new("UIGridLayout", InventoryGrid); igLayout.CellSize = UDim2.new(0, 65, 0, 65); igLayout.CellPadding = UDim2.new(0, 5, 0, 5); igLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local igPad = Instance.new("UIPadding", InventoryGrid); igPad.PaddingBottom = UDim.new(0, 10)
+	InventoryGrid = Instance.new("ScrollingFrame", InvPanel)
+	InventoryGrid.Size = UDim2.new(1, -10, 1, -30); InventoryGrid.Position = UDim2.new(0, 5, 0, 25); InventoryGrid.BackgroundTransparency = 1; InventoryGrid.ScrollBarThickness = 4; InventoryGrid.BorderSizePixel = 0; InventoryGrid.ZIndex = 254
+	local igLayout = Instance.new("UIGridLayout", InventoryGrid); igLayout.CellSize = UDim2.new(0, 70, 0, 70); igLayout.CellPadding = UDim2.new(0, 8, 0, 8); igLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	igLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() InventoryGrid.CanvasSize = UDim2.new(0, 0, 0, igLayout.AbsoluteContentSize.Y + 10) end)
 
-	-- ==========================================
-	-- FIXED FOOTER
-	-- ==========================================
+	-- Footer
 	local Footer = Instance.new("Frame", TradePanel)
-	Footer.Size = UDim2.new(1, 0, 0, 70); Footer.Position = UDim2.new(0, 0, 1, -70); Footer.BackgroundColor3 = Color3.fromRGB(18, 18, 22); Footer.ZIndex = 255; Instance.new("UICorner", Footer).CornerRadius = UDim.new(0, 8)
+	Footer.Size = UDim2.new(0.98, 0, 0.1, 0); Footer.Position = UDim2.new(0.01, 0, 0.89, 0); Footer.BackgroundColor3 = Color3.fromRGB(18, 18, 22); Footer.ZIndex = 255; Instance.new("UICorner", Footer).CornerRadius = UDim.new(0, 8)
 	local fStrk = Instance.new("UIStroke", Footer); fStrk.Color = Color3.fromRGB(70, 70, 80); fStrk.Thickness = 2
 
 	MyStatusLbl = UIHelpers.CreateLabel(Footer, "YOU: NOT READY", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromRGB(255, 85, 85), 10); MyStatusLbl.Position = UDim2.new(0, 10, 0, 0); MyStatusLbl.TextXAlignment = Enum.TextXAlignment.Left; MyStatusLbl.ZIndex = 256
 	TheirStatusLbl = UIHelpers.CreateLabel(Footer, "THEM: NOT READY", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromRGB(255, 85, 85), 10); TheirStatusLbl.Position = UDim2.new(1, -10, 0, 0); TheirStatusLbl.AnchorPoint = Vector2.new(1, 0); TheirStatusLbl.TextXAlignment = Enum.TextXAlignment.Right; TheirStatusLbl.ZIndex = 256
 
-	ReadyBtn = CreateSharpButton(Footer, "READY UP", UDim2.new(0.35, 0, 0, 45), Enum.Font.GothamBlack, 14, "#FFD700")
+	ReadyBtn = CreateSharpButton(Footer, "READY UP", UDim2.new(0.35, 0, 0.8, 0), Enum.Font.GothamBlack, 14, "#FFD700")
 	ReadyBtn.Position = UDim2.new(0.5, 0, 0.5, 0); ReadyBtn.AnchorPoint = Vector2.new(0.5, 0.5); ReadyBtn.ZIndex = 256
-	ReadyBtn.Activated:Connect(function() TradeAction:FireServer("ToggleReady") end)
+	ReadyBtn.MouseButton1Click:Connect(function() TradeAction:FireServer("ToggleReady") end)
 
-	-- ==========================================
-	-- COUNTDOWN OVERLAY
-	-- ==========================================
 	CountdownOverlay = Instance.new("Frame", TradePanel)
 	CountdownOverlay.Size = UDim2.new(1, 0, 1, 0); CountdownOverlay.BackgroundColor3 = Color3.new(0,0,0); CountdownOverlay.BackgroundTransparency = 0.4; CountdownOverlay.ZIndex = 260; CountdownOverlay.Visible = false; CountdownOverlay.Active = true; Instance.new("UICorner", CountdownOverlay).CornerRadius = UDim.new(0, 8)
 
-	CountdownText = UIHelpers.CreateLabel(CountdownOverlay, "TRADING IN 10...", UDim2.new(1, 0, 0, 100), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 32); CountdownText.Position = UDim2.new(0.5, 0, 0.4, 0); CountdownText.AnchorPoint = Vector2.new(0.5, 0.5); CountdownText.ZIndex = 261
+	CountdownText = UIHelpers.CreateLabel(CountdownOverlay, "TRADING IN 10...", UDim2.new(1, 0, 0, 100), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 26); CountdownText.Position = UDim2.new(0.5, 0, 0.4, 0); CountdownText.AnchorPoint = Vector2.new(0.5, 0.5); CountdownText.ZIndex = 261
 
 	CancelBtn = CreateSharpButton(CountdownOverlay, "ABORT TRADE", UDim2.new(0, 200, 0, 50), Enum.Font.GothamBlack, 16, "#FF5555")
 	CancelBtn.Position = UDim2.new(0.5, 0, 0.7, 0); CancelBtn.AnchorPoint = Vector2.new(0.5, 0.5); CancelBtn.ZIndex = 261
-	CancelBtn.Activated:Connect(function() TradeAction:FireServer("ToggleReady") end)
+	CancelBtn.MouseButton1Click:Connect(function() TradeAction:FireServer("ToggleReady") end)
 end
 
 function MobileTradingUI.Initialize(masterScreenGui)
@@ -251,8 +179,8 @@ function MobileTradingUI.Initialize(masterScreenGui)
 			local denBtn = CreateSharpButton(reqCard, "DENY", UDim2.new(0.4, 0, 0, 30), Enum.Font.GothamBlack, 10, "#FF5555")
 			denBtn.Position = UDim2.new(0.9, 0, 1, -10); denBtn.AnchorPoint = Vector2.new(1, 1)
 
-			accBtn.Activated:Connect(function() reqCard:Destroy(); TradeAction:FireServer("ManageRequest", {SenderId = senderId, Decision = "Accept"}) end)
-			denBtn.Activated:Connect(function() reqCard:Destroy(); TradeAction:FireServer("ManageRequest", {SenderId = senderId, Decision = "Deny"}) end)
+			accBtn.MouseButton1Click:Connect(function() reqCard:Destroy(); TradeAction:FireServer("ManageRequest", {SenderId = senderId, Decision = "Accept"}) end)
+			denBtn.MouseButton1Click:Connect(function() reqCard:Destroy(); TradeAction:FireServer("ManageRequest", {SenderId = senderId, Decision = "Deny"}) end)
 			task.delay(15, function() if reqCard and reqCard.Parent then reqCard:Destroy() end end)
 
 		elseif action == "TradeOpened" then
