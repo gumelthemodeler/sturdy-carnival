@@ -1,7 +1,6 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
 -- Name: CombatManager
--- @ScriptType: Script
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
@@ -285,7 +284,6 @@ local function StartBattle(player, encounterType, requestedPartId)
 		local baseDifficulty = 1.0
 		local expectedTurnsToKill = 20
 
-		-- Lowered Boss Lethality
 		local expectedHitsToDie = 8 
 
 		if encounterType == "EngageWorldBoss" then 
@@ -377,6 +375,16 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 	end
 
 	UpdateBountyProgress(player, "Kill", 1); UpdateBountyProgress(player, "Clear", 1)
+
+	-- [NEW] Communicate with SquadManager to award Squad Points (SP)
+	local sqName = player:GetAttribute("SquadName")
+	if sqName and sqName ~= "None" then
+		local squadEvent = Network:FindFirstChild("AddSquadSP")
+		if squadEvent then
+			local spAward = battle.Enemy.IsBoss and 5 or 1 
+			squadEvent:Fire(sqName, spAward)
+		end
+	end
 
 	local xpGain = (battle.Enemy.Drops and battle.Enemy.Drops.XP or 0) + (dialogueRewards and dialogueRewards.XP or 0)
 	local dewsGain = (battle.Enemy.Drops and battle.Enemy.Drops.Dews or 0) + (dialogueRewards and dialogueRewards.Dews or 0)
@@ -551,7 +559,6 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		local dmgMult = GetDmgScale(targetPart, false, currentWave)
 		local spdMult = GetSpdScale(targetPart, false, currentWave)
 
-		-- [[ THE FIX: Changed 'currentPart' to 'targetPart' to fix the nil index error! ]]
 		local partData = EnemyData.Parts[targetPart]
 		local waveData = battle.Context.MissionData.Waves[battle.Context.CurrentWave]
 		local nextEnemyTemplate = GetTemplate(partData, waveData.Template)
@@ -868,7 +875,20 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 						local allyData = EnemyData.Allies[allyKey]
 
 						allyName = allyData.Name
-						allySkill = allyData.Skills and allyData.Skills[math.random(1, #allyData.Skills)] or "Basic Slash"
+
+						-- [NEW] Filter out non-damaging/healing moves
+						local validAllySkills = {}
+						if allyData.Skills then
+							for _, s in ipairs(allyData.Skills) do
+								local lowerSkill = s:lower()
+								local sd = SkillData.Skills[s]
+								if (not sd or (sd.Effect ~= "Heal" and sd.Effect ~= "Buff" and sd.Effect ~= "Block")) and 
+									not string.match(lowerSkill, "recover") and not string.match(lowerSkill, "heal") and not string.match(lowerSkill, "fortify") then
+									table.insert(validAllySkills, s)
+								end
+							end
+						end
+						allySkill = #validAllySkills > 0 and validAllySkills[math.random(1, #validAllySkills)] or "Basic Slash"
 						chunkDmg = math.max(allyData.Strength * 10, math.floor((battle.Enemy.MaxHP or 1000) * 0.15))
 
 						local allyQuotes = {
