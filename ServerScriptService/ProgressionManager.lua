@@ -132,26 +132,42 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 	local currentStat = player:GetAttribute(statName) or 10
 	if type(currentStat) == "string" then currentStat = GameData.TitanRanks[currentStat] or 10 end
 
+	-- [[ THE FIX: Separate Invested Stats from Prestige Bonuses ]]
+	local prestigeBonus = player:GetAttribute("Prestige_" .. statName) or 0
+	local investedStat = player:GetAttribute("Invested_" .. statName)
+
+	if not investedStat then
+		-- Migration: If the player hasn't upgraded since this fix, calculate their true invested amount
+		investedStat = currentStat - prestigeBonus
+		player:SetAttribute("Invested_" .. statName, investedStat)
+	end
+
 	local ls = player:FindFirstChild("leaderstats")
 	local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
 
 	local cleanName = statName:gsub("_Val", ""):gsub("Titan_", "")
 	local base = (prestige == 0) and (GameData.BaseStats[cleanName] or 10) or (prestige * 5)
+
+	-- The stat cap now ONLY applies to invested points
 	local statCap = GameData.GetStatCap(prestige)
 
 	local totalCost = 0
-	local actualAmount = 0 -- [SECURITY FIX] Track how many upgrades actually happened
+	local actualAmount = 0 
 
 	local pXP = player:GetAttribute(xpAttr) or 0
 	for i = 0, amount - 1 do
-		if currentStat + i >= statCap then break end
-		totalCost += GameData.CalculateStatCost(currentStat + i, base, prestige)
+		if investedStat + i >= statCap then break end
+		totalCost += GameData.CalculateStatCost(investedStat + i, base, prestige)
 		actualAmount += 1
 	end
 
 	if pXP >= totalCost and actualAmount > 0 then
 		player:SetAttribute(xpAttr, pXP - totalCost)
-		player:SetAttribute(statName, currentStat + actualAmount) -- Only grant what didn't break the cap
+
+		-- Update the invested tracking and then sum them up for the final attribute value
+		local newInvestedAmount = investedStat + actualAmount
+		player:SetAttribute("Invested_" .. statName, newInvestedAmount)
+		player:SetAttribute(statName, newInvestedAmount + prestigeBonus) 
 	end
 end)
 
@@ -186,7 +202,20 @@ UnlockPrestigeNode.OnServerEvent:Connect(function(player, nodeId)
 	player:SetAttribute("PrestigeNode_" .. nodeId, true)
 
 	if node.BuffType == "FlatStat" then
-		player:SetAttribute(node.BuffStat, (player:GetAttribute(node.BuffStat) or 10) + node.BuffValue)
+		-- [[ THE FIX: Safely store the prestige overflow ]]
+		local currentPrestigeBonus = player:GetAttribute("Prestige_" .. node.BuffStat) or 0
+		player:SetAttribute("Prestige_" .. node.BuffStat, currentPrestigeBonus + node.BuffValue)
+
+		local currentTotal = player:GetAttribute(node.BuffStat) or 10
+		local investedStat = player:GetAttribute("Invested_" .. node.BuffStat)
+		if not investedStat then
+			investedStat = currentTotal - currentPrestigeBonus
+			player:SetAttribute("Invested_" .. node.BuffStat, investedStat)
+		end
+
+		-- Apply flat bonus as an absolute overlay
+		player:SetAttribute(node.BuffStat, investedStat + currentPrestigeBonus + node.BuffValue)
+
 	elseif node.BuffType == "Special" then
 		player:SetAttribute("Prestige_" .. node.BuffStat, (player:GetAttribute("Prestige_" .. node.BuffStat) or 0) + node.BuffValue)
 	end
@@ -202,13 +231,24 @@ PrestigeAction.OnServerInvoke = function(player)
 	local currentPart = player:GetAttribute("CurrentPart") or 1
 	if currentPart >= 8 then
 		local ls = player:FindFirstChild("leaderstats")
-		if ls and ls:FindFirstChild("Prestige") then ls.Prestige.Value += 1 end
+		if ls and ls:FindFirstChild("Prestige") then 
+			ls.Prestige.Value += 1 
+			-- [THE FIX]: Sync the internal attribute so Cosmetics/UI unlock properly!
+			player:SetAttribute("Prestige", ls.Prestige.Value)
+		end
+
+		-- [THE FIX]: Actually reset the stats to base so Ascension means something
+		local statsToReset = {"Health", "Gas", "Strength", "Defense", "Speed", "Resolve", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
+		for _, s in ipairs(statsToReset) do
+			player:SetAttribute(s, 10) 
+		end
 
 		player:SetAttribute("CurrentPart", 1)
 		player:SetAttribute("CurrentWave", 1)
 		player:SetAttribute("PathsFloor", 1)
 		player:SetAttribute("PrestigePoints", (player:GetAttribute("PrestigePoints") or 0) + 1)
-		NotificationEvent:FireClient(player, "You have Prestiged! +1 Prestige Point acquired!", "Success")
+
+		NotificationEvent:FireClient(player, "ASCENDED! Level and Stats have been reset. +1 Prestige Point!", "Success")
 		return true
 	else
 		NotificationEvent:FireClient(player, "You must clear the Campaign (Part 8) before you can Prestige!", "Error")
@@ -216,23 +256,36 @@ PrestigeAction.OnServerInvoke = function(player)
 	end
 end
 
--- [NEW] Passive Auto-Training for Gamepass Owners (Safeguarded and upgraded)
+-- [[ THE FIX: Safely Handle In-Game Purchases without spamming the API ]]
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
+	if wasPurchased and passId == 1749846514 then -- Auto-Train Gamepass ID
+		player:SetAttribute("HasAutoTrain", true)
+		NotificationEvent:FireClient(player, "Auto-Train Gamepass activated!", "Success")
+	end
+end)
+
+-- [[ THE FIX: Add ToggleTraining handler for AFK Training areas (if applicable) ]]
+local ToggleTraining = Network:FindFirstChild("ToggleTraining") or Instance.new("RemoteEvent", Network)
+ToggleTraining.Name = "ToggleTraining"
+
+ToggleTraining.OnServerEvent:Connect(function(player, isEnabled)
+	if typeof(isEnabled) == "boolean" then
+		player:SetAttribute("IsTraining", isEnabled)
+	end
+end)
+
+-- [NEW] Passive Auto-Training (Safeguarded and upgraded)
 task.spawn(function()
 	while task.wait(5) do
 		for _, p in ipairs(Players:GetPlayers()) do
+			-- Failsafe 1: Don't give XP to players whose data hasn't loaded yet
+			if not p:GetAttribute("DataLoaded") then continue end
+
 			local hasAutoTrain = p:GetAttribute("HasAutoTrain")
+			local isAFKTraining = p:GetAttribute("IsTraining") 
 
-			-- Failsafe: Check if they bought it directly on the Roblox website
-			if not hasAutoTrain then
-				pcall(function()
-					if MarketplaceService:UserOwnsGamePassAsync(p.UserId, 1749846514) then
-						hasAutoTrain = true
-						p:SetAttribute("HasAutoTrain", true)
-					end
-				end)
-			end
-
-			if hasAutoTrain or p.UserId == 4068160397 then
+			-- Failsafe 2: Checks attributes instead of yielding web calls
+			if hasAutoTrain or isAFKTraining or p.UserId == 4068160397 then
 				local ls = p:FindFirstChild("leaderstats")
 				local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
 
