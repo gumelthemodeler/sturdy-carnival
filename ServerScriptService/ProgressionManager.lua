@@ -3,6 +3,7 @@
 -- Name: ProgressionManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local MarketplaceService = game:GetService("MarketplaceService") -- [NEW]
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 local CosmeticData = require(ReplicatedStorage:WaitForChild("CosmeticData"))
@@ -106,7 +107,6 @@ Network:WaitForChild("TrainAction").OnServerEvent:Connect(function(player, combo
 	combo = tonumber(combo) or 0
 	combo = math.clamp(combo, 0, 150)
 
-	-- SAFELY CHECK LEADERSTATS
 	local ls = player:FindFirstChild("leaderstats")
 	local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
 
@@ -132,7 +132,6 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 	local currentStat = player:GetAttribute(statName) or 10
 	if type(currentStat) == "string" then currentStat = GameData.TitanRanks[currentStat] or 10 end
 
-	-- SAFELY CHECK LEADERSTATS
 	local ls = player:FindFirstChild("leaderstats")
 	local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
 
@@ -141,15 +140,18 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 	local statCap = GameData.GetStatCap(prestige)
 
 	local totalCost = 0
+	local actualAmount = 0 -- [SECURITY FIX] Track how many upgrades actually happened
+
 	local pXP = player:GetAttribute(xpAttr) or 0
 	for i = 0, amount - 1 do
 		if currentStat + i >= statCap then break end
 		totalCost += GameData.CalculateStatCost(currentStat + i, base, prestige)
+		actualAmount += 1
 	end
 
-	if pXP >= totalCost and totalCost > 0 then
+	if pXP >= totalCost and actualAmount > 0 then
 		player:SetAttribute(xpAttr, pXP - totalCost)
-		player:SetAttribute(statName, currentStat + amount)
+		player:SetAttribute(statName, currentStat + actualAmount) -- Only grant what didn't break the cap
 	end
 end)
 
@@ -199,7 +201,6 @@ PrestigeAction.Name = "PrestigeAction"
 PrestigeAction.OnServerInvoke = function(player)
 	local currentPart = player:GetAttribute("CurrentPart") or 1
 	if currentPart >= 8 then
-		-- SAFELY CHECK LEADERSTATS
 		local ls = player:FindFirstChild("leaderstats")
 		if ls and ls:FindFirstChild("Prestige") then ls.Prestige.Value += 1 end
 
@@ -215,28 +216,42 @@ PrestigeAction.OnServerInvoke = function(player)
 	end
 end
 
--- Passive Auto-Training for Gamepass Owners
+-- [NEW] Passive Auto-Training for Gamepass Owners (Safeguarded and upgraded)
 task.spawn(function()
 	while task.wait(5) do
 		for _, p in ipairs(Players:GetPlayers()) do
-			-- Check if they have the Gamepass or are the specific developer ID
-			if p:GetAttribute("HasAutoTrain") or p.UserId == 4068160397 then
-				-- SAFELY CHECK LEADERSTATS
+			local hasAutoTrain = p:GetAttribute("HasAutoTrain")
+
+			-- Failsafe: Check if they bought it directly on the Roblox website
+			if not hasAutoTrain then
+				pcall(function()
+					if MarketplaceService:UserOwnsGamePassAsync(p.UserId, 1749846514) then
+						hasAutoTrain = true
+						p:SetAttribute("HasAutoTrain", true)
+					end
+				end)
+			end
+
+			if hasAutoTrain or p.UserId == 4068160397 then
 				local ls = p:FindFirstChild("leaderstats")
 				local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
 
-				local totalStats = (p:GetAttribute("Strength") or 10) + (p:GetAttribute("Defense") or 10) + (p:GetAttribute("Speed") or 10) + (p:GetAttribute("Resolve") or 10)
+				-- Use tonumber() to prevent math errors if a stat briefly corrupts
+				local totalStats = (tonumber(p:GetAttribute("Strength")) or 10) + 
+					(tonumber(p:GetAttribute("Defense"))  or 10) + 
+					(tonumber(p:GetAttribute("Speed"))    or 10) + 
+					(tonumber(p:GetAttribute("Resolve"))  or 10)
 
-				-- Base passive generation formula
 				local baseXP = 1 + (prestige * 50) + math.floor(totalStats / 4)
 				local xpGain = math.floor(baseXP * 1.5) 
 
 				if p:GetAttribute("HasDoubleXP") then xpGain *= 2 end
 
-				-- Distribute Soldier XP
+				-- Apply VIP Auto-Train Synergy (+25%)
+				if p:GetAttribute("HasVIP") then xpGain = math.floor(xpGain * 1.25) end
+
 				p:SetAttribute("XP", (p:GetAttribute("XP") or 0) + xpGain)
 
-				-- If they own a Titan, distribute Titan XP passively as well
 				if p:GetAttribute("Titan") and p:GetAttribute("Titan") ~= "None" then
 					p:SetAttribute("TitanXP", (p:GetAttribute("TitanXP") or 0) + xpGain)
 				end
