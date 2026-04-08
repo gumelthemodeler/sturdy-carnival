@@ -78,9 +78,13 @@ GameData.PrestigeNodes = {
 function GameData.GetStatCap(prestige) return 100 + ((prestige or 0) * 10) end
 
 function GameData.CalculateStatCost(currentStat, baseStat, prestige)
-	local baseCost = 10; local growthFactor = 1.05; local prestigeMultiplier = math.max(0.1, 1 - (prestige * 0.03))
+	local baseCost = 10
+	local prestigeMultiplier = math.max(0.1, 1 - ((prestige or 0) * 0.05))
 	local statDifference = math.max(0, currentStat - baseStat)
-	return math.floor(baseCost * (growthFactor ^ statDifference) * prestigeMultiplier)
+
+	-- [THE FIX]: Replaced extreme exponential scaling with manageable polynomial scaling
+	local cost = baseCost + (statDifference * 25) + math.floor(statDifference ^ 1.8)
+	return math.floor(cost * prestigeMultiplier)
 end
 
 function GameData.GetMaxInventory(player)
