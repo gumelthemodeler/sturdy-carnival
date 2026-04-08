@@ -675,14 +675,23 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	local skill = SkillData.Skills[skillName]
 
 	local hasGas = true
-	if skill and skill.GasCost then
-		local actualCost = skill.GasCost
-		if battle.Context.Terrain == "Forest" then actualCost = math.ceil(actualCost * 0.5)
-		elseif battle.Context.Terrain == "Plains" then actualCost = math.ceil(actualCost * 1.5) end
+	local hasHeat = true
+	if skill then
+		local actualGasCost = skill.GasCost or 0
+		local actualHeatCost = skill.HeatCost or skill.GasCost or 0 -- Uses HeatCost, defaults to GasCost if missing
+
+		if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
+		elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
 
 		if not (battle.Player.Statuses and battle.Player.Statuses["Transformed"]) then
-			if (battle.Player.Gas or 0) < actualCost then hasGas = false end
+			if (battle.Player.Gas or 0) < actualGasCost then hasGas = false end
+		else
+			if (battle.Player.TitanEnergy or 0) < actualHeatCost then hasHeat = false end
 		end
+	end
+
+	if skillName ~= "Retreat" and (not skill or (battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0) or not hasGas or not hasHeat) then 
+		CombatUpdate:FireClient(player, "Update", {Battle = battle}); return 
 	end
 
 	if skillName ~= "Retreat" and (not skill or (battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0) or not hasGas) then 
@@ -760,37 +769,41 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	table.sort(combatants, function(a, b) return (a.IsPlayer and pRoll or eRoll) > (b.IsPlayer and pRoll or eRoll) end)
 
 	for _, combatant in ipairs(combatants) do
-		if battle.Player.HP < 1 or battle.Enemy.HP < 1 then break end
-		if combatant.HP < 1 then continue end
 
-		if not combatant.IsPlayer and combatant.IsBoss and not combatant.EnragedOnce then
-			local hpRatio = combatant.HP / combatant.MaxHP
+		-- [[ THE FIX: Evaluate Boss Enrage globally BEFORE death checks! ]]
+		-- This prevents the boss from being one-shot and dying before it can enrage.
+		if battle.Enemy.IsBoss and not battle.Enemy.EnragedOnce then
+			local hpRatio = battle.Enemy.HP / battle.Enemy.MaxHP
 			if hpRatio <= 0.30 then
-				combatant.EnragedOnce = true
-				if not combatant.Statuses then combatant.Statuses = {} end
-				combatant.Statuses["Enraged"] = 999
-				combatant.Statuses["Stun"] = nil
-				combatant.Statuses["Bleed"] = nil
-				combatant.Statuses["Burn"] = nil
-				combatant.Statuses["Blinded"] = nil
-				combatant.Statuses["TrueBlind"] = nil
-				combatant.Statuses["Crippled"] = nil
-				combatant.Statuses["Weakened"] = nil
-				combatant.Statuses["Debuff_Defense"] = nil
-				combatant.Statuses["Telegraphing"] = nil
+				battle.Enemy.EnragedOnce = true
+				if not battle.Enemy.Statuses then battle.Enemy.Statuses = {} end
+				battle.Enemy.Statuses["Enraged"] = 999
+				battle.Enemy.Statuses["Stun"] = nil
+				battle.Enemy.Statuses["Bleed"] = nil
+				battle.Enemy.Statuses["Burn"] = nil
+				battle.Enemy.Statuses["Blinded"] = nil
+				battle.Enemy.Statuses["TrueBlind"] = nil
+				battle.Enemy.Statuses["Crippled"] = nil
+				battle.Enemy.Statuses["Weakened"] = nil
+				battle.Enemy.Statuses["Debuff_Defense"] = nil
+				battle.Enemy.Statuses["Telegraphing"] = nil
 
-				combatant.HP = math.floor(combatant.MaxHP * 0.5)
-				if combatant.MaxGateHP and combatant.MaxGateHP > 0 then
-					combatant.GateHP = combatant.MaxGateHP
+				-- Revive to 50% HP (even if they were knocked to 0)
+				battle.Enemy.HP = math.floor(battle.Enemy.MaxHP * 0.5)
+				if battle.Enemy.MaxGateHP and battle.Enemy.MaxGateHP > 0 then
+					battle.Enemy.GateHP = battle.Enemy.MaxGateHP
 				end
 
-				local enrageMsg = "<font color='#FF0000'><b>[CRITICAL WARNING]</b></font>\n<font color='#FFAA00'>" .. combatant.Name .. " roars in absolute fury! All debuffs cleansed! HP Restored to 50%! Armor Regenerated! Damage & Speed massively increased!</font>"
+				local enrageMsg = "<font color='#FF0000'><b>[CRITICAL WARNING]</b></font>\n<font color='#FFAA00'>" .. battle.Enemy.Name .. " roars in absolute fury! All debuffs cleansed! HP Restored to 50%! Armor Regenerated! Damage & Speed massively increased!</font>"
 
 				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = enrageMsg, DidHit = false, ShakeType = "Heavy", EnrageTrigger = true})
 				task.wait(turnDelay)
-				continue 
+				-- We removed 'continue' so the boss immediately gets to attack with its new buffs!
 			end
 		end
+
+		if battle.Player.HP < 1 or battle.Enemy.HP < 1 then break end
+		if combatant.HP < 1 then continue end
 
 		local dotDamage, dotLog = CombatCore.TickStatuses(combatant)
 
@@ -832,11 +845,16 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				CombatUpdate:FireClient(player, "Fled", {Battle = battle}); ActiveBattles[player.UserId] = nil; return 
 			end
 
-			if skill and skill.GasCost then
-				local actualCost = skill.GasCost
-				if battle.Context.Terrain == "Forest" then actualCost = math.ceil(actualCost * 0.5)
-				elseif battle.Context.Terrain == "Plains" then actualCost = math.ceil(actualCost * 1.5) end
-				combatant.Gas = math.max(0, combatant.Gas - actualCost) 
+			if skill then
+				if not (combatant.Statuses and combatant.Statuses["Transformed"]) then
+					local actualGasCost = skill.GasCost or 0
+					if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
+					elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
+					combatant.Gas = math.max(0, combatant.Gas - actualGasCost) 
+				else
+					local actualHeatCost = skill.HeatCost or skill.GasCost or 0
+					combatant.TitanEnergy = math.max(0, (combatant.TitanEnergy or 0) - actualHeatCost)
+				end
 			end
 			DispatchStrike(battle.Player, battle.Enemy, skillName, targetLimb)
 		else
