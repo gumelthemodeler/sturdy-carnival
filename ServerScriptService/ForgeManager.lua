@@ -1,6 +1,6 @@
 -- @ScriptType: Script
--- Name: ForgeManager
 -- @ScriptType: Script
+-- Name: ForgeManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
@@ -8,7 +8,6 @@ local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
--- [[ THE FIX: Dedicated endpoint to trigger the Fusion Cinematic ]]
 local FusionComplete = Network:FindFirstChild("FusionComplete") or Instance.new("RemoteEvent", Network)
 FusionComplete.Name = "FusionComplete"
 
@@ -37,10 +36,23 @@ Network:WaitForChild("ForgeItem").OnServerEvent:Connect(function(player, recipeN
 	if not canForge then NotificationEvent:FireClient(player, "Missing required materials!", "Error"); return end
 
 	player.leaderstats.Dews.Value -= recipe.DewCost
+
+	-- [[ SECURITY FIX: Force unequip if item is completely consumed by the forge ]]
 	for reqItemName, reqAmt in pairs(recipe.ReqItems) do
 		local safeReq = reqItemName:gsub("[^%w]", "") .. "Count"
-		player:SetAttribute(safeReq, (player:GetAttribute(safeReq) or 0) - reqAmt)
+		local newCount = (player:GetAttribute(safeReq) or 0) - reqAmt
+		player:SetAttribute(safeReq, newCount)
+
+		if newCount <= 0 then
+			if player:GetAttribute("EquippedWeapon") == reqItemName then
+				player:SetAttribute("EquippedWeapon", "None")
+				player:SetAttribute("FightingStyle", "None")
+			elseif player:GetAttribute("EquippedAccessory") == reqItemName then
+				player:SetAttribute("EquippedAccessory", "None")
+			end
+		end
 	end
+
 	local resSafeName = recipe.Result:gsub("[^%w]", "") .. "Count"
 	player:SetAttribute(resSafeName, (player:GetAttribute(resSafeName) or 0) + 1)
 
@@ -111,7 +123,6 @@ FuseTitan.OnServerEvent:Connect(function(player, baseSlot, sacSlot)
 	if not validSlots[tostring(baseSlot)] or not validSlots[tostring(sacSlot)] then return end
 
 	local dews = player.leaderstats.Dews.Value
-	-- [[ THE FIX: Synchronized to 300,000 Dews ]]
 	if dews >= 300000 then
 		local baseAttr = (baseSlot == "Equipped") and "Titan" or ("Titan_Slot" .. baseSlot)
 		local sacAttr = (sacSlot == "Equipped") and "Titan" or ("Titan_Slot" .. sacSlot)
