@@ -36,7 +36,6 @@ local UnlockedCosmeticsCache = { Titles = {}, Auras = {} }
 local CosmeticUIUpdaters = {}
 local InitialCachePopulated = false
 
--- [[ THE FIX: Silently populates cache on load, only notifies on NEW unlocks ]]
 local function EvaluateCosmetics()
 	if type(CosmeticData.CheckUnlock) ~= "function" then return end
 	local isFullyLoaded = player:GetAttribute("DataLoaded") == true
@@ -45,7 +44,6 @@ local function EvaluateCosmetics()
 		local meetsReq = CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue)
 		if meetsReq and not UnlockedCosmeticsCache.Titles[key] then
 			UnlockedCosmeticsCache.Titles[key] = true
-
 			if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then 
 				NotificationManager.Show("New Title Unlocked: " .. data.Name, "Success") 
 			end
@@ -56,7 +54,6 @@ local function EvaluateCosmetics()
 		local meetsReq = CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue)
 		if meetsReq and not UnlockedCosmeticsCache.Auras[key] then
 			UnlockedCosmeticsCache.Auras[key] = true
-
 			if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then 
 				NotificationManager.Show("New Aura Unlocked: " .. data.Name, "Success") 
 			end
@@ -64,16 +61,11 @@ local function EvaluateCosmetics()
 	end
 
 	if isFullyLoaded then InitialCachePopulated = true end
-
 	for _, updater in ipairs(CosmeticUIUpdaters) do 
 		if type(updater) == "function" then updater() end 
 	end
 end
 
--- Instantly evaluate silently on boot to populate the cache
-EvaluateCosmetics()
-
--- Instantly evaluate silently on boot to populate the cache
 EvaluateCosmetics()
 
 local function CreateGrimPanel(parent)
@@ -119,6 +111,9 @@ local function GetRankColor(rank)
 	else return Color3.fromRGB(170, 170, 170) end
 end
 
+-- ==========================================
+-- IDENTITY TAB
+-- ==========================================
 local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	local function DrawLineScale(parent, p1x, p1y, p2x, p2y, color, thickness, zindex)
 		local dx = p2x - p1x; local dy = p2y - p1y; local dist = math.sqrt(dx*dx + dy*dy)
@@ -456,14 +451,24 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 
 				local buttonConsumed = false
 				local function MakeOverlayBtn(text)
-					local obtn, _ = CreateSharpButton(ActionsOverlay, text, UDim2.new(0.9, 0, 0, 16), Enum.Font.GothamBlack, 8); obtn.ZIndex = 11; return obtn
+					local obtn, _ = CreateSharpButton(ActionsOverlay, text, UDim2.new(0.9, 0, 0, 14), Enum.Font.GothamBlack, 8); obtn.ZIndex = 11; return obtn
 				end
 
 				local equipBtn = MakeOverlayBtn("EQUIP")
 				local sellBtn = MakeOverlayBtn("SELL 1x")
+				local sellAllBtn = MakeOverlayBtn("SELL ALL")
 				local lockBtn = MakeOverlayBtn(isLocked and "UNLOCK" or "LOCK")
 
-				if isLocked then lockBtn.TextColor3 = Color3.fromRGB(255, 100, 100); sellBtn.Visible = false else lockBtn.TextColor3 = Color3.fromRGB(100, 255, 100) end
+				if isLocked then 
+					lockBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+					sellBtn.Visible = false 
+					sellAllBtn.Visible = false
+				else 
+					lockBtn.TextColor3 = Color3.fromRGB(100, 255, 100) 
+					if item.Count <= 1 then
+						sellAllBtn.Visible = false
+					end
+				end
 
 				if item.Data.Type ~= nil then 
 					local isEq = (player:GetAttribute("EquippedWeapon") == item.Name) or (player:GetAttribute("EquippedAccessory") == item.Name)
@@ -472,9 +477,12 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 				elseif item.Data.Action ~= nil then 
 					equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
 					equipBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
-				else equipBtn.Visible = false end
+				else 
+					equipBtn.Visible = false 
+				end
 
 				sellBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, false); ActionsOverlay.Visible = false end)
+				sellAllBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, true); ActionsOverlay.Visible = false end)
 				lockBtn.MouseButton1Click:Connect(function() buttonConsumed = true; Network:WaitForChild("ToggleLock"):FireServer(item.Name); ActionsOverlay.Visible = false end)
 
 				local function CloseAllOverlays() for _, c in ipairs(InvGrid:GetChildren()) do if c.Name == "ItemCard" then local ov = c:FindFirstChild("ActionsOverlay"); if ov then ov.Visible = false end end end end
@@ -984,6 +992,8 @@ end
 local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local MainFrame = Instance.new("ScrollingFrame", parentFrame); MainFrame.Size = UDim2.new(1, 0, 1, 0); MainFrame.BackgroundTransparency = 1; MainFrame.Visible = true; MainFrame.ScrollBarThickness = 0
 	local isRolling = { Titan = false, Clan = false }; local isAutoRolling = { Titan = false, Clan = false }; local currentRollSeq = { Titan = 0, Clan = 0 }
+	local autoRollBtns = {}
+
 	MainFrame:GetPropertyChangedSignal("Visible"):Connect(function() if not MainFrame.Visible then isAutoRolling.Titan = false; isAutoRolling.Clan = false end end)
 	local titleLayout = Instance.new("UIListLayout", MainFrame); titleLayout.SortOrder = Enum.SortOrder.LayoutOrder; titleLayout.Padding = UDim.new(0, 10); titleLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	local pad = Instance.new("UIPadding", MainFrame); pad.PaddingTop = UDim.new(0, 10); pad.PaddingBottom = UDim.new(0, 30)
@@ -1006,6 +1016,45 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		["Awakened Yeager"] = "+50% Titan Damage\n<font color='#FFD700'>[Attack Titan Synergy]: +30% Dmg</font>",
 		["Awakened Ackerman"] = "+50% Weapon Damage, Extreme Agility"
 	}
+
+	local function ResetAutoRollVisuals(gType)
+		if autoRollBtns[gType] then
+			autoRollBtns[gType].Text = "ROLL TILL LEGENDARY+"
+			autoRollBtns[gType].BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+		end
+	end
+
+	local function IsHighTier(gType)
+		local current = player:GetAttribute(gType)
+		if not current or current == "None" then return false end
+		if gType == "Titan" and type(TitanData) == "table" and TitanData.Titans and TitanData.Titans[current] then
+			local rarity = TitanData.Titans[current].Rarity
+			return rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent"
+		elseif gType == "Clan" then
+			if string.find(current, "Awakened") then return true end
+			if type(TitanData) == "table" and TitanData.ClanWeights and TitanData.ClanWeights[current] then
+				return TitanData.ClanWeights[current] <= 4.0
+			end
+		end
+		return false
+	end
+
+	local function PromptConfirmation(message, callback)
+		local overlay = Instance.new("Frame", parentFrame)
+		overlay.Size = UDim2.new(1, 0, 1, 0); overlay.BackgroundColor3 = Color3.new(0, 0, 0); overlay.BackgroundTransparency = 0.5; overlay.Active = true; overlay.ZIndex = 100
+
+		local popup, _ = CreateGrimPanel(overlay)
+		popup.Size = UDim2.new(0, 300, 0, 150); popup.Position = UDim2.new(0.5, 0, 0.5, 0); popup.AnchorPoint = Vector2.new(0.5, 0.5); popup.BackgroundColor3 = Color3.fromRGB(20, 20, 25); popup.ZIndex = 101
+		Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
+
+		local textLabel = CreateSharpLabel(popup, message, UDim2.new(1, -20, 0.6, 0), Enum.Font.GothamBold, Color3.new(1, 1, 1), 14); textLabel.Position = UDim2.new(0, 10, 0, 10); textLabel.TextWrapped = true; textLabel.ZIndex = 102
+
+		local confirmBtn, cStroke = CreateSharpButton(popup, "SPIN IT", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); confirmBtn.Position = UDim2.new(0.05, 0, 1, -45); confirmBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40); confirmBtn.ZIndex = 102; cStroke.Color = Color3.fromRGB(255, 100, 100)
+		local cancelBtn, caStroke = CreateSharpButton(popup, "KEEP IT", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); cancelBtn.Position = UDim2.new(0.55, 0, 1, -45); cancelBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40); cancelBtn.ZIndex = 102; caStroke.Color = Color3.fromRGB(100, 255, 100)
+
+		confirmBtn.MouseButton1Click:Connect(function() overlay:Destroy(); callback(true) end)
+		cancelBtn.MouseButton1Click:Connect(function() overlay:Destroy(); callback(false) end)
+	end
 
 	local function CreateGachaPanel(gType, order)
 		local Panel, _ = CreateGrimPanel(PanelsContainer); Panel.Size = UDim2.new(0.48, 0, 1, 0); Panel.LayoutOrder = order
@@ -1049,10 +1098,8 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		local BottomArea = Instance.new("Frame", Panel); BottomArea.Size = UDim2.new(1, 0, 0, 210); BottomArea.Position = UDim2.new(0, 0, 0, 345); BottomArea.BackgroundTransparency = 1
 
-		-- Adjusted to make room for the Itemize Button
 		local ResultLbl = CreateSharpLabel(BottomArea, "Current: None", UDim2.new(0.6, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 20); ResultLbl.RichText = true; ResultLbl.TextXAlignment = Enum.TextXAlignment.Left; ResultLbl.Position = UDim2.new(0.05, 0, 0, 0)
 
-		-- [NEW] The Itemize Button (Only visible for Titan Inheritance)
 		if gType == "Titan" then
 			local ItemizeBtn, iStroke = CreateSharpButton(BottomArea, "ITEMIZE (100K)", UDim2.new(0.3, 0, 0, 24), Enum.Font.GothamBold, 11)
 			ItemizeBtn.Position = UDim2.new(0.95, 0, 0, 3)
@@ -1098,46 +1145,75 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local AutoRollBtn, aStroke = CreateSharpButton(RollActions, "ROLL TILL LEGENDARY+", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
 
 		local attrReq = (gType == "Titan") and "StandardTitanSerumCount" or "ClanBloodVialCount"
+		autoRollBtns[gType] = AutoRollBtn
 
-		RollBtn.MouseButton1Click:Connect(function()
-			if isRolling[gType] or isAutoRolling[gType] then return end
-			local count = player:GetAttribute(attrReq) or 0
+		local function DoRoll(isPremium)
+			local countAttr = isPremium and "SpinalFluidSyringeCount" or attrReq
+			local count = player:GetAttribute(countAttr) or 0
 			if count > 0 then
 				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network:WaitForChild("GachaRoll"):FireServer(gType, false)
-				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end) -- UI updates via AttributeChanged
+				Network:WaitForChild("GachaRoll"):FireServer(gType, isPremium)
+				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType) end end) 
 			else
 				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
 				task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+			end
+		end
+
+		RollBtn.MouseButton1Click:Connect(function()
+			if isRolling[gType] or isAutoRolling[gType] then return end
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then DoRoll(false) end
+				end)
+			else
+				DoRoll(false)
 			end
 		end)
 
 		PremiumRollBtn.MouseButton1Click:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
-			local count = player:GetAttribute("SpinalFluidSyringeCount") or 0
-			if count > 0 then
-				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network:WaitForChild("GachaRoll"):FireServer(gType, true)
-				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end)
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then DoRoll(true) end
+				end)
 			else
-				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
-				task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+				DoRoll(true)
 			end
 		end)
 
 		AutoRollBtn.MouseButton1Click:Connect(function()
-			if isRolling[gType] or isAutoRolling[gType] then return end
-			local count = player:GetAttribute(attrReq) or 0
-			if count > 0 then
-				isAutoRolling[gType] = true; isRolling[gType] = true; ResultLbl.Text = "<i>Auto-Rolling...</i>"
-				currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
-				Network:WaitForChild("GachaRoll"):FireServer(gType, false)
-				task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; end end)
+			if isAutoRolling[gType] then
+				isAutoRolling[gType] = false
+				ResetAutoRollVisuals(gType)
+				return
+			end
+			if isRolling[gType] then return end
+
+			local function StartAuto()
+				local count = player:GetAttribute(attrReq) or 0
+				if count > 0 then
+					isAutoRolling[gType] = true; isRolling[gType] = true; ResultLbl.Text = "<i>Auto-Rolling...</i>"
+					AutoRollBtn.Text = "STOP"
+					AutoRollBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+					currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
+					Network:WaitForChild("GachaRoll"):FireServer(gType, false)
+					task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType) end end)
+				else
+					ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
+					task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+				end
+			end
+
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then StartAuto() end
+				end)
 			else
-				ResultLbl.Text = "<font color='#FF5555'>Not enough items!</font>"; if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end
-				task.delay(1.5, function() if not isRolling[gType] then ResultLbl.Text = "Current: " .. (player:GetAttribute(gType) or "None") end end)
+				StartAuto()
 			end
 		end)
+
 		return ResultLbl, PityLbl, RollBtn, PremiumRollBtn, AutoRollBtn, storageBtns
 	end
 
@@ -1169,8 +1245,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 								if weight <= 1.5 then rarity = "Mythical" elseif weight <= 4.0 then rarity = "Legendary" elseif weight <= 8.0 then rarity = "Epic" elseif weight <= 15.0 then rarity = "Rare" end
 							end
 						end
-						local cColor = Color3.fromHex((RarityColors[rarity] or "#FFFFFF"):gsub("#",""))
-						storeObj.Stroke.Color = cColor; btn.TextColor3 = Color3.fromRGB(230, 230, 230)
+						local cColor = Color3.fromHex((RarityColors[rarity] or "#FFFFFF"):gsub("#","")); storeObj.Stroke.Color = cColor; btn.TextColor3 = Color3.fromRGB(230, 230, 230)
 					else storeObj.Stroke.Color = UIHelpers.Colors.BorderMuted; btn.TextColor3 = UIHelpers.Colors.TextMuted end
 				end
 			end
@@ -1189,7 +1264,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	player.AttributeChanged:Connect(UpdateUI); UpdateUI()
 
 	Network:WaitForChild("GachaResult").OnClientEvent:Connect(function(gType, resultName, resultRarity)
-		if resultName == "Error" then isRolling[gType] = false; isAutoRolling[gType] = false; UpdateUI(); if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end return end
+		if resultName == "Error" then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI(); if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Error", 1) end return end
 
 		local targetLbl = (gType == "Titan") and tResult or cResult
 		local names = {}
@@ -1217,20 +1292,20 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		if isAutoRolling[gType] and MainFrame.Visible then
 			if resultRarity == "Legendary" or resultRarity == "Mythical" or resultRarity == "Transcendent" then
-				isAutoRolling[gType] = false; isRolling[gType] = false; UpdateUI()
+				isAutoRolling[gType] = false; isRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI()
 			else
 				local attrReq = (gType == "Titan") and "StandardTitanSerumCount" or "ClanBloodVialCount"
 				if (player:GetAttribute(attrReq) or 0) > 0 then
 					targetLbl.Text = "<i>Auto-Rolling...</i>"
 					currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
 					Network:WaitForChild("GachaRoll"):FireServer(gType, false)
-					task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; UpdateUI() end end)
+					task.delay(5, function() if isRolling[gType] and currentRollSeq[gType] == seq then isRolling[gType] = false; isAutoRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI() end end)
 				else
-					isAutoRolling[gType] = false; isRolling[gType] = false; targetLbl.Text = "<font color='#FF5555'>Out of items!</font>"; task.delay(1.5, function() if not isRolling[gType] then UpdateUI() end end)
+					isAutoRolling[gType] = false; isRolling[gType] = false; ResetAutoRollVisuals(gType); targetLbl.Text = "<font color='#FF5555'>Out of items!</font>"; task.delay(1.5, function() if not isRolling[gType] then UpdateUI() end end)
 				end
 			end
 		else
-			isRolling[gType] = false; UpdateUI()
+			isRolling[gType] = false; ResetAutoRollVisuals(gType); UpdateUI()
 		end
 	end)
 end
