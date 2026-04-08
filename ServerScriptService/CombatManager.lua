@@ -373,8 +373,19 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		battle.IsProcessing = false
 		return
 	end
-
+	
 	UpdateBountyProgress(player, "Kill", 1); UpdateBountyProgress(player, "Clear", 1)
+
+	-- [THE FIX]: Nightmare Achievement Grants
+	if battle.Enemy.IsNightmare then
+		if battle.Enemy.Name == "Frenzied Beast Titan" then
+			player:SetAttribute("Ach_Defeat_Frenzied", true)
+		elseif battle.Enemy.Name == "Abyssal Armored Titan" then
+			player:SetAttribute("Ach_Defeat_Abyssal", true)
+		end
+	end
+
+	-- [NEW] Communicate with SquadManager to award Squad Points (SP)
 
 	-- [NEW] Communicate with SquadManager to award Squad Points (SP)
 	local sqName = player:GetAttribute("SquadName")
