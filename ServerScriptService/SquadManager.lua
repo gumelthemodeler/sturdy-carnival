@@ -14,6 +14,10 @@ local SquadAction = Network:FindFirstChild("SquadAction") or Instance.new("Remot
 SquadAction.Name = "SquadAction"
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
+-- [NEW] BindableEvent to listen for SP gains from other scripts like CombatManager
+local AddSquadSP = Network:FindFirstChild("AddSquadSP") or Instance.new("BindableEvent", Network)
+AddSquadSP.Name = "AddSquadSP"
+
 local GetPublicSquads = Instance.new("RemoteFunction", Network); GetPublicSquads.Name = "GetPublicSquads"
 local GetSquadRoster = Instance.new("RemoteFunction", Network); GetSquadRoster.Name = "GetSquadRoster"
 local GetSquadLeaderboard = Instance.new("RemoteFunction", Network); GetSquadLeaderboard.Name = "GetSquadLeaderboard"
@@ -23,6 +27,34 @@ local ActiveSquads = {}
 local GlobalSquadCache = {}
 local isFetchingCache = false
 local PendingRequests = {} -- [SquadName] = { [UserId] = UserName }
+
+local function SaveSquadData(squadName, data)
+	pcall(function() SquadStore:SetAsync(squadName, data); SquadLeaderboard:SetAsync(squadName, data.SP or 0) end)
+end
+
+local function UpdateOnlineMembers(sqName)
+	local sqData = ActiveSquads[sqName]
+	if not sqData then return end
+	local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None","None","None","None","None","None","None","None","None"})
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p:GetAttribute("SquadName") == sqName then
+			p:SetAttribute("SquadSP", sqData.SP)
+			p:SetAttribute("SquadVault", vaultStr)
+			p:SetAttribute("SquadIsLeader", sqData.Leader == p.UserId)
+			p:SetAttribute("YmirFavored", sqData.IsYmirFavored or false)
+		end
+	end
+end
+
+-- [NEW] Listen for SP updates
+AddSquadSP.Event:Connect(function(sqName, amount)
+	local sqData = ActiveSquads[sqName]
+	if sqData then
+		sqData.SP = (sqData.SP or 0) + amount
+		SaveSquadData(sqName, sqData)
+		UpdateOnlineMembers(sqName)
+	end
+end)
 
 local function RefreshGlobalCache()
 	if isFetchingCache then return end
@@ -50,24 +82,6 @@ task.spawn(function()
 	RefreshGlobalCache()
 	while task.wait(60) do RefreshGlobalCache() end
 end)
-
-local function SaveSquadData(squadName, data)
-	pcall(function() SquadStore:SetAsync(squadName, data); SquadLeaderboard:SetAsync(squadName, data.SP or 0) end)
-end
-
-local function UpdateOnlineMembers(sqName)
-	local sqData = ActiveSquads[sqName]
-	if not sqData then return end
-	local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None","None","None","None","None","None","None","None","None"})
-	for _, p in ipairs(Players:GetPlayers()) do
-		if p:GetAttribute("SquadName") == sqName then
-			p:SetAttribute("SquadSP", sqData.SP)
-			p:SetAttribute("SquadVault", vaultStr)
-			p:SetAttribute("SquadIsLeader", sqData.Leader == p.UserId)
-			p:SetAttribute("YmirFavored", sqData.IsYmirFavored or false)
-		end
-	end
-end
 
 -- YMIR'S FAVORED DYNAMIC CHECKING
 local currentTopSquadName = nil
@@ -178,6 +192,54 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		SaveSquadData(sqName, sqData)
 
 	elseif action == "DepositItem" then
+		local slot = tonumber(data.Slot)
+		local itemName = tostring(data.ItemName)
+		local sqName = player:GetAttribute("SquadName")
+		if not sqName or sqName == "None" then return end
+
+		local sqData = ActiveSquads[sqName]
+		if not sqData then return end
+
+		-- [SECURITY FIX] Prevent depositing Locked items
+		if player:GetAttribute(itemName:gsub("[^%w]", "") .. "_Locked") then
+			NotificationEvent:FireClient(player, "You cannot deposit Locked items!", "Error")
+			return
+		end
+
+		if slot > 6 and not sqData.IsYmirFavored then
+			NotificationEvent:FireClient(player, "Bonus Vault slots are locked! Reach #1 Globally to unlock.", "Error")
+			return
+		end
+
+		if not sqData.Vault then sqData.Vault = {"None", "None", "None", "None", "None", "None", "None", "None", "None"} end
+		if sqData.Vault[slot] and sqData.Vault[slot] ~= "None" then
+			NotificationEvent:FireClient(player, "That slot is already full!", "Error")
+			return
+		end
+
+		local attrName = itemName:gsub("[^%w]", "") .. "Count"
+		local pCount = player:GetAttribute(attrName) or 0
+		if pCount <= 0 then
+			NotificationEvent:FireClient(player, "You do not own this item.", "Error")
+			return
+		end
+
+		player:SetAttribute(attrName, pCount - 1)
+		sqData.Vault[slot] = itemName
+
+		-- [SECURITY FIX] Force unequip if they deposited their last copy
+		if (pCount - 1) <= 0 then
+			if player:GetAttribute("EquippedWeapon") == itemName then
+				player:SetAttribute("EquippedWeapon", "None")
+				player:SetAttribute("FightingStyle", "None")
+			elseif player:GetAttribute("EquippedAccessory") == itemName then
+				player:SetAttribute("EquippedAccessory", "None")
+			end
+		end
+
+		SaveSquadData(sqName, sqData)
+		UpdateOnlineMembers(sqName)
+		NotificationEvent:FireClient(player, "Deposited " .. itemName .. " into Vault.", "Success")
 		local slot = tonumber(data.Slot)
 		local itemName = tostring(data.ItemName)
 		local sqName = player:GetAttribute("SquadName")
