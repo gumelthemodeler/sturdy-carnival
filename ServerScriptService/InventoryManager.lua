@@ -37,8 +37,20 @@ Network:WaitForChild("SellItem").OnServerEvent:Connect(function(player, itemName
 		if count > 0 then
 			local sellPrice = SellValues[itemInfo.Rarity or "Common"] or 10
 			local amountToSell = sellAll and count or 1
-			player:SetAttribute(safeName, count - amountToSell)
+
+			local newCount = count - amountToSell
+			player:SetAttribute(safeName, newCount)
 			player.leaderstats.Dews.Value += (sellPrice * amountToSell)
+
+			-- [SECURITY FIX] Force unequip if they sold their last copy
+			if newCount <= 0 then
+				if player:GetAttribute("EquippedWeapon") == itemName then
+					player:SetAttribute("EquippedWeapon", "None")
+					player:SetAttribute("FightingStyle", "None")
+				elseif player:GetAttribute("EquippedAccessory") == itemName then
+					player:SetAttribute("EquippedAccessory", "None")
+				end
+			end
 		end
 	end
 end)
@@ -65,6 +77,30 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 			if itemInfo.Action == "EquipTitan" then
 				player:SetAttribute("Titan", itemInfo.TitanName)
 				NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.TitanName .. "!", "Success")
+
+				-- [NEW] Awakens the player's current Clan
+			elseif itemInfo.Action == "AwakenClan" then
+				local currentClan = player:GetAttribute("Clan") or "None"
+				if currentClan ~= "None" and not string.find(currentClan, "Awakened") then
+					player:SetAttribute("Clan", "Awakened " .. currentClan)
+					NotificationEvent:FireClient(player, "Your Clan bloodline has awakened to its true power!", "Success")
+				else
+					player:SetAttribute(safeName, count) -- Refund item
+					NotificationEvent:FireClient(player, "You cannot awaken your current lineage.", "Error")
+				end
+
+				-- [NEW] Awakens the Attack Titan to the Coordinate
+			elseif itemInfo.Action == "AwakenTitan" then
+				local currentTitan = player:GetAttribute("Titan") or "None"
+				if currentTitan == "Attack Titan" then
+					player:SetAttribute("Titan", "Founding Titan") 
+					player:SetAttribute("PathsAwakened", "DMG: 50 | DODGE: 10 | MAX HP: 100") 
+					NotificationEvent:FireClient(player, "You have reached the Coordinate!", "Success")
+				else
+					player:SetAttribute(safeName, count) -- Refund item
+					NotificationEvent:FireClient(player, "Only the Attack Titan can reach the Coordinate.", "Error")
+				end
+
 			elseif itemInfo.Buff == "Dews" then
 				local amt = math.random(itemInfo.MinAmount or 5000, itemInfo.MaxAmount or 20000)
 				player.leaderstats.Dews.Value += amt
