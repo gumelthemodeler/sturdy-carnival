@@ -14,7 +14,6 @@ local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 
 local player = Players.LocalPlayer
 
--- [[ THE FIX: Added sleek transparency and rounded corners to remove the ugly gray block aesthetic ]]
 local function CreateGrimPanel(parent)
 	local frame = Instance.new("Frame", parent)
 	frame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
@@ -91,7 +90,8 @@ function MobileSquadsTab.Initialize(parentFrame)
 		cTitle.Text = title; cDesc.Text = desc; local conn; conn = cYes.MouseButton1Click:Connect(function() conn:Disconnect(); ConfirmOverlay.Visible = false; onConfirm() end); ConfirmOverlay.Visible = true
 	end
 
-	local InvOverlay = Instance.new("Frame", MainFrame); InvOverlay.Size = UDim2.new(1, 0, 1, 0); InvOverlay.BackgroundColor3 = Color3.new(0,0,0); InvOverlay.BackgroundTransparency = 0.6; InvOverlay.ZIndex = 50; InvOverlay.Visible = false; InvOverlay.Active = true
+	-- [[ THE FIX: Parented to parentFrame.Parent to ignore the ListLayout overlap bug! ]]
+	local InvOverlay = Instance.new("Frame", parentFrame.Parent); InvOverlay.Size = UDim2.new(1, 0, 1, 0); InvOverlay.BackgroundColor3 = Color3.new(0,0,0); InvOverlay.BackgroundTransparency = 0.6; InvOverlay.ZIndex = 50; InvOverlay.Visible = false; InvOverlay.Active = true
 	local InvPanel, _ = CreateGrimPanel(InvOverlay); InvPanel.Size = UDim2.new(0.9, 0, 0.7, 0); InvPanel.Position = UDim2.new(0.5, 0, 0.5, 0); InvPanel.AnchorPoint = Vector2.new(0.5, 0.5); InvPanel.ZIndex = 51
 	local invTitle = UIHelpers.CreateLabel(InvPanel, "DEPOSIT ITEM", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 18); invTitle.ZIndex = 52
 	local closeInvBtn, _ = CreateSharpButton(InvPanel, "X", UDim2.new(0, 35, 0, 35), Enum.Font.GothamBlack, 16, "#FF5555"); closeInvBtn.Position = UDim2.new(1, -10, 0, 5); closeInvBtn.AnchorPoint = Vector2.new(1, 0); closeInvBtn.TextColor3 = Color3.fromRGB(255, 100, 100); closeInvBtn.ZIndex = 52; closeInvBtn.MouseButton1Click:Connect(function() InvOverlay.Visible = false end)
