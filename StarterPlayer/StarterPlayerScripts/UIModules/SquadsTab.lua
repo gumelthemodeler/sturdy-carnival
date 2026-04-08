@@ -125,7 +125,8 @@ function SquadsTab.Initialize(parentFrame)
 		ConfirmOverlay.Visible = true
 	end
 
-	local InvOverlay = Instance.new("Frame", MainFrame); InvOverlay.Size = UDim2.new(1, 0, 1, 0); InvOverlay.BackgroundColor3 = Color3.new(0,0,0); InvOverlay.BackgroundTransparency = 0.6; InvOverlay.ZIndex = 50; InvOverlay.Visible = false; InvOverlay.Active = true
+	-- [[ THE FIX: Parented to parentFrame.Parent to ignore the ListLayout overlap bug! ]]
+	local InvOverlay = Instance.new("Frame", parentFrame.Parent); InvOverlay.Size = UDim2.new(1, 0, 1, 0); InvOverlay.BackgroundColor3 = Color3.new(0,0,0); InvOverlay.BackgroundTransparency = 0.6; InvOverlay.ZIndex = 50; InvOverlay.Visible = false; InvOverlay.Active = true
 	local InvPanel, _ = CreateGrimPanel(InvOverlay); InvPanel.Size = UDim2.new(0, 400, 0, 500); InvPanel.Position = UDim2.new(0.5, 0, 0.5, 0); InvPanel.AnchorPoint = Vector2.new(0.5, 0.5); InvPanel.ZIndex = 51
 	local invTitle = UIHelpers.CreateLabel(InvPanel, "DEPOSIT ITEM", UDim2.new(1, 0, 0, 50), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 20); invTitle.ZIndex = 52
 	local closeInvBtn, _ = CreateSharpButton(InvPanel, "X", UDim2.new(0, 40, 0, 40), Enum.Font.GothamBlack, 18); closeInvBtn.Position = UDim2.new(1, -10, 0, 10); closeInvBtn.AnchorPoint = Vector2.new(1, 0); closeInvBtn.TextColor3 = Color3.fromRGB(255, 100, 100); closeInvBtn.ZIndex = 52; closeInvBtn.MouseButton1Click:Connect(function() InvOverlay.Visible = false end)
