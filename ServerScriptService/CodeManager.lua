@@ -30,6 +30,11 @@ local ActiveCodes = {
 			["Standard Titan Serum"] = 15,
 			["Clan Blood Vial"] = 15 
 		}
+	},
+	["BUGSOHBUGS"] = { 
+		Items = {
+			["Spinal Fluid Syringe"] = 3
+		}
 	}
 }
 
