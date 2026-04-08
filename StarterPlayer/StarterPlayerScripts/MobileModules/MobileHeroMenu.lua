@@ -15,18 +15,11 @@ local TEXT_COLORS = { PrestigeYellow = "#FFD700", EloBlue = "#55AAFF", DefaultGr
 local REG_COLORS = { ["Garrison"] = "#FF5555", ["Military Police"] = "#55FF55", ["Scout Regiment"] = "#55AAFF" }
 
 local UnlockedCosmeticsCache = { Titles = {}, Auras = {} }; local CosmeticUIUpdaters = {}; local InitialCachePopulated = false
-
 local function EvaluateCosmetics()
-	if type(CosmeticData.CheckUnlock) ~= "function" then return end
-	local isFullyLoaded = player:GetAttribute("DataLoaded") == true
-	for key, data in pairs(CosmeticData.Titles or {}) do
-		if CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) and not UnlockedCosmeticsCache.Titles[key] then UnlockedCosmeticsCache.Titles[key] = true; if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("New Title Unlocked: " .. data.Name, "Success") end end
-	end
-	for key, data in pairs(CosmeticData.Auras or {}) do
-		if CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) and not UnlockedCosmeticsCache.Auras[key] then UnlockedCosmeticsCache.Auras[key] = true; if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("New Aura Unlocked: " .. data.Name, "Success") end end
-	end
-	if isFullyLoaded then InitialCachePopulated = true end
-	for _, updater in ipairs(CosmeticUIUpdaters) do if type(updater) == "function" then updater() end end
+	if type(CosmeticData.CheckUnlock) ~= "function" then return end; local isFullyLoaded = player:GetAttribute("DataLoaded") == true
+	for key, data in pairs(CosmeticData.Titles or {}) do if CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) and not UnlockedCosmeticsCache.Titles[key] then UnlockedCosmeticsCache.Titles[key] = true; if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("New Title Unlocked: " .. data.Name, "Success") end end end
+	for key, data in pairs(CosmeticData.Auras or {}) do if CosmeticData.CheckUnlock(player, data.ReqType, data.ReqValue) and not UnlockedCosmeticsCache.Auras[key] then UnlockedCosmeticsCache.Auras[key] = true; if InitialCachePopulated and NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("New Aura Unlocked: " .. data.Name, "Success") end end end
+	if isFullyLoaded then InitialCachePopulated = true end; for _, updater in ipairs(CosmeticUIUpdaters) do if type(updater) == "function" then updater() end end
 end
 EvaluateCosmetics()
 
@@ -71,8 +64,8 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 
 	local SubTabs = {}; local SubBtns = {}
 	local function CreateSubNavBtn(name, text)
-		local btn, subStroke = CreateSharpButton(SubNavScroll, text, UDim2.new(0, 120, 0, 30), Enum.Font.GothamBold, 12); btn.TextColor3 = Color3.fromRGB(160, 160, 175); subStroke.Color = Color3.fromRGB(70, 70, 80)
-		btn.MouseButton1Click:Connect(function() for k, v in pairs(SubBtns) do v.TextColor3 = Color3.fromRGB(160, 160, 175); v:FindFirstChild("UIStroke").Color = Color3.fromRGB(70, 70, 80) end; btn.TextColor3 = Color3.fromRGB(245, 245, 245); subStroke.Color = Color3.fromRGB(225, 185, 60); for k, frame in pairs(SubTabs) do frame.Visible = (k == name) end end)
+		local btn, subStroke = CreateSharpButton(SubNavScroll, text, UDim2.new(0, 100, 0, 30), Enum.Font.GothamBold, 11); btn.TextColor3 = Color3.fromRGB(160, 160, 175); subStroke.Color = Color3.fromRGB(70, 70, 80)
+		btn.Activated:Connect(function() for k, v in pairs(SubBtns) do v.TextColor3 = Color3.fromRGB(160, 160, 175); v:FindFirstChild("UIStroke").Color = Color3.fromRGB(70, 70, 80) end; btn.TextColor3 = Color3.fromRGB(245, 245, 245); subStroke.Color = Color3.fromRGB(225, 185, 60); for k, frame in pairs(SubTabs) do frame.Visible = (k == name) end end)
 		SubBtns[name] = btn; return btn
 	end
 	CreateSubNavBtn("Inventory", "INVENTORY"); CreateSubNavBtn("Titles", "TITLES"); CreateSubNavBtn("Auras", "AURAS")
@@ -80,18 +73,23 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 
 	SubTabs["Inventory"], _ = CreateGrimPanel(ContentArea); SubTabs["Inventory"].Size = UDim2.new(1, 0, 0, 0); SubTabs["Inventory"].AutomaticSize = Enum.AutomaticSize.Y; SubTabs["Inventory"].Visible = true; local invPadd = Instance.new("UIPadding", SubTabs["Inventory"]); invPadd.PaddingBottom = UDim.new(0, 15)
 	local InvTitle = CreateSharpLabel(SubTabs["Inventory"], "INVENTORY (0/50)", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(225, 185, 60), 16)
-	local FilterFrame = Instance.new("Frame", SubTabs["Inventory"]); FilterFrame.Size = UDim2.new(1, -20, 0, 35); FilterFrame.Position = UDim2.new(0, 10, 0, 35); FilterFrame.BackgroundTransparency = 1; local ffLayout = Instance.new("UIListLayout", FilterFrame); ffLayout.FillDirection = Enum.FillDirection.Horizontal; ffLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left; ffLayout.Padding = UDim.new(0, 10)
+
+	-- [[ THE FIX: Formatting perfectly constrained responsive buttons for the Inventory Filters ]]
+	local FilterFrame = Instance.new("Frame", SubTabs["Inventory"]); FilterFrame.Size = UDim2.new(1, -10, 0, 35); FilterFrame.Position = UDim2.new(0, 5, 0, 35); FilterFrame.BackgroundTransparency = 1; local ffLayout = Instance.new("UIListLayout", FilterFrame); ffLayout.FillDirection = Enum.FillDirection.Horizontal; ffLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; ffLayout.Padding = UDim.new(0.02, 0)
 
 	local currentInvFilter = "All"; local FilterBtns = {}; local RefreshProfile 
 	local function MakeFilterBtn(id, text)
-		local btn, stroke = CreateSharpButton(FilterFrame, text, UDim2.new(0, 60, 1, 0), Enum.Font.GothamBlack, 11); btn.TextColor3 = Color3.fromRGB(160, 160, 175)
-		btn.MouseButton1Click:Connect(function() currentInvFilter = id; for k, v in pairs(FilterBtns) do v.TextColor3 = Color3.fromRGB(160, 160, 175); v:FindFirstChild("UIStroke").Color = Color3.fromRGB(70, 70, 80) end; btn.TextColor3 = Color3.fromRGB(245, 245, 245); stroke.Color = Color3.fromRGB(225, 185, 60); if RefreshProfile then RefreshProfile() end end)
+		local btn, stroke = CreateSharpButton(FilterFrame, text, UDim2.new(0.22, 0, 1, 0), Enum.Font.GothamBlack, 11); btn.TextColor3 = Color3.fromRGB(160, 160, 175)
+		btn.TextScaled = true; local tcon = Instance.new("UITextSizeConstraint", btn); tcon.MaxTextSize = 11; tcon.MinTextSize = 7
+		btn.Activated:Connect(function() currentInvFilter = id; for k, v in pairs(FilterBtns) do v.TextColor3 = Color3.fromRGB(160, 160, 175); v:FindFirstChild("UIStroke").Color = Color3.fromRGB(70, 70, 80) end; btn.TextColor3 = Color3.fromRGB(245, 245, 245); stroke.Color = Color3.fromRGB(225, 185, 60); if RefreshProfile then RefreshProfile() end end)
 		FilterBtns[id] = btn; return btn
 	end
 	MakeFilterBtn("All", "ALL"); MakeFilterBtn("Gear", "GEAR"); MakeFilterBtn("Items", "ITEMS")
 	FilterBtns["All"].TextColor3 = Color3.fromRGB(245, 245, 245); FilterBtns["All"]:FindFirstChild("UIStroke").Color = Color3.fromRGB(225, 185, 60)
 
-	local AutoSellBtn, asStroke = CreateSharpButton(FilterFrame, "AUTO-SELL", UDim2.new(0, 90, 1, 0), Enum.Font.GothamBlack, 11); AutoSellBtn.TextColor3 = UIHelpers.Colors.TextMuted
+	local AutoSellBtn, asStroke = CreateSharpButton(FilterFrame, "AUTO-SELL", UDim2.new(0.28, 0, 1, 0), Enum.Font.GothamBlack, 11); AutoSellBtn.TextColor3 = UIHelpers.Colors.TextMuted
+	AutoSellBtn.TextScaled = true; local tcon2 = Instance.new("UITextSizeConstraint", AutoSellBtn); tcon2.MaxTextSize = 11; tcon2.MinTextSize = 7
+
 	local AutoSellMenu = Instance.new("Frame", SubTabs["Inventory"]); AutoSellMenu.Size = UDim2.new(1, -20, 0, 200); AutoSellMenu.Position = UDim2.new(0, 10, 0, 80); AutoSellMenu.BackgroundColor3 = Color3.fromRGB(25, 25, 30); AutoSellMenu.Visible = false; AutoSellMenu.ZIndex = 20; Instance.new("UIStroke", AutoSellMenu).Color = UIHelpers.Colors.Gold
 	local asTitle = UIHelpers.CreateLabel(AutoSellMenu, "AUTO-SELL SETTINGS", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14); local asList = Instance.new("Frame", AutoSellMenu); asList.Size = UDim2.new(1, 0, 1, -40); asList.Position = UDim2.new(0, 0, 0, 35); asList.BackgroundTransparency = 1; local asLayout = Instance.new("UIListLayout", asList); asLayout.Padding = UDim.new(0, 6); asLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
@@ -100,12 +98,11 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		local lbl = UIHelpers.CreateLabel(row, rarityName:upper(), UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, Color3.fromHex(hexColor:gsub("#","")), 14); lbl.TextXAlignment = Enum.TextXAlignment.Left
 		local tBtn, tStrk = CreateSharpButton(row, "OFF", UDim2.new(0.35, 0, 1, 0), Enum.Font.GothamBlack, 12); tBtn.Position = UDim2.new(1, 0, 0, 0); tBtn.AnchorPoint = Vector2.new(1, 0)
 		local function updateBtn() if player:GetAttribute("AutoSell_" .. rarityName) then tBtn.Text = "ON"; tBtn.TextColor3 = Color3.fromRGB(100, 255, 100); tStrk.Color = Color3.fromRGB(100, 255, 100) else tBtn.Text = "OFF"; tBtn.TextColor3 = UIHelpers.Colors.TextMuted; tStrk.Color = Color3.fromRGB(70, 70, 80) end end
-		updateBtn(); tBtn.MouseButton1Click:Connect(function() Network:WaitForChild("AutoSell"):FireServer(rarityName) end); player.AttributeChanged:Connect(function(attr) if attr == "AutoSell_" .. rarityName then updateBtn() end end)
+		updateBtn(); tBtn.Activated:Connect(function() Network:WaitForChild("AutoSell"):FireServer(rarityName) end); player.AttributeChanged:Connect(function(attr) if attr == "AutoSell_" .. rarityName then updateBtn() end end)
 	end
-	CreateASRow("Common", RarityColors["Common"]); CreateASRow("Uncommon", RarityColors["Uncommon"]); CreateASRow("Rare", RarityColors["Rare"]); CreateASRow("Epic", RarityColors["Epic"])
-	AutoSellBtn.MouseButton1Click:Connect(function() AutoSellMenu.Visible = not AutoSellMenu.Visible end)
+	CreateASRow("Common", RarityColors["Common"]); CreateASRow("Uncommon", RarityColors["Uncommon"]); CreateASRow("Rare", RarityColors["Rare"]); CreateASRow("Epic", RarityColors["Epic"]); AutoSellBtn.Activated:Connect(function() AutoSellMenu.Visible = not AutoSellMenu.Visible end)
 
-	local InvGrid = Instance.new("Frame", SubTabs["Inventory"]); InvGrid.Size = UDim2.new(1, -10, 0, 0); InvGrid.AutomaticSize = Enum.AutomaticSize.Y; InvGrid.Position = UDim2.new(0, 5, 0, 80); InvGrid.BackgroundTransparency = 1; InvGrid.BorderSizePixel = 0
+	local InvGrid = Instance.new("Frame", SubTabs["Inventory"]); InvGrid.Size = UDim2.new(1, -10, 0, 0); InvGrid.AutomaticSize = Enum.AutomaticSize.Y; InvGrid.Position = UDim2.new(0, 5, 0, 85); InvGrid.BackgroundTransparency = 1; InvGrid.BorderSizePixel = 0
 	local gl = Instance.new("UIGridLayout", InvGrid); gl.CellSize = UDim2.new(0, 100, 0, 100); gl.CellPadding = UDim2.new(0, 12, 0, 15); gl.HorizontalAlignment = Enum.HorizontalAlignment.Center; gl.SortOrder = Enum.SortOrder.LayoutOrder
 
 	SubTabs["Titles"] = Instance.new("Frame", ContentArea); SubTabs["Titles"].Size = UDim2.new(1, 0, 0, 0); SubTabs["Titles"].AutomaticSize = Enum.AutomaticSize.Y; SubTabs["Titles"].BackgroundTransparency = 1; SubTabs["Titles"].Visible = false; SubTabs["Titles"].BorderSizePixel = 0; local tLayout = Instance.new("UIListLayout", SubTabs["Titles"]); tLayout.Padding = UDim.new(0, 12); tLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; local tPad = Instance.new("UIPadding", SubTabs["Titles"]); tPad.PaddingTop = UDim.new(0, 10); tPad.PaddingBottom = UDim.new(0, 20)
@@ -126,7 +123,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 				if isEquipped then btn.Text = "EQUIPPED"; btn.TextColor3 = Color3.fromRGB(225, 185, 60); btnStroke.Color = Color3.fromRGB(225, 185, 60) elseif isUnlocked then btn.Text = "EQUIP"; btn.TextColor3 = Color3.fromRGB(245, 245, 245); btnStroke.Color = Color3.fromRGB(70, 70, 80) else btn.Text = "LOCKED"; btn.TextColor3 = Color3.fromRGB(70, 70, 80); btnStroke.Color = Color3.fromRGB(70, 70, 80) end
 			end
 			table.insert(CosmeticUIUpdaters, UpdateState)
-			btn.MouseButton1Down:Connect(function() if type(CosmeticData.CheckUnlock) ~= "function" or CosmeticData.CheckUnlock(player, item.Data.ReqType, item.Data.ReqValue) then Network:WaitForChild("EquipCosmetic"):FireServer(typeKey, item.Key) end end); UpdateState()
+			btn.Activated:Connect(function() if type(CosmeticData.CheckUnlock) ~= "function" or CosmeticData.CheckUnlock(player, item.Data.ReqType, item.Data.ReqValue) then Network:WaitForChild("EquipCosmetic"):FireServer(typeKey, item.Key) end end); UpdateState()
 		end
 	end
 	BuildCosmeticList(SubTabs["Titles"], "Title", CosmeticData.Titles); BuildCosmeticList(SubTabs["Auras"], "Aura", CosmeticData.Auras)
@@ -148,7 +145,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		for i = 1, 6 do local r1 = maxRadius * math.clamp(stats[i].Val / maxVal, 0.05, 1); table.insert(pts, Vector2.new(centerX + r1 * math.cos(math.rad(angles[i])), centerY + r1 * math.sin(math.rad(angles[i])))) end
 		for i = 1, 6 do local nextI = i % 6 + 1; DrawLineScale(RadarContainer, pts[i].X, pts[i].Y, pts[nextI].X, pts[nextI].Y, statColor, 2, 5); DrawUITriangle(RadarContainer, Vector2.new(centerX, centerY), pts[i], pts[nextI], statColor, 0.5, 3) end
 	end
-	RadarContainer:GetPropertyChangedSignal("AbsoluteSize"):Connect(RenderRadarChart); toggleStatsBtn.MouseButton1Click:Connect(function() isShowingTitanStats = not isShowingTitanStats; toggleStatsBtn.Text = isShowingTitanStats and "VIEW HUMAN STATS" or "VIEW TITAN STATS"; RenderRadarChart() end)
+	RadarContainer:GetPropertyChangedSignal("AbsoluteSize"):Connect(RenderRadarChart); toggleStatsBtn.Activated:Connect(function() isShowingTitanStats = not isShowingTitanStats; toggleStatsBtn.Text = isShowingTitanStats and "VIEW HUMAN STATS" or "VIEW TITAN STATS"; RenderRadarChart() end)
 
 	RefreshProfile = function()
 		local tName = player:GetAttribute("Titan") or "None"; local cName = player:GetAttribute("Clan") or "None"; local regName = player:GetAttribute("Regiment") or "Cadet Corps"
@@ -184,13 +181,13 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 				if isLocked then lockBtn.TextColor3 = Color3.fromRGB(255, 100, 100); sellBtn.Visible = false else lockBtn.TextColor3 = Color3.fromRGB(100, 255, 100) end
 				if item.Data.Type ~= nil then 
 					local isEq = (player:GetAttribute("EquippedWeapon") == item.Name) or (player:GetAttribute("EquippedAccessory") == item.Name); if isEq then equipBtn.Text = "UNEQUIP"; equipBtn.TextColor3 = Color3.fromRGB(255, 100, 100) else equipBtn.Text = "EQUIP"; equipBtn.TextColor3 = Color3.fromRGB(245, 245, 245) end
-					equipBtn.MouseButton1Down:Connect(function() buttonConsumed = true; if isEq then Network:WaitForChild("EquipItem"):FireServer("Unequip_" .. item.Data.Type) else Network:WaitForChild("EquipItem"):FireServer(item.Name) end; ActionsOverlay.Visible = false end)
-				elseif item.Data.Action ~= nil then equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255); equipBtn.MouseButton1Down:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
+					equipBtn.Activated:Connect(function() buttonConsumed = true; if isEq then Network:WaitForChild("EquipItem"):FireServer("Unequip_" .. item.Data.Type) else Network:WaitForChild("EquipItem"):FireServer(item.Name) end; ActionsOverlay.Visible = false end)
+				elseif item.Data.Action ~= nil then equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255); equipBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
 				else equipBtn.Visible = false end
-				sellBtn.MouseButton1Down:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, false); ActionsOverlay.Visible = false end)
-				lockBtn.MouseButton1Down:Connect(function() buttonConsumed = true; Network:WaitForChild("ToggleLock"):FireServer(item.Name); ActionsOverlay.Visible = false end)
+				sellBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, false); ActionsOverlay.Visible = false end)
+				lockBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ToggleLock"):FireServer(item.Name); ActionsOverlay.Visible = false end)
 				local function CloseAllOverlays() for _, c in ipairs(InvGrid:GetChildren()) do if c.Name == "ItemCard" then local ov = c:FindFirstChild("ActionsOverlay"); if ov then ov.Visible = false end end end end
-				btnCover.MouseButton1Down:Connect(function() if buttonConsumed then buttonConsumed = false; return end; if ActionsOverlay.Visible then ActionsOverlay.Visible = false else CloseAllOverlays(); ActionsOverlay.Visible = true end end)
+				btnCover.Activated:Connect(function() if buttonConsumed then buttonConsumed = false; return end; if ActionsOverlay.Visible then ActionsOverlay.Visible = false else CloseAllOverlays(); ActionsOverlay.Visible = true end end)
 			end
 		end
 		local MAX_INVENTORY_CAPACITY = 50; InvTitle.Text = "INVENTORY (" .. currentSlotsUsed .. "/" .. MAX_INVENTORY_CAPACITY .. ")"; if currentSlotsUsed >= MAX_INVENTORY_CAPACITY then InvTitle.TextColor3 = Color3.fromRGB(255, 100, 100) else InvTitle.TextColor3 = Color3.fromRGB(225, 185, 60) end
@@ -231,7 +228,7 @@ local function BuildAttributesTab(parentFrame)
 			if added > 0 then task.spawn(function() local remaining = added; while remaining > 0 do local chunk = math.min(remaining, 50); Network:WaitForChild("UpgradeStat"):FireServer(statName, chunk); remaining -= chunk; if remaining > 0 then task.wait(0.05) end end; if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show(cleanName:upper() .. " upgraded by +" .. added .. "!", "Success") end; task.wait(0.15); isUpgrading = false end)
 			else if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("Not enough XP!", "Error") end; isUpgrading = false end
 		end
-		bAdd.MouseButton1Down:Connect(function() local customAmt = tonumber(amtInput.Text) or 1; if customAmt < 1 then customAmt = 1 end; TryUpgrade(math.floor(customAmt)) end); bMax.MouseButton1Down:Connect(function() TryUpgrade("MAX") end)
+		bAdd.Activated:Connect(function() local customAmt = tonumber(amtInput.Text) or 1; if customAmt < 1 then customAmt = 1 end; TryUpgrade(math.floor(customAmt)) end); bMax.Activated:Connect(function() TryUpgrade("MAX") end)
 		statRowRefs[statName] = { Label = statLabel, BtnContainer = btnContainer, BtnAdd = bAdd, AddStroke = addStroke, BtnMax = bMax, MaxStroke = maxStroke }
 	end
 
@@ -244,7 +241,7 @@ local function BuildAttributesTab(parentFrame)
 		for i, s in ipairs(statList) do CreateStatRow(s, list, isTitan, i, amtInput) end
 
 		local isSpammingAll = false
-		allBtn.MouseButton1Down:Connect(function()
+		allBtn.Activated:Connect(function()
 			if isSpammingAll then return end; isSpammingAll = true; local prestige = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Prestige") and player.leaderstats.Prestige.Value or 0; local statCap = SafeGetStatCap(prestige); local currentXP = isTitan and (tonumber(player:GetAttribute("TitanXP")) or 0) or (tonumber(player:GetAttribute("XP")) or 0); local simXP = currentXP; local tallies = {}; local simStats = {}; for _, s in ipairs(statList) do tallies[s] = 0; simStats[s] = ParseStat(player:GetAttribute(s)) end; local totalUpgrades = 0
 			while true do local upgradedAny = false; for _, s in ipairs(statList) do local cleanName = s:gsub("_Val", ""):gsub("Titan_", ""); local base = 10; if prestige == 0 then if type(GameData) == "table" and type(GameData.BaseStats) == "table" and GameData.BaseStats[cleanName] then base = GameData.BaseStats[cleanName] end else base = prestige * 5 end; if simStats[s] < statCap then local cost = SafeCalculateStatCost(simStats[s], base, prestige); if simXP >= cost then simXP -= cost; simStats[s] += 1; tallies[s] += 1; upgradedAny = true; totalUpgrades += 1 end end end; if not upgradedAny then break end end
 			if totalUpgrades > 0 then task.spawn(function() for s, amt in pairs(tallies) do if amt > 0 then local remaining = amt; while remaining > 0 do local chunk = math.min(remaining, 50); Network:WaitForChild("UpgradeStat"):FireServer(s, chunk); remaining -= chunk; task.wait(0.05) end end end; if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("Distributed " .. totalUpgrades .. " points evenly!", "Success") end; task.wait(0.25); isSpammingAll = false end)
@@ -268,9 +265,9 @@ local function BuildAttributesTab(parentFrame)
 		local function CreateFloatingText(textStr, color, startPos) local fTxt = UIHelpers.CreateLabel(box, textStr, UDim2.new(0, 100, 0, 30), Enum.Font.GothamBlack, color, 18); fTxt.Position = startPos; fTxt.AnchorPoint = Vector2.new(0.5, 0.5); fTxt.ZIndex = 4; TweenService:Create(fTxt, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = fTxt.Position - UDim2.new(0, 0, 0.3, 0), TextTransparency = 1}):Play(); game.Debris:AddItem(fTxt, 0.6) end
 		local function TriggerTrain() local currentPos = tBtn.Position; if isTitan then titanCombo += 1 else humanCombo += 1 end; local activeCombo = isTitan and titanCombo or humanCombo; if activeCombo > 1 then comboLbl.TextColor3 = isTitan and Color3.fromRGB(255, 150, 100) or Color3.fromRGB(150, 255, 100); comboLbl.Visible = true; comboLbl.Text = "x" .. activeCombo .. " COMBO!" end; local prestige = player:WaitForChild("leaderstats") and player.leaderstats:FindFirstChild("Prestige") and player.leaderstats.Prestige.Value or 0; local totalStats = (player:GetAttribute("Strength") or 10) + (player:GetAttribute("Defense") or 10) + (player:GetAttribute("Speed") or 10) + (player:GetAttribute("Resolve") or 10); local baseXP = 1 + (prestige * 50) + math.floor(totalStats / 4); local xpGain = math.floor(baseXP * (1.0 + (activeCombo * 0.1))); if player:GetAttribute("HasDoubleXP") then xpGain *= 2 end; CreateFloatingText("+" .. xpGain .. (isTitan and " T-XP" or " XP"), Color3.fromRGB(100, 255, 100), currentPos); tBtn.Position = UDim2.new(math.random(25, 75)/100, 0, math.random(30, 80)/100, 0); Network:WaitForChild("TrainAction"):FireServer(activeCombo, isTitan) end
 
-		tBtn.MouseButton1Down:Connect(TriggerTrain); missBtn.MouseButton1Down:Connect(function() if isTitan and titanCombo > 0 then titanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if titanCombo == 0 then comboLbl.Visible = false end end) elseif not isTitan and humanCombo > 0 then humanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if humanCombo == 0 then comboLbl.Visible = false end end) end end)
+		tBtn.Activated:Connect(TriggerTrain); missBtn.Activated:Connect(function() if isTitan and titanCombo > 0 then titanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if titanCombo == 0 then comboLbl.Visible = false end end) elseif not isTitan and humanCombo > 0 then humanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if humanCombo == 0 then comboLbl.Visible = false end end) end end)
 
-		if player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397 then local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11); autoBtn.Position = UDim2.new(1, -100, 0, 12); autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); autoBtn.ZIndex = 5; local isAutoTraining = false; autoBtn.MouseButton1Down:Connect(function() isAutoTraining = not isAutoTraining; autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"; autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255); if isAutoTraining then task.spawn(function() while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end; task.wait(0.6) end end) end end) end
+		if player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397 then local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11); autoBtn.Position = UDim2.new(1, -100, 0, 12); autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); autoBtn.ZIndex = 5; local isAutoTraining = false; autoBtn.Activated:Connect(function() isAutoTraining = not isAutoTraining; autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"; autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255); if isAutoTraining then task.spawn(function() while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end; task.wait(0.6) end end) end end) end
 		return box
 	end
 	local soldierBox = CreateTrainBox(false); local titanBox = CreateTrainBox(true)
@@ -302,13 +299,16 @@ local function BuildSkillsTab(parentFrame)
 
 	local HeaderContainer = Instance.new("Frame", MainFrame); HeaderContainer.Size = UDim2.new(0.95, 0, 0, 130); HeaderContainer.BackgroundTransparency = 1; HeaderContainer.LayoutOrder = 1
 	local HeaderLabel = CreateSharpLabel(HeaderContainer, "ACTIVE LOADOUT", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, Color3.fromRGB(225, 185, 60), 16); HeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
-	local TopLoadoutGrid = Instance.new("Frame", HeaderContainer); TopLoadoutGrid.Size = UDim2.new(1, 0, 0, 95); TopLoadoutGrid.Position = UDim2.new(0, 0, 0, 30); TopLoadoutGrid.BackgroundTransparency = 1; local lgLayout = Instance.new("UIListLayout", TopLoadoutGrid); lgLayout.FillDirection = Enum.FillDirection.Horizontal; lgLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; lgLayout.VerticalAlignment = Enum.VerticalAlignment.Center; lgLayout.Padding = UDim.new(0, 10)
+
+	-- [[ THE FIX: Dynamically scaled bounding boxes to fit 4 slots beautifully on any mobile screen width ]]
+	local TopLoadoutGrid = Instance.new("Frame", HeaderContainer); TopLoadoutGrid.Size = UDim2.new(1, 0, 0, 95); TopLoadoutGrid.Position = UDim2.new(0, 0, 0, 30); TopLoadoutGrid.BackgroundTransparency = 1; local lgLayout = Instance.new("UIListLayout", TopLoadoutGrid); lgLayout.FillDirection = Enum.FillDirection.Horizontal; lgLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; lgLayout.VerticalAlignment = Enum.VerticalAlignment.Center; lgLayout.Padding = UDim.new(0.02, 0)
 
 	local SkillSlotLabels = {}
 	for i = 1, 4 do
-		local slotFrame = CreateGrimPanel(TopLoadoutGrid); slotFrame.Size = UDim2.new(0, 80, 0, 80); slotFrame.ClipsDescendants = true; Instance.new("UIAspectRatioConstraint", slotFrame).AspectRatio = 1.0 
+		local slotFrame = CreateGrimPanel(TopLoadoutGrid); slotFrame.Size = UDim2.new(0.23, 0, 0.85, 0); slotFrame.ClipsDescendants = true; 
+		local asp = Instance.new("UIAspectRatioConstraint", slotFrame); asp.AspectRatio = 1.0; asp.DominantAxis = Enum.DominantAxis.Width
 		local numLbl = CreateSharpLabel(slotFrame, "SLOT " .. i, UDim2.new(0, 40, 0, 12), Enum.Font.GothamBlack, Color3.fromRGB(160, 160, 175), 9); numLbl.Position = UDim2.new(0, 5, 0, 5); numLbl.TextXAlignment = Enum.TextXAlignment.Left
-		local nameLbl = CreateSharpLabel(slotFrame, "EMPTY", UDim2.new(1, -10, 1, -20), Enum.Font.GothamBold, Color3.fromRGB(245, 245, 245), 11); nameLbl.Position = UDim2.new(0.5, 0, 0.5, 8); nameLbl.AnchorPoint = Vector2.new(0.5, 0.5); nameLbl.TextWrapped = true; nameLbl.TextScaled = true; local tCon = Instance.new("UITextSizeConstraint", nameLbl); tCon.MaxTextSize = 11; tCon.MinTextSize = 7; table.insert(SkillSlotLabels, nameLbl)
+		local nameLbl = CreateSharpLabel(slotFrame, "EMPTY", UDim2.new(1, -4, 0.6, 0), Enum.Font.GothamBold, Color3.fromRGB(245, 245, 245), 11); nameLbl.Position = UDim2.new(0.5, 0, 0.5, 8); nameLbl.AnchorPoint = Vector2.new(0.5, 0.5); nameLbl.TextWrapped = true; nameLbl.TextScaled = true; local tCon = Instance.new("UITextSizeConstraint", nameLbl); tCon.MaxTextSize = 11; tCon.MinTextSize = 6; table.insert(SkillSlotLabels, nameLbl)
 	end
 
 	local sep = Instance.new("Frame", MainFrame); sep.Size = UDim2.new(0.95, 0, 0, 2); sep.BackgroundColor3 = Color3.fromRGB(70, 70, 80); sep.BorderSizePixel = 0; sep.LayoutOrder = 2
@@ -361,9 +361,9 @@ local function BuildSkillsTab(parentFrame)
 						local ActionsOverlay = Instance.new("Frame", sCard); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.1; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
 						local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.FillDirection = Enum.FillDirection.Vertical; actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
-						for sIndex = 1, 4 do local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); slotBtn.ZIndex = 11; slotBtn.MouseButton1Down:Connect(function() Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName); player:SetAttribute("EquippedSkill_"..sIndex, sName); ActionsOverlay.Visible = false; RefreshSkills() end) end
-						local closeBtn, _ = CreateSharpButton(ActionsOverlay, "CANCEL", UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); closeBtn.ZIndex = 11; closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100); closeBtn.MouseButton1Down:Connect(function() ActionsOverlay.Visible = false end)
-						eqBtn.MouseButton1Down:Connect(function() if ActionsOverlay.Visible then ActionsOverlay.Visible = false else for _, sc in ipairs(SkillLibraryContainer:GetDescendants()) do if sc.Name == "ActionsOverlay" then sc.Visible = false end end; ActionsOverlay.Visible = true end end) 
+						for sIndex = 1, 4 do local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); slotBtn.ZIndex = 11; slotBtn.Activated:Connect(function() Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName); player:SetAttribute("EquippedSkill_"..sIndex, sName); ActionsOverlay.Visible = false; RefreshSkills() end) end
+						local closeBtn, _ = CreateSharpButton(ActionsOverlay, "CANCEL", UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); closeBtn.ZIndex = 11; closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100); closeBtn.Activated:Connect(function() ActionsOverlay.Visible = false end)
+						eqBtn.Activated:Connect(function() if ActionsOverlay.Visible then ActionsOverlay.Visible = false else for _, sc in ipairs(SkillLibraryContainer:GetDescendants()) do if sc.Name == "ActionsOverlay" then sc.Visible = false end end; ActionsOverlay.Visible = true end end) 
 					end
 				end
 			end
@@ -414,7 +414,7 @@ local function BuildPrestigeTab(parentFrame)
 
 	local UnlockBtn, UBtnStroke = CreateSharpButton(DetailPanel, "UNLOCK", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 14); UnlockBtn.Position = UDim2.new(1, -10, 1, -10); UnlockBtn.AnchorPoint = Vector2.new(1, 1)
 
-	UnlockBtn.MouseButton1Down:Connect(function() if SelectedNodeId then Network:WaitForChild("UnlockPrestigeNode"):FireServer(SelectedNodeId) end end)
+	UnlockBtn.Activated:Connect(function() if SelectedNodeId then Network:WaitForChild("UnlockPrestigeNode"):FireServer(SelectedNodeId) end end)
 
 	local function UpdateUI()
 		local pts = player:GetAttribute("PrestigePoints") or 0
@@ -433,7 +433,7 @@ local function BuildPrestigeTab(parentFrame)
 		end
 	end
 
-	AscendBtn.MouseButton1Down:Connect(function()
+	AscendBtn.Activated:Connect(function()
 		local confirm = Network:WaitForChild("PrestigeAction"):InvokeServer()
 		if confirm then 
 			if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("ASCENDED TO PRESTIGE TIER " .. nextLevel .. "!", "Success") end
@@ -450,7 +450,7 @@ local function BuildPrestigeTab(parentFrame)
 			local iconLbl = CreateSharpLabel(btn, "", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 14); iconLbl.ZIndex = 6; iconLbl.Rotation = -45 
 			local num = id:match("%d+"); if num then iconLbl.Text = num else iconLbl.Text = "★" end
 
-			btn.MouseButton1Down:Connect(function()
+			btn.Activated:Connect(function()
 				SelectedNodeId = id; DetailPanel.Visible = true; DTitle.Text = node.Name; DTitle.TextColor3 = Color3.fromHex(node.Color:gsub("#", "")); DDesc.Text = node.Desc; DCost.Text = node.Cost .. " PTS"
 				for _, c in ipairs(StatCardContainer:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 				if node.BuffType == "FlatStat" then
@@ -573,13 +573,13 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		for i = 1, 6 do
 			local sBtn, stroke = CreateSharpButton(StorageArea, "Empty", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, 10); sBtn.TextWrapped = true
 
-			-- [[ THE FIX: Changed to MouseButton1Down for infallible touch registration ]]
-			sBtn.MouseButton1Down:Connect(function()
-				if i > 3 and not player:GetAttribute("Has" .. gType .. "Vault") then
+			local capturedIndex = i
+			sBtn.Activated:Connect(function()
+				if capturedIndex > 3 and not player:GetAttribute("Has" .. gType .. "Vault") then
 					if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("Locked. Requires Vault Expansion Gamepass!", "Error") end
 					return
 				end
-				Network:WaitForChild("ManageStorage"):FireServer(gType, i)
+				Network:WaitForChild("ManageStorage"):FireServer(gType, capturedIndex)
 			end)
 			storageBtns[i] = { Btn = sBtn, Stroke = stroke }
 		end
@@ -595,8 +595,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		local attrReq = (gType == "Titan") and "StandardTitanSerumCount" or "ClanBloodVialCount"
 
-		-- [[ THE FIX: Changed Gacha Rolls to MouseButton1Down for responsiveness ]]
-		RollBtn.MouseButton1Down:Connect(function()
+		RollBtn.Activated:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
 			local count = player:GetAttribute(attrReq) or 0
 			if count > 0 then
@@ -609,7 +608,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 			end
 		end)
 
-		PremiumRollBtn.MouseButton1Down:Connect(function()
+		PremiumRollBtn.Activated:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
 			local count = player:GetAttribute("SpinalFluidSyringeCount") or 0
 			if count > 0 then
@@ -622,7 +621,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 			end
 		end)
 
-		AutoRollBtn.MouseButton1Down:Connect(function()
+		AutoRollBtn.Activated:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
 			local count = player:GetAttribute(attrReq) or 0
 			if count > 0 then
@@ -642,16 +641,19 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local cResult, cPity, cRoll, cPrem, cAuto, cStores = CreateGachaPanel("Clan", 2)
 
 	local function UpdateUI()
-		if not isRolling.Titan and not isAutoRolling.Titan then tResult.Text = "Current: " .. (player:GetAttribute("Titan") or "None") end
-		if not isRolling.Clan and not isAutoRolling.Clan then cResult.Text = "Current: " .. (player:GetAttribute("Clan") or "None") end
+		local tActive = player:GetAttribute("Titan"); if not tActive or tActive == "" then tActive = "None" end
+		local cActive = player:GetAttribute("Clan"); if not cActive or cActive == "" then cActive = "None" end
+
+		if not isRolling.Titan and not isAutoRolling.Titan then tResult.Text = "Current: " .. tActive end
+		if not isRolling.Clan and not isAutoRolling.Clan then cResult.Text = "Current: " .. cActive end
 
 		for i = 1, 6 do
-			local tStoreName = player:GetAttribute("Titan_Slot"..i) or "None"
-			local cStoreName = player:GetAttribute("Clan_Slot"..i) or "None"
+			local tStoreName = player:GetAttribute("Titan_Slot"..i); if not tStoreName or tStoreName == "" then tStoreName = "None" end
+			local cStoreName = player:GetAttribute("Clan_Slot"..i); if not cStoreName or cStoreName == "" then cStoreName = "None" end
 
-			local function styleVaultSlot(storeObj, storedName, hasVault, isTitanType)
+			local function styleVaultSlot(storeObj, storedName, hasVault, isTitanType, slotIndex)
 				local btn = storeObj.Btn
-				if i > 3 and not hasVault then 
+				if slotIndex > 3 and not hasVault then 
 					btn.Text = "🔒"; storeObj.Stroke.Color = Color3.fromRGB(80, 40, 40); btn.TextColor3 = Color3.fromRGB(200, 100, 100)
 				else 
 					btn.Text = (storedName == "None" and "Empty" or storedName)
@@ -671,8 +673,8 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				end
 			end
 
-			styleVaultSlot(tStores[i], tStoreName, player:GetAttribute("HasTitanVault"), true)
-			styleVaultSlot(cStores[i], cStoreName, player:GetAttribute("HasClanVault"), false)
+			styleVaultSlot(tStores[i], tStoreName, player:GetAttribute("HasTitanVault"), true, i)
+			styleVaultSlot(cStores[i], cStoreName, player:GetAttribute("HasClanVault"), false, i)
 		end
 
 		tPity.Text = "PITY: " .. (player:GetAttribute("TitanPity") or 0) .. " / 100"
@@ -764,7 +766,7 @@ local function BuildBountiesTab(parentFrame)
 			elseif prog >= max then actionBtn.Text = "CLAIM"; actionBtn.TextColor3 = UIHelpers.Colors.Gold; actStroke.Color = UIHelpers.Colors.Gold; actionBtn.Active = true
 			else actionBtn.Text = "IN PROGRESS"; actionBtn.TextColor3 = UIHelpers.Colors.TextMuted; actStroke.Color = Color3.fromRGB(70, 70, 80); actionBtn.Active = false end
 		end
-		actionBtn.MouseButton1Down:Connect(function() if actionBtn.Active and actionBtn.Text == "CLAIM" then Network:WaitForChild("ClaimBounty"):FireServer(bountyId) end end)
+		actionBtn.Activated:Connect(function() if actionBtn.Active and actionBtn.Text == "CLAIM" then Network:WaitForChild("ClaimBounty"):FireServer(bountyId) end end)
 		player.AttributeChanged:Connect(function(attr) if string.match(attr, "^" .. bountyId) then UpdateCard() end end); UpdateCard()
 	end
 	CreateBountyCard("D1", "DAILY 1"); CreateBountyCard("D2", "DAILY 2"); CreateBountyCard("D3", "DAILY 3"); CreateBountyCard("W1", "WEEKLY CHALLENGE")
@@ -790,7 +792,7 @@ function MobileHeroMenu.Initialize(parentFrame, tooltipMgr)
 
 		activeSubFrames[tabName] = subFrame; subBtns[tabName] = {Btn = btn, Stroke = stroke}
 
-		btn.MouseButton1Click:Connect(function()
+		btn.Activated:Connect(function()
 			for name, frame in pairs(activeSubFrames) do frame.Visible = (name == tabName) end
 			for name, bData in pairs(subBtns) do bData.Btn.TextColor3 = (name == tabName) and UIHelpers.Colors.Gold or UIHelpers.Colors.TextMuted; bData.Stroke.Color = (name == tabName) and UIHelpers.Colors.Gold or UIHelpers.Colors.BorderMuted end
 		end)
