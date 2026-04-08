@@ -1048,7 +1048,28 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		task.delay(0.05, function() ListContainer.CanvasSize = UDim2.new(0, 0, 0, SList.AbsoluteContentSize.Y + 10) end)
 
 		local BottomArea = Instance.new("Frame", Panel); BottomArea.Size = UDim2.new(1, 0, 0, 210); BottomArea.Position = UDim2.new(0, 0, 0, 345); BottomArea.BackgroundTransparency = 1
-		local ResultLbl = CreateSharpLabel(BottomArea, "Current: None", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 20); ResultLbl.RichText = true
+
+		-- Adjusted to make room for the Itemize Button
+		local ResultLbl = CreateSharpLabel(BottomArea, "Current: None", UDim2.new(0.6, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 20); ResultLbl.RichText = true; ResultLbl.TextXAlignment = Enum.TextXAlignment.Left; ResultLbl.Position = UDim2.new(0.05, 0, 0, 0)
+
+		-- [NEW] The Itemize Button (Only visible for Titan Inheritance)
+		if gType == "Titan" then
+			local ItemizeBtn, iStroke = CreateSharpButton(BottomArea, "ITEMIZE (100K)", UDim2.new(0.3, 0, 0, 24), Enum.Font.GothamBold, 11)
+			ItemizeBtn.Position = UDim2.new(0.95, 0, 0, 3)
+			ItemizeBtn.AnchorPoint = Vector2.new(1, 0)
+			ItemizeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+			iStroke.Color = Color3.fromRGB(150, 50, 50)
+
+			ItemizeBtn.MouseButton1Click:Connect(function()
+				if isRolling.Titan or isAutoRolling.Titan then return end
+				local tName = player:GetAttribute("Titan")
+				if not tName or tName == "None" then
+					if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("No Titan equipped to itemize!", "Error") end
+					return
+				end
+				Network:WaitForChild("ItemizeTitan"):FireServer("Equipped")
+			end)
+		end
 
 		local StorageArea = Instance.new("Frame", BottomArea); StorageArea.Size = UDim2.new(0.9, 0, 0, 50); StorageArea.Position = UDim2.new(0.05, 0, 0, 35); StorageArea.BackgroundTransparency = 1
 		local sg = Instance.new("UIGridLayout", StorageArea); sg.CellSize = UDim2.new(0.15, 0, 1, 0); sg.CellPadding = UDim2.new(0.02, 0, 0, 0); sg.HorizontalAlignment = Enum.HorizontalAlignment.Center
