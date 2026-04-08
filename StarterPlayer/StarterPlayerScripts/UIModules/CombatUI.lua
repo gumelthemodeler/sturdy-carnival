@@ -39,7 +39,13 @@ local InstantSkills = {
 local function CreateMinimalButton(parent, text, size, baseColorHex)
 	local btn = Instance.new("TextButton", parent)
 	btn.Size = size; btn.BackgroundColor3 = Color3.fromRGB(22, 22, 26); btn.BorderSizePixel = 0
-	btn.AutoButtonColor = false; btn.Font = Enum.Font.GothamBold; btn.TextSize = 13; btn.Text = text
+	btn.AutoButtonColor = false; btn.Font = Enum.Font.GothamBold; btn.Text = text
+
+	-- [[ THE FIX: Automatically scale long text and clamp max text size ]]
+	btn.TextScaled = true
+	local tsc = Instance.new("UITextSizeConstraint", btn)
+	tsc.MaxTextSize = 13
+	tsc.MinTextSize = 8
 
 	local cColor = Color3.fromHex(baseColorHex:gsub("#", ""))
 	btn.TextColor3 = cColor
