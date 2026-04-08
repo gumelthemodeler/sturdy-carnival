@@ -12,11 +12,9 @@ local NotificationEvent = Network:WaitForChild("NotificationEvent")
 local ActiveTrades = {} 
 local PendingRequests = {} 
 
--- [[ THE FIX: Ensure players never join the game "stuck" in a trade ]]
 Players.PlayerAdded:Connect(function(player)
 	player:SetAttribute("ActiveTradeId", "None")
 
-	-- Fallback chat commands for easy testing/un-sticking
 	player.Chatted:Connect(function(msg)
 		local lowerMsg = msg:lower()
 		if string.sub(lowerMsg, 1, 7) == "/trade " then
@@ -170,16 +168,22 @@ TradeAction.OnServerEvent:Connect(function(player, action, data)
 		end
 
 		if not PendingRequests[target.UserId] then PendingRequests[target.UserId] = {} end
-		PendingRequests[target.UserId][player.UserId] = player.Name
+
+		-- Memory Leak Protection: Auto-delete the request after 30 seconds
+		PendingRequests[target.UserId][uid] = player.Name
+		task.delay(30, function()
+			if PendingRequests[target.UserId] then PendingRequests[target.UserId][uid] = nil end
+		end)
 
 		NotificationEvent:FireClient(player, "Trade request sent to " .. target.Name, "Success")
-		TradeAction:FireClient(target, "IncomingRequest", player.UserId, player.Name)
+		TradeAction:FireClient(target, "IncomingRequest", uid, player.Name)
 
 	elseif action == "ManageRequest" then
-		local senderId = data.SenderId
-		local decision = data.Decision 
+		if type(data) ~= "table" then return end
+		local senderId = tonumber(data.SenderId)
+		local decision = tostring(data.Decision) 
 
-		if not PendingRequests[uid] or not PendingRequests[uid][senderId] then return end
+		if not senderId or not PendingRequests[uid] or not PendingRequests[uid][senderId] then return end
 		PendingRequests[uid][senderId] = nil
 
 		if decision == "Accept" then
@@ -209,6 +213,7 @@ TradeAction.OnServerEvent:Connect(function(player, action, data)
 		end
 
 	elseif action == "UpdateOffer" then
+		if type(data) ~= "table" then return end
 		local tradeId = player:GetAttribute("ActiveTradeId")
 		local trade = ActiveTrades[tradeId]
 		if not trade then return end
@@ -218,16 +223,21 @@ TradeAction.OnServerEvent:Connect(function(player, action, data)
 		local isP1 = (trade.P1 == uid)
 		local myOffer = isP1 and trade.P1_Offer or trade.P2_Offer
 
+		-- [[ THE FIX: Strict Dews Sanitization ]]
 		if data.Dews ~= nil then
-			local newDews = tonumber(data.Dews) or 0
+			local newDews = math.floor(tonumber(data.Dews) or 0)
+			if newDews ~= newDews then newDews = 0 end -- NaN Check
 			if newDews < 0 then newDews = 0 end
 			if newDews > player.leaderstats.Dews.Value then newDews = player.leaderstats.Dews.Value end
 			myOffer.Dews = newDews
 		end
 
+		-- [[ THE FIX: Strict Item Amount Sanitization ]]
 		if data.ItemName then
 			local itemName = tostring(data.ItemName)
-			local amount = tonumber(data.Amount) or 1
+			local amount = math.floor(tonumber(data.Amount) or 1)
+			if amount ~= amount then return end -- NaN check
+
 			local attrName = itemName:gsub("[^%w]", "") .. "Count"
 			local amountOwned = player:GetAttribute(attrName) or 0
 
