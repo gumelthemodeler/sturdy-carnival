@@ -97,6 +97,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 			ScreenGui.Enabled = true
 			isActive = true
 			isPressing = false
+			ClickCatcher.Visible = true -- [NEW] Reset the visibility so taps register!
 
 			if Overlay:FindFirstChild("BalanceContainer") then Overlay.BalanceContainer:Destroy() end
 
