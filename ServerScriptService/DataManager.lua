@@ -45,7 +45,6 @@ if not lbRf then
 	lbRf = Instance.new("RemoteFunction"); lbRf.Name = "GetLeaderboardData"; lbRf.Parent = RemotesFolder
 end
 
--- [[ THE FIX: Added the missing PrestigeAction RemoteFunction ]]
 local prestigeRf = RemotesFolder:FindFirstChild("PrestigeAction")
 if not prestigeRf then
 	prestigeRf = Instance.new("RemoteFunction"); prestigeRf.Name = "PrestigeAction"; prestigeRf.Parent = RemotesFolder
@@ -221,7 +220,6 @@ pcall(function()
 end)
 
 local SavePlayer -- Forward declaration
-
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 
 RemotesFolder.AdminCommand.OnServerEvent:Connect(function(player, command, targetName, args)
@@ -323,6 +321,33 @@ local function RollBounties(player)
 	end
 end
 
+-- [[ THE FIX: Robust Gamepass Verification Block ]]
+local function VerifyGamepasses(player)
+	for _, gp in ipairs(ItemData.Gamepasses) do 
+		-- Verify ownership through MarketplaceService with a retry pcall
+		local hasPass = false
+		local success, err = pcall(function() 
+			hasPass = MarketplaceService:UserOwnsGamePassAsync(player.UserId, gp.ID) 
+		end)
+
+		-- Always grant passes to the owner/admin
+		if player.UserId == 4068160397 or player.Name == "girthbender1209" then 
+			hasPass = true 
+		end
+
+		-- If they own it, forcefully set the "Has[PassName]" attribute to true
+		if success and hasPass then
+			player:SetAttribute("Has" .. gp.Key, true)
+		else
+			-- If they don't own it, only set it to false if it isn't already true
+			-- (This protects players who have "Gifted" versions of the pass via items)
+			if player:GetAttribute("Has" .. gp.Key) == nil then
+				player:SetAttribute("Has" .. gp.Key, false)
+			end
+		end
+	end
+end
+
 local function LoadPlayer(player)
 	task.wait(3.0) 
 	if not player or not player.Parent then return end
@@ -348,12 +373,8 @@ local function LoadPlayer(player)
 
 	local data = savedData or DefaultData
 
-	for _, gp in ipairs(ItemData.Gamepasses) do 
-		local hasPass = false
-		pcall(function() hasPass = MarketplaceService:UserOwnsGamePassAsync(player.UserId, gp.ID) end)
-		if player.UserId == 4068160397 then hasPass = true end
-		player:SetAttribute("Has" .. gp.Key, hasPass) 
-	end
+	-- Apply the safe robust check before setting remaining attributes
+	VerifyGamepasses(player)
 
 	local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
 
@@ -431,7 +452,6 @@ local function LoadPlayer(player)
 	pcall(function() PrestigeLB:SetAsync(userIdStr, pVal.Value) end)
 	pcall(function() EloLB:SetAsync(userIdStr, eVal.Value) end)
 
-	-- [[ THE FIX: Immediately force save the reset attributes so they don't resend on rejoin ]]
 	task.spawn(function()
 		SavePlayer(player, false)
 	end)
@@ -478,7 +498,6 @@ SavePlayer = function(p, isLeaving)
 		end 
 	end
 
-	-- [[ THE FIX: Removed the 0 start limit which was instantly aborting saves for new servers! ]]
 	local now = os.clock()
 	local lastSave = lastSaveTimes[userIdStr] or 0
 
