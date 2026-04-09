@@ -90,7 +90,6 @@ function MobileSquadsTab.Initialize(parentFrame)
 		cTitle.Text = title; cDesc.Text = desc; local conn; conn = cYes.MouseButton1Click:Connect(function() conn:Disconnect(); ConfirmOverlay.Visible = false; onConfirm() end); ConfirmOverlay.Visible = true
 	end
 
-	-- [[ THE FIX: Parented to parentFrame.Parent to ignore the ListLayout overlap bug! ]]
 	local InvOverlay = Instance.new("Frame", parentFrame.Parent); InvOverlay.Size = UDim2.new(1, 0, 1, 0); InvOverlay.BackgroundColor3 = Color3.new(0,0,0); InvOverlay.BackgroundTransparency = 0.6; InvOverlay.ZIndex = 50; InvOverlay.Visible = false; InvOverlay.Active = true
 	local InvPanel, _ = CreateGrimPanel(InvOverlay); InvPanel.Size = UDim2.new(0.9, 0, 0.7, 0); InvPanel.Position = UDim2.new(0.5, 0, 0.5, 0); InvPanel.AnchorPoint = Vector2.new(0.5, 0.5); InvPanel.ZIndex = 51
 	local invTitle = UIHelpers.CreateLabel(InvPanel, "DEPOSIT ITEM", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 18); invTitle.ZIndex = 52
@@ -185,7 +184,9 @@ function MobileSquadsTab.Initialize(parentFrame)
 			local isLeader = player:GetAttribute("SquadIsLeader"); if InSquadView:FindFirstChild("ManageReqsBtn") then InSquadView.ManageReqsBtn:Destroy() end
 			if isLeader then
 				LeaveDisbandBtn.Text = "DISBAND SQUAD"
-				LeaveDisbandBtn.MouseButton1Click:Connect(function() ShowConfirm("DISBAND SQUAD", "Are you sure you want to DISBAND your squad? This action is permanent and all items in the Vault will be lost.", function() Network:WaitForChild("SquadAction"):FireServer("Disband") end) end)
+				if _G.MobileDisbandConn then _G.MobileDisbandConn:Disconnect() end
+				_G.MobileDisbandConn = LeaveDisbandBtn.MouseButton1Click:Connect(function() ShowConfirm("DISBAND SQUAD", "Permanently disband your squad?", function() Network:WaitForChild("SquadAction"):FireServer("Disband") end) end)
+
 				local reqBtn, rStrk = CreateSharpButton(InSquadView, "VIEW REQUESTS", UDim2.new(0, 100, 0, 25), Enum.Font.GothamBlack, 10); reqBtn.Name = "ManageReqsBtn"; reqBtn.Position = UDim2.new(1, -120, 0, 10); reqBtn.AnchorPoint = Vector2.new(1, 0); reqBtn.TextColor3 = UIHelpers.Colors.Gold; rStrk.Color = UIHelpers.Colors.Gold
 				reqBtn.MouseButton1Click:Connect(function()
 					local reqs = Network:WaitForChild("GetSquadRequests"):InvokeServer()
@@ -230,9 +231,7 @@ function MobileSquadsTab.Initialize(parentFrame)
 					if storedItem ~= "None" then storeObj.Stroke.Color = UIHelpers.Colors.Gold; btn.TextColor3 = Color3.fromRGB(230, 230, 230) else storeObj.Stroke.Color = UIHelpers.Colors.BorderMuted; btn.TextColor3 = UIHelpers.Colors.TextMuted end
 				end
 			end
-		else 
-			NotInSquadView.Visible = true; InSquadView.Visible = false; VaultNoSquad.Visible = true; VaultActiveView.Visible = false
-		end
+		else NotInSquadView.Visible = true; InSquadView.Visible = false; VaultNoSquad.Visible = true; VaultActiveView.Visible = false end
 	end
 
 	task.spawn(function()
