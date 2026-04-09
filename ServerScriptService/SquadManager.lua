@@ -5,7 +5,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
-local MessagingService = game:GetService("MessagingService") -- [NEW] Cross-server sync
 
 local SquadStore = DataStoreService:GetDataStore("StrikeSquads_V2")
 local SquadLeaderboard = DataStoreService:GetOrderedDataStore("Global_Squad_SP_V1")
@@ -15,7 +14,6 @@ local SquadAction = Network:FindFirstChild("SquadAction") or Instance.new("Remot
 SquadAction.Name = "SquadAction"
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
--- BindableEvent to listen for SP gains from other scripts like CombatManager
 local AddSquadSP = Network:FindFirstChild("AddSquadSP") or Instance.new("BindableEvent", Network)
 AddSquadSP.Name = "AddSquadSP"
 
@@ -27,57 +25,30 @@ local GetSquadRequests = Instance.new("RemoteFunction", Network); GetSquadReques
 local ActiveSquads = {}
 local GlobalSquadCache = {}
 local isFetchingCache = false
+local PendingRequests = {} -- [SquadName] = { [UserId] = UserName }
 
--- [NEW] Catch messages from other servers to update live squad cache and apply changes across all servers instantly
-pcall(function()
-	MessagingService:SubscribeAsync("SquadUpdate", function(message)
-		local sqName = message.Data.SquadName
-		if ActiveSquads[sqName] then
-			pcall(function()
-				local latestData = SquadStore:GetAsync(sqName)
-				if latestData then
-					ActiveSquads[sqName] = latestData
-					-- Update the clients in THIS server so they see the fresh data
-					local vaultStr = HttpService:JSONEncode(latestData.Vault or {"None","None","None","None","None","None","None","None","None"})
-					for _, p in ipairs(Players:GetPlayers()) do
-						if p:GetAttribute("SquadName") == sqName then
-							p:SetAttribute("SquadSP", latestData.SP)
-							p:SetAttribute("SquadVault", vaultStr)
-							p:SetAttribute("SquadIsLeader", latestData.Leader == p.UserId)
-							p:SetAttribute("YmirFavored", latestData.IsYmirFavored or false)
-						end
-					end
-				end
-			end)
-		end
-	end)
-end)
+local currentTopSquadName = nil -- Keep this global for the script
+
+local function SaveSquadData(squadName, data)
+	pcall(function() SquadStore:SetAsync(squadName, data); SquadLeaderboard:SetAsync(squadName, data.SP or 0) end)
+end
 
 local function UpdateOnlineMembers(sqName)
 	local sqData = ActiveSquads[sqName]
 	if not sqData then return end
 	local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None","None","None","None","None","None","None","None","None"})
+	local isFavored = (sqName == currentTopSquadName)
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p:GetAttribute("SquadName") == sqName then
 			p:SetAttribute("SquadSP", sqData.SP)
 			p:SetAttribute("SquadVault", vaultStr)
-			p:SetAttribute("SquadIsLeader", sqData.Leader == p.UserId)
-			p:SetAttribute("YmirFavored", sqData.IsYmirFavored or false)
+			p:SetAttribute("SquadIsLeader", tonumber(sqData.Leader) == p.UserId)
+			p:SetAttribute("YmirFavored", isFavored)
 		end
 	end
 end
 
-local function SaveSquadData(squadName, data)
-	pcall(function() 
-		SquadStore:SetAsync(squadName, data)
-		SquadLeaderboard:SetAsync(squadName, data.SP or 0) 
-	end)
-	-- [NEW] Tell all other servers that this squad has been updated
-	pcall(function() 
-		MessagingService:PublishAsync("SquadUpdate", {SquadName = squadName}) 
-	end)
-end
-
+-- [NEW] Listen for SP updates
 AddSquadSP.Event:Connect(function(sqName, amount)
 	local sqData = ActiveSquads[sqName]
 	if sqData then
@@ -109,40 +80,40 @@ local function RefreshGlobalCache()
 	isFetchingCache = false
 end
 
-task.spawn(function()
-	RefreshGlobalCache()
-	while task.wait(60) do RefreshGlobalCache() end
-end)
-
 -- YMIR'S FAVORED DYNAMIC CHECKING
-local currentTopSquadName = nil
-task.spawn(function()
-	while task.wait(60) do
-		local success, pages = pcall(function() return SquadLeaderboard:GetSortedAsync(false, 1) end)
-		if success and pages then
-			local topEntry = pages:GetCurrentPage()[1]
-			if topEntry then
-				local newTopName = topEntry.key
-				if newTopName ~= currentTopSquadName then
-					if currentTopSquadName and ActiveSquads[currentTopSquadName] then
-						ActiveSquads[currentTopSquadName].IsYmirFavored = false
-						SaveSquadData(currentTopSquadName, ActiveSquads[currentTopSquadName])
-						UpdateOnlineMembers(currentTopSquadName)
+local function FetchTopSquad()
+	pcall(function()
+		local pages = SquadLeaderboard:GetSortedAsync(false, 1)
+		local topEntry = pages:GetCurrentPage()[1]
+		if topEntry then
+			local newTopName = topEntry.key
+			if newTopName ~= currentTopSquadName then
+				currentTopSquadName = newTopName
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p:GetAttribute("SquadName") == newTopName then
+						NotificationEvent:FireClient(p, "Your Squad is now Ymir's Favored! (+3 Vault Slots, +50% Drop Rates)", "Success")
 					end
-					if ActiveSquads[newTopName] then
-						ActiveSquads[newTopName].IsYmirFavored = true
-						SaveSquadData(newTopName, ActiveSquads[newTopName])
-						UpdateOnlineMembers(newTopName)
-						for _, p in ipairs(Players:GetPlayers()) do
-							if p:GetAttribute("SquadName") == newTopName then
-								NotificationEvent:FireClient(p, "Your Squad is now Ymir's Favored! (+3 Vault Slots, +50% Drop Rates)", "Success")
-							end
-						end
-					end
-					currentTopSquadName = newTopName
+				end
+			end
+			-- Re-sync everyone based purely on real-time ranking
+			for _, p in ipairs(Players:GetPlayers()) do
+				local pSquad = p:GetAttribute("SquadName")
+				if pSquad and pSquad ~= "None" and pSquad ~= "" then
+					p:SetAttribute("YmirFavored", pSquad == currentTopSquadName)
+				else
+					p:SetAttribute("YmirFavored", false)
 				end
 			end
 		end
+	end)
+end
+
+task.spawn(function()
+	RefreshGlobalCache()
+	FetchTopSquad()
+	while task.wait(30) do 
+		RefreshGlobalCache() 
+		FetchTopSquad()
 	end
 end)
 
@@ -161,14 +132,20 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local newSquadData = {
 			Name = data.Name, Desc = data.Desc or "A newly founded Strike Squad.", Logo = safeLogo,
 			Leader = player.UserId, Members = { [tostring(player.UserId)] = {Role = "Leader", Name = player.Name} },
-			Requests = {}, SP = 0, Level = 1, IsYmirFavored = false,
+			Requests = {}, SP = 0, Level = 1,
 			Vault = {"None", "None", "None", "None", "None", "None", "None", "None", "None"}
 		}
 
 		ActiveSquads[data.Name] = newSquadData
 		SaveSquadData(data.Name, newSquadData)
 
-		player:SetAttribute("SquadName", data.Name); player:SetAttribute("SquadDesc", newSquadData.Desc); player:SetAttribute("SquadLogo", newSquadData.Logo); player:SetAttribute("SquadSP", 0); player:SetAttribute("SquadIsLeader", true); player:SetAttribute("YmirFavored", false); player:SetAttribute("SquadVault", HttpService:JSONEncode(newSquadData.Vault))
+		player:SetAttribute("SquadName", data.Name)
+		player:SetAttribute("SquadDesc", newSquadData.Desc)
+		player:SetAttribute("SquadLogo", newSquadData.Logo)
+		player:SetAttribute("SquadSP", 0)
+		player:SetAttribute("SquadIsLeader", true)
+		player:SetAttribute("YmirFavored", false)
+		player:SetAttribute("SquadVault", HttpService:JSONEncode(newSquadData.Vault))
 		NotificationEvent:FireClient(player, "Squad '" .. data.Name .. "' officially founded!", "Success")
 
 	elseif action == "RequestJoin" then
@@ -181,15 +158,13 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local memCount = 0; for _, _ in pairs(sqData.Members) do memCount += 1 end
 		if memCount >= 15 then NotificationEvent:FireClient(player, "That Squad is currently full!", "Error") return end
 
-		if not sqData.Requests then sqData.Requests = {} end
-		if sqData.Requests[tostring(player.UserId)] then NotificationEvent:FireClient(player, "You already have a pending request for this Squad.", "Error") return end
+		if not PendingRequests[sqName] then PendingRequests[sqName] = {} end
+		if PendingRequests[sqName][tostring(player.UserId)] then NotificationEvent:FireClient(player, "You already have a pending request for this Squad.", "Error") return end
 
-		-- [NEW] Requests are now bound to the datastore table to persist across servers
-		sqData.Requests[tostring(player.UserId)] = player.Name
-		SaveSquadData(sqName, sqData)
+		PendingRequests[sqName][tostring(player.UserId)] = player.Name
 
 		for _, p in ipairs(Players:GetPlayers()) do
-			if p.UserId == sqData.Leader then NotificationEvent:FireClient(p, player.Name .. " has requested to join your Squad!", "Info") end
+			if p.UserId == tonumber(sqData.Leader) then NotificationEvent:FireClient(p, player.Name .. " has requested to join your Squad!", "Info") end
 		end
 		NotificationEvent:FireClient(player, "Join Request sent to the Squad Leader.", "Success")
 
@@ -199,11 +174,11 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local decision = data.Decision
 
 		local sqData = ActiveSquads[sqName]
-		if not sqData or sqData.Leader ~= player.UserId then return end
-		if not sqData.Requests or not sqData.Requests[targetId] then return end
+		if not sqData or tonumber(sqData.Leader) ~= player.UserId then return end
+		if not PendingRequests[sqName] or not PendingRequests[sqName][targetId] then return end
 
-		local targetName = sqData.Requests[targetId]
-		sqData.Requests[targetId] = nil 
+		local targetName = PendingRequests[sqName][targetId]
+		PendingRequests[sqName][targetId] = nil 
 
 		if decision == "Accept" then
 			local memCount = 0; for _, _ in pairs(sqData.Members) do memCount += 1 end
@@ -214,7 +189,13 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 
 			for _, p in ipairs(Players:GetPlayers()) do
 				if tostring(p.UserId) == targetId then
-					p:SetAttribute("SquadName", sqName); p:SetAttribute("SquadDesc", sqData.Desc); p:SetAttribute("SquadLogo", sqData.Logo); p:SetAttribute("SquadSP", sqData.SP); p:SetAttribute("SquadIsLeader", false); p:SetAttribute("YmirFavored", sqData.IsYmirFavored or false); p:SetAttribute("SquadVault", HttpService:JSONEncode(sqData.Vault))
+					p:SetAttribute("SquadName", sqName)
+					p:SetAttribute("SquadDesc", sqData.Desc)
+					p:SetAttribute("SquadLogo", sqData.Logo)
+					p:SetAttribute("SquadSP", sqData.SP)
+					p:SetAttribute("SquadIsLeader", false)
+					p:SetAttribute("YmirFavored", sqName == currentTopSquadName)
+					p:SetAttribute("SquadVault", HttpService:JSONEncode(sqData.Vault))
 					NotificationEvent:FireClient(p, "Your request to join " .. sqName .. " was accepted!", "Success")
 				end
 			end
@@ -233,13 +214,13 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local sqData = ActiveSquads[sqName]
 		if not sqData then return end
 
-		-- [SECURITY FIX] Prevent depositing Locked items
 		if player:GetAttribute(itemName:gsub("[^%w]", "") .. "_Locked") then
 			NotificationEvent:FireClient(player, "You cannot deposit Locked items!", "Error")
 			return
 		end
 
-		if slot > 6 and not sqData.IsYmirFavored then
+		-- Verify Ymir's Favored directly against the current active #1
+		if slot > 6 and sqName ~= currentTopSquadName then
 			NotificationEvent:FireClient(player, "Bonus Vault slots are locked! Reach #1 Globally to unlock.", "Error")
 			return
 		end
@@ -260,7 +241,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		player:SetAttribute(attrName, pCount - 1)
 		sqData.Vault[slot] = itemName
 
-		-- [SECURITY FIX] Force unequip if they deposited their last copy
 		if (pCount - 1) <= 0 then
 			if player:GetAttribute("EquippedWeapon") == itemName then
 				player:SetAttribute("EquippedWeapon", "None")
@@ -299,7 +279,7 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local sqData = ActiveSquads[sqName]
 		if not sqData then return end
 
-		if sqData.Leader == player.UserId then
+		if tonumber(sqData.Leader) == player.UserId then
 			NotificationEvent:FireClient(player, "You are the Leader! You must Disband the Squad.", "Error")
 			return
 		end
@@ -316,25 +296,36 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 
 	elseif action == "Disband" then
 		local sqName = player:GetAttribute("SquadName")
-		if not sqName or sqName == "None" then return end
+		if not sqName or sqName == "None" or sqName == "" then return end
+
 		local sqData = ActiveSquads[sqName]
-		if not sqData or sqData.Leader ~= player.UserId then return end
+		if not sqData or tonumber(sqData.Leader) ~= player.UserId then 
+			NotificationEvent:FireClient(player, "Error: Only the Leader can disband.", "Error")
+			return 
+		end
 
 		for _, p in ipairs(Players:GetPlayers()) do
 			if p:GetAttribute("SquadName") == sqName then
 				p:SetAttribute("SquadName", "None")
 				p:SetAttribute("SquadIsLeader", false)
 				p:SetAttribute("YmirFavored", false)
+				p:SetAttribute("SquadSP", 0)
 				p:SetAttribute("SquadVault", '{"1":"None","2":"None","3":"None","4":"None","5":"None","6":"None","7":"None","8":"None","9":"None"}')
 				NotificationEvent:FireClient(p, "Your Squad was disbanded by the Leader.", "Error")
 			end
 		end
 
 		ActiveSquads[sqName] = nil
-		pcall(function()
-			SquadStore:RemoveAsync(sqName)
-			SquadLeaderboard:RemoveAsync(sqName)
+		PendingRequests[sqName] = nil
+
+		task.spawn(function()
+			pcall(function()
+				SquadStore:RemoveAsync(sqName)
+				SquadLeaderboard:RemoveAsync(sqName)
+			end)
 		end)
+
+		NotificationEvent:FireClient(player, "Squad successfully disbanded.", "Success")
 	end
 end)
 
@@ -356,11 +347,10 @@ GetSquadRequests.OnServerInvoke = function(player)
 	local sqName = player:GetAttribute("SquadName")
 	if not sqName or sqName == "None" then return {} end
 	local sqData = ActiveSquads[sqName]
-	if not sqData or sqData.Leader ~= player.UserId then return {} end
+	if not sqData or tonumber(sqData.Leader) ~= player.UserId then return {} end
 
 	local reqs = {}
-	-- [NEW] Pull directly from persistent datastore table
-	for uid, uname in pairs(sqData.Requests or {}) do table.insert(reqs, {UserId = uid, Name = uname}) end
+	for uid, uname in pairs(PendingRequests[sqName] or {}) do table.insert(reqs, {UserId = uid, Name = uname}) end
 	return reqs
 end
 
@@ -434,8 +424,8 @@ local function LoadPlayerSquad(player)
 			player:SetAttribute("SquadDesc", sqData.Desc)
 			player:SetAttribute("SquadLogo", sqData.Logo)
 			player:SetAttribute("SquadSP", sqData.SP)
-			player:SetAttribute("SquadIsLeader", sqData.Leader == player.UserId)
-			player:SetAttribute("YmirFavored", sqData.IsYmirFavored or false)
+			player:SetAttribute("SquadIsLeader", tonumber(sqData.Leader) == player.UserId)
+			player:SetAttribute("YmirFavored", mySquad == currentTopSquadName)
 			local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None", "None", "None", "None", "None", "None", "None", "None", "None"})
 			player:SetAttribute("SquadVault", vaultStr)
 		end
