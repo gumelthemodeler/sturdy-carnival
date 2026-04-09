@@ -125,7 +125,6 @@ function SquadsTab.Initialize(parentFrame)
 		ConfirmOverlay.Visible = true
 	end
 
-	-- [[ THE FIX: Parented to parentFrame.Parent to ignore the ListLayout overlap bug! ]]
 	local InvOverlay = Instance.new("Frame", parentFrame.Parent); InvOverlay.Size = UDim2.new(1, 0, 1, 0); InvOverlay.BackgroundColor3 = Color3.new(0,0,0); InvOverlay.BackgroundTransparency = 0.6; InvOverlay.ZIndex = 50; InvOverlay.Visible = false; InvOverlay.Active = true
 	local InvPanel, _ = CreateGrimPanel(InvOverlay); InvPanel.Size = UDim2.new(0, 400, 0, 500); InvPanel.Position = UDim2.new(0.5, 0, 0.5, 0); InvPanel.AnchorPoint = Vector2.new(0.5, 0.5); InvPanel.ZIndex = 51
 	local invTitle = UIHelpers.CreateLabel(InvPanel, "DEPOSIT ITEM", UDim2.new(1, 0, 0, 50), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 20); invTitle.ZIndex = 52
@@ -136,9 +135,7 @@ function SquadsTab.Initialize(parentFrame)
 
 	local activeVaultSlot = 1
 	local function OpenInventorySelection(slotId)
-		activeVaultSlot = slotId; InvOverlay.Visible = true
-		invTitle.Text = "DEPOSIT ITEM"
-		noItemsLbl.Visible = true
+		activeVaultSlot = slotId; InvOverlay.Visible = true; invTitle.Text = "DEPOSIT ITEM"; noItemsLbl.Visible = true
 		for _, c in ipairs(InvScroll:GetChildren()) do if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end end
 		local foundAny = false
 		local function ScanItems(dictionary)
@@ -253,8 +250,9 @@ function SquadsTab.Initialize(parentFrame)
 
 			if isLeader then
 				LeaveDisbandBtn.Text = "DISBAND SQUAD"
-				LeaveDisbandBtn.MouseButton1Click:Connect(function()
-					ShowConfirm("DISBAND SQUAD", "Are you sure you want to DISBAND your squad? This action is permanent and all items in the Vault will be lost.", function()
+				if _G.DisbandConn then _G.DisbandConn:Disconnect() end
+				_G.DisbandConn = LeaveDisbandBtn.MouseButton1Click:Connect(function()
+					ShowConfirm("DISBAND SQUAD", "Are you sure? This is permanent and the Vault will be wiped.", function()
 						Network:WaitForChild("SquadAction"):FireServer("Disband")
 					end)
 				end)
