@@ -214,6 +214,21 @@ function MobileSquadsTab.Initialize(parentFrame)
 						local mCard, _ = CreateGrimPanel(RosterList); mCard.Size = UDim2.new(1, -10, 0, 35)
 						local mName = UIHelpers.CreateLabel(mCard, member.Name, UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 12); mName.Position = UDim2.new(0, 10, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
 						local mRole = UIHelpers.CreateLabel(mCard, member.Role, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 10); mRole.Position = UDim2.new(0.7, -10, 0, 0); mRole.TextXAlignment = Enum.TextXAlignment.Right
+
+						if isLeader and member.Role ~= "Leader" then
+							mRole.Position = UDim2.new(0.7, -65, 0, 0)
+							local kickBtn, kStrk = CreateSharpButton(mCard, "KICK", UDim2.new(0, 50, 0, 24), Enum.Font.GothamBlack, 10, "#FF5555")
+							kickBtn.Position = UDim2.new(1, -5, 0.5, 0); kickBtn.AnchorPoint = Vector2.new(1, 0.5)
+							kickBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
+
+							kickBtn.MouseButton1Click:Connect(function()
+								ShowConfirm("KICK MEMBER", "Kick " .. member.Name .. "?", function()
+									Network:WaitForChild("SquadAction"):FireServer("KickMember", member.UserId)
+									task.wait(0.5)
+									UpdateSquadUI()
+								end)
+							end)
+						end
 					end
 				end
 			end)
