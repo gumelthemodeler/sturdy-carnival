@@ -58,21 +58,24 @@ local function GetValidEndlessMob(partData)
 end
 
 local function GetHPScale(targetPart, isEndless, wave)
-	local base = 1.0 + ((targetPart - 1) * 0.8) 
+	-- [[ THE FIX: Halved the Campaign HP padding from 0.8 per chapter to 0.4 ]]
+	local base = 1.0 + ((targetPart - 1) * 0.4) 
 	if isEndless then base = base + ((wave or 1) * 0.15) end
 	return base
 end
+
 local function GetDmgScale(targetPart, isEndless, wave)
-	local base = 1.0 + ((targetPart - 1) * 0.5) 
+	-- [[ THE FIX: Halved the Campaign Damage scaling from 0.5 per chapter to 0.25 ]]
+	local base = 1.0 + ((targetPart - 1) * 0.25) 
 	if isEndless then base = base + ((wave or 1) * 0.1) end
 	return base
 end
+
 local function GetSpdScale(targetPart, isEndless, wave)
 	local base = 1.0 + (math.pow(targetPart, 0.6) * 0.1) 
 	if isEndless then base = base + (math.pow(wave or 1, 0.5) * 0.05) end
 	return base
 end
-
 local function GetActualStyle(plr)
 	local eqWpn = plr:GetAttribute("EquippedWeapon") or "None"
 	if ItemData.Equipment[eqWpn] and ItemData.Equipment[eqWpn].Style then return ItemData.Equipment[eqWpn].Style end
