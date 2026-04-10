@@ -40,6 +40,11 @@ local ActiveCodes = {
 		Items = {
 			["Clan Blood Vial"] = 5,
 		}
+	},
+	["ACKERMAN"] = { 
+		Items = {
+			["Clan Blood Vial"] = 5,
+		}
 	}
 }
 
