@@ -1,7 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: MobileCombatUI
--- @ScriptType: ModuleScript
 local MobileCombatUI = {}
 
 local Players = game:GetService("Players")
@@ -12,6 +11,7 @@ local Network = ReplicatedStorage:WaitForChild("Network")
 local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
+local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local MobileCombatBuilder = require(script.Parent:WaitForChild("MobileCombatBuilder"))
 local VFXManager = require(script.Parent.Parent:WaitForChild("VFXManager"))
 
@@ -160,10 +160,6 @@ local function HideAlly()
 		TweenService:Create(GUI.PlayerPanel, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
 	end
 end
-
--- ==========================================
--- PVP SPECIFIC UI HANDLING
--- ==========================================
 
 local function UpdatePvPSkills()
 	inputLocked = false
@@ -341,9 +337,6 @@ local function CloseUI()
 	if MusicManager then MusicManager.SetCategory("Lobby") end
 end
 
--- ==========================================
--- PVE STATE LOGIC
--- ==========================================
 local function UpdateState(data)
 	if not data or not data.Battle or not GUI then return end
 	currentBattleState = data.Battle; local battle = data.Battle
@@ -427,13 +420,10 @@ local function UpdateState(data)
 	RenderStatuses(GUI.EnemyStatusBox, battle.Enemy)
 end
 
--- [[ THE FIX: Replaces the 'UpdateSkills' block in both CombatUI & MobileCombatUI ]]
 local function GetTitanSkills(titanName)
-	-- Default fallback
 	local tSkills = {"Titan Punch", "Titan Kick", "Cannibalize", "Hardened Punch"}
 	if not titanName or titanName == "None" then return tSkills end
 
-	-- Map the base signatures
 	if titanName:find("Founding") then tSkills[4] = "Coordinate Command"
 	elseif titanName:find("Colossal") then tSkills[4] = "Colossal Steam"
 	elseif titanName:find("War Hammer") then tSkills[4] = "War Hammer Spike"
@@ -445,7 +435,6 @@ local function GetTitanSkills(titanName)
 	elseif titanName:find("Attack") then tSkills[4] = "Berserk Rush"
 	end
 
-	-- Map Transcendent Fusions (Overwrites Slot 3 to give them TWO signature moves!)
 	if titanName == "Founding Female Titan" then tSkills[3] = "Crystal Kick"
 	elseif titanName == "Armored Attack Titan" then tSkills[3] = "Armored Tackle"; tSkills[4] = "Berserk Rush"
 	elseif titanName == "War Hammer Attack Titan" then tSkills[3] = "War Hammer Spike"; tSkills[4] = "Berserk Rush"
@@ -561,9 +550,27 @@ local function UpdateSkills()
 		end
 	end
 
+	-- [[ THE FIX: Check if equipped weapon matches the skill's style requirements, otherwise fallback ]]
 	for i = 1, 4 do
 		local skillName = player:GetAttribute("EquippedSkill_" .. i)
-		if isTransformed or not skillName or skillName == "" or skillName == "None" then skillName = fallbacks[i] end
+		local isValid = false
+		if skillName and skillName ~= "" and skillName ~= "None" then
+			local sData = SkillData.Skills[skillName]
+			if sData then
+				local req = sData.Requirement
+				local myClan = player:GetAttribute("Clan")
+				if req == "ODM" or (myClan and string.find(myClan, req)) then
+					isValid = true
+				else
+					local wpn = player:GetAttribute("EquippedWeapon")
+					if wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style == req then
+						isValid = true
+					end
+				end
+			end
+		end
+
+		if isTransformed or not isValid then skillName = fallbacks[i] end
 		CreateSkillButton(skillName)
 	end
 
@@ -689,7 +696,6 @@ function MobileCombatUI.Initialize(masterScreenGui)
 		pendingSkillName = nil 
 	end)
 
-	-- [[ FIX: Added PvP Hook Connections ]]
 	Network:WaitForChild("PvPUpdate").OnClientEvent:Connect(function(action, matchId, d1, d2, d3, d4, d5, d6, d7, d8, d9)
 		if action == "MatchStarted" then
 			local p1Name, p2Name, p1Id, p2Id, turnEndTime = d1, d2, d3, d4, d5
