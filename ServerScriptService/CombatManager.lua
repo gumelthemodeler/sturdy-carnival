@@ -69,7 +69,6 @@ local function GetDmgScale(targetPart, isEndless, wave)
 	return base
 end
 
--- [[ THE FIX: Independent Defense Scaling so it scales much slower than HP/Damage ]]
 local function GetDefScale(targetPart, isEndless, wave)
 	local base = 1.0 + ((targetPart - 1) * 0.15) 
 	if isEndless then base = base + ((wave or 1) * 0.05) end
@@ -240,13 +239,21 @@ local function StartBattle(player, encounterType, requestedPartId)
 	local isAwakenedClan = string.find(tostring(clanName or ""), "Awakened") ~= nil
 	local cStats = ClanData.GetClanStats(clanName, isAwakenedClan, player:GetAttribute("Titan"), false)
 
-	local pMaxHP = ((player:GetAttribute("Health") or 10) + (wpnBonus.Health or 0) + (accBonus.Health or 0)) * 10
+	local baseHpStat = math.max(10, tonumber(player:GetAttribute("Health")) or 10)
+	local baseGasStat = math.max(10, tonumber(player:GetAttribute("Gas")) or 10)
+	local baseStrStat = math.max(10, tonumber(player:GetAttribute("Strength")) or 10)
+	local baseDefStat = math.max(10, tonumber(player:GetAttribute("Defense")) or 10)
+	local baseSpdStat = math.max(10, tonumber(player:GetAttribute("Speed")) or 10)
+	local baseResStat = math.max(10, tonumber(player:GetAttribute("Resolve")) or 10)
+
+	local pMaxHP = ((baseHpStat) + (wpnBonus.Health or 0) + (accBonus.Health or 0)) * 10
 	pMaxHP = math.floor((pMaxHP + awakenedStats.HpBonus) * cStats.HpMult)
-	local pMaxGas = (((player:GetAttribute("Gas") or 10) + (wpnBonus.Gas or 0) + (accBonus.Gas or 0)) * 10) + awakenedStats.GasBonus
-	local pTotalStr = (player:GetAttribute("Strength") or 10) + (wpnBonus.Strength or 0) + (accBonus.Strength or 0)
-	local pTotalDef = (player:GetAttribute("Defense") or 10) + (wpnBonus.Defense or 0) + (accBonus.Defense or 0)
-	local pTotalSpd = (player:GetAttribute("Speed") or 10) + (wpnBonus.Speed or 0) + (accBonus.Speed or 0) + awakenedStats.SpdBonus
-	local pTotalRes = (player:GetAttribute("Resolve") or 10) + (wpnBonus.Resolve or 0) + (accBonus.Resolve or 0)
+	local pMaxGas = (((baseGasStat) + (wpnBonus.Gas or 0) + (accBonus.Gas or 0)) * 10) + awakenedStats.GasBonus
+	pMaxGas = math.max(100, pMaxGas)
+	local pTotalStr = (baseStrStat) + (wpnBonus.Strength or 0) + (accBonus.Strength or 0)
+	local pTotalDef = (baseDefStat) + (wpnBonus.Defense or 0) + (accBonus.Defense or 0)
+	local pTotalSpd = (baseSpdStat) + (wpnBonus.Speed or 0) + (accBonus.Speed or 0) + awakenedStats.SpdBonus
+	local pTotalRes = (baseResStat) + (wpnBonus.Resolve or 0) + (accBonus.Resolve or 0)
 
 	if eTemplate.IsDialogue then
 		ActiveBattles[player.UserId] = {
@@ -294,15 +301,14 @@ local function StartBattle(player, encounterType, requestedPartId)
 
 		local baseDifficulty = 1.0
 		local expectedTurnsToKill = 20
-
 		local expectedHitsToDie = 8 
 
 		if encounterType == "EngageWorldBoss" then 
-			baseDifficulty = 1.5; expectedTurnsToKill = 30; expectedHitsToDie = 7 
+			baseDifficulty = 6.0; expectedTurnsToKill = 35; expectedHitsToDie = 3 
 		elseif encounterType == "EngageNightmare" then 
-			baseDifficulty = 1.2; expectedTurnsToKill = 15; expectedHitsToDie = 8
+			baseDifficulty = 3.5; expectedTurnsToKill = 20; expectedHitsToDie = 4
 		elseif encounterType == "EngageRaid" then 
-			baseDifficulty = 1.3; expectedTurnsToKill = 25; expectedHitsToDie = 8 
+			baseDifficulty = 2.0; expectedTurnsToKill = 25; expectedHitsToDie = 5 
 		end
 
 		local estimatedPartyDps = partyStrSum * 4
@@ -354,7 +360,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 			Style = GetActualStyle(player), Clan = clanName, 
 			HP = pMaxHP, MaxHP = pMaxHP, TitanEnergy = 100, MaxTitanEnergy = 100, Gas = pMaxGas, MaxGas = pMaxGas, 
 			TotalStrength = pTotalStr, TotalDefense = pTotalDef, TotalSpeed = pTotalSpd, TotalResolve = pTotalRes, 
-			BaseStrength = (player:GetAttribute("Strength") or 10), BaseDefense = (player:GetAttribute("Defense") or 10), BaseSpeed = (player:GetAttribute("Speed") or 10), BaseResolve = (player:GetAttribute("Resolve") or 10),
+			BaseStrength = baseStrStat, BaseDefense = baseDefStat, BaseSpeed = baseSpdStat, BaseResolve = baseResStat,
 			MomentumStacks = 0,
 			Statuses = {}, Cooldowns = {}, LastSkill = "None", AwakenedStats = awakenedStats 
 		},
@@ -706,16 +712,41 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	local hasGas = true
 	local hasHeat = true
 	if skill then
-		local actualGasCost = tonumber(skill.GasCost) or tonumber(skill.EnergyCost) or 0
-		local actualHeatCost = tonumber(skill.HeatCost) or tonumber(skill.EnergyCost) or tonumber(skill.GasCost) or 0 
+		local isTransformed = battle.Player.Statuses and battle.Player.Statuses["Transformed"]
 
-		if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
-		elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
+		-- [[ THE FIX: Server Security Verification for Skills ]]
+		if not isTransformed and skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
+			local isClanSkill = false
+			local myClan = player:GetAttribute("Clan")
+			if myClan and string.find(myClan, skill.Requirement) then
+				isClanSkill = true
+			end
 
-		if not (battle.Player.Statuses and battle.Player.Statuses["Transformed"]) then
-			if (battle.Player.Gas or 0) < actualGasCost then hasGas = false end
+			if not isClanSkill then
+				local wpn = player:GetAttribute("EquippedWeapon")
+				local wpnStyle = wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style or "None"
+				if wpnStyle ~= skill.Requirement then
+					CombatUpdate:FireClient(player, "Update", {Battle = battle})
+					return
+				end
+			end
+		elseif isTransformed and skill.Requirement and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "None" and skill.Requirement ~= "Enemy" then
+			local myTitan = player:GetAttribute("Titan")
+			if not myTitan or not string.find(myTitan, skill.Requirement) then
+				CombatUpdate:FireClient(player, "Update", {Battle = battle})
+				return
+			end
+		end
+
+		if not isTransformed then
+			local actualGasCost = tonumber(skill.GasCost) or 0
+			if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
+			elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
+
+			if (tonumber(battle.Player.Gas) or 0) < actualGasCost then hasGas = false end
 		else
-			if (battle.Player.TitanEnergy or 0) < actualHeatCost then hasHeat = false end
+			local actualHeatCost = tonumber(skill.EnergyCost) or tonumber(skill.HeatCost) or 0 
+			if (tonumber(battle.Player.TitanEnergy) or 0) < actualHeatCost then hasHeat = false end
 		end
 	end
 
@@ -868,13 +899,13 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 			if skill then
 				if not (combatant.Statuses and combatant.Statuses["Transformed"]) then
-					local actualGasCost = tonumber(skill.GasCost) or tonumber(skill.EnergyCost) or 0
+					local actualGasCost = tonumber(skill.GasCost) or 0
 					if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
 					elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
-					combatant.Gas = math.max(0, combatant.Gas - actualGasCost) 
+					combatant.Gas = math.max(0, (tonumber(combatant.Gas) or 0) - actualGasCost) 
 				else
-					local actualHeatCost = tonumber(skill.HeatCost) or tonumber(skill.EnergyCost) or tonumber(skill.GasCost) or 0
-					combatant.TitanEnergy = math.max(0, (combatant.TitanEnergy or 0) - actualHeatCost)
+					local actualHeatCost = tonumber(skill.EnergyCost) or tonumber(skill.HeatCost) or 0
+					combatant.TitanEnergy = math.max(0, (tonumber(combatant.TitanEnergy) or 0) - actualHeatCost)
 				end
 			end
 			DispatchStrike(battle.Player, battle.Enemy, skillName, targetLimb)
@@ -1017,7 +1048,18 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				if SkillData.Skills[aiSkill] and SkillData.Skills[aiSkill].Telegraphed then
 					if not combatant.Statuses then combatant.Statuses = {} end
 					combatant.Statuses["Telegraphing"] = aiSkill
-					local hintStr = " <font color='#55FF55'>[HINT: USE EVASIVE MANEUVER OR BLOCK!]</font>"
+
+					local hintStr = ""
+					if SkillData.Skills[aiSkill].Unavoidable then
+						if SkillData.Skills[aiSkill].Range == "Any" then
+							hintStr = "\n<font color='#FF3333'><b>⚠️ MASSIVE AREA ATTACK! YOU MUST 'BLOCK'! ⚠️</b></font>"
+						else
+							hintStr = "\n<font color='#FF3333'><b>⚠️ UNAVOIDABLE CLOSE ATTACK! YOU MUST 'FALL BACK' OR 'BLOCK'! ⚠️</b></font>"
+						end
+					else
+						hintStr = "\n<font color='#55FF55'>[HINT: USE EVASIVE MANEUVER OR BLOCK!]</font>"
+					end
+
 					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<b><font color='#FFAA00'>WARNING: " .. combatant.Name .. " is charging up " .. aiSkill:upper() .. "!</font></b>" .. hintStr, DidHit = false, ShakeType = "Heavy"})
 					PlayVFX:FireClient(player, "TitanRoar", "Enemy")
 					task.wait(0.6)
