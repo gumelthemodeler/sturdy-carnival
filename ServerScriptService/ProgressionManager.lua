@@ -233,11 +233,10 @@ PrestigeAction.OnServerInvoke = function(player)
 		local ls = player:FindFirstChild("leaderstats")
 		if ls and ls:FindFirstChild("Prestige") then 
 			ls.Prestige.Value += 1 
-			-- [THE FIX]: Sync the internal attribute so Cosmetics/UI unlock properly!
 			player:SetAttribute("Prestige", ls.Prestige.Value)
 		end
 
-		-- [THE FIX]: Actually reset the stats to base so Ascension means something
+		-- Reset the stats to base
 		local statsToReset = {"Health", "Gas", "Strength", "Defense", "Speed", "Resolve", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 		for _, s in ipairs(statsToReset) do
 			player:SetAttribute(s, 10) 
@@ -246,6 +245,8 @@ PrestigeAction.OnServerInvoke = function(player)
 		player:SetAttribute("CurrentPart", 1)
 		player:SetAttribute("CurrentWave", 1)
 		player:SetAttribute("PathsFloor", 1)
+
+		-- Strictly award exactly 1 point
 		player:SetAttribute("PrestigePoints", (player:GetAttribute("PrestigePoints") or 0) + 1)
 
 		NotificationEvent:FireClient(player, "ASCENDED! Level and Stats have been reset. +1 Prestige Point!", "Success")
