@@ -871,8 +871,8 @@ local function BuildPrestigeTab(parentFrame)
 
 	local RBox = Instance.new("Frame", LeftPanel); RBox.Size = UDim2.new(1, -20, 0, 130); RBox.Position = UDim2.new(0, 10, 0, 80); RBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26); local rStroke = Instance.new("UIStroke", RBox); rStroke.Color = Color3.fromRGB(70, 70, 80); rStroke.Thickness = 2
 	local rTitle = CreateSharpLabel(RBox, "NEXT TIER REWARDS:", UDim2.new(1, -10, 0, 25), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14); rTitle.Position = UDim2.new(0, 10, 0, 5); rTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local ptsGain = 5 + (pLevel * 2)
-	local r1 = CreateSharpLabel(RBox, "• +" .. ptsGain .. " Prestige Points", UDim2.new(1, -10, 0, 25), Enum.Font.GothamMedium, UIHelpers.Colors.Gold, 13); r1.Position = UDim2.new(0, 10, 0, 35); r1.TextXAlignment = Enum.TextXAlignment.Left
+	-- [[ THE FIX: Hardcoded to show +1 point instead of the false scaling formula ]]
+	local r1 = CreateSharpLabel(RBox, "• +1 Prestige Point", UDim2.new(1, -10, 0, 25), Enum.Font.GothamMedium, UIHelpers.Colors.Gold, 13); r1.Position = UDim2.new(0, 10, 0, 35); r1.TextXAlignment = Enum.TextXAlignment.Left
 	local r2 = CreateSharpLabel(RBox, "• Increased Maximum Stat Caps", UDim2.new(1, -10, 0, 25), Enum.Font.GothamMedium, Color3.fromRGB(100, 255, 100), 13); r2.Position = UDim2.new(0, 10, 0, 60); r2.TextXAlignment = Enum.TextXAlignment.Left
 	local r3 = CreateSharpLabel(RBox, "• +20% HP & Damage Multiplier", UDim2.new(1, -10, 0, 25), Enum.Font.GothamMedium, Color3.fromRGB(255, 100, 100), 13); r3.Position = UDim2.new(0, 10, 0, 85); r3.TextXAlignment = Enum.TextXAlignment.Left
 
