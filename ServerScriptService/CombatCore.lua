@@ -93,7 +93,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	local defBuff = 1.0
 	local armorPen = 0
 
-	-- 1. Status Effects
 	if attacker.Statuses then
 		if (tonumber(attacker.Statuses.Buff_Strength) or 0) > 0 then atkBuff = atkBuff * 1.5 end
 		if (tonumber(attacker.Statuses.Weakened) or 0) > 0 then atkBuff = atkBuff * 0.5 end
@@ -110,7 +109,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
 	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
-	-- 2. Strip Human Gear from Titans
 	if attacker.IsPlayer and isAttackerTransformed then
 		atkStrength = math.max(1, tonumber(attacker.BaseStrength) or 10)
 	end
@@ -118,24 +116,21 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		defArmor = math.max(1, tonumber(defender.BaseDefense) or 10)
 	end
 
-	-- 3. Titan Scaling (Fixed curve)
 	if attacker.IsPlayer and isAttackerTransformed and attacker.PlayerObj then
 		local titanPower = tonumber(attacker.PlayerObj:GetAttribute("Titan_Power_Val")) or 10
-		atkBuff = atkBuff * (1.0 + (titanPower / 50.0)) 
+		atkBuff = atkBuff * (4.0 + (titanPower / 15.0)) 
 	end
 	if defender.IsPlayer and isDefenderTransformed and defender.PlayerObj then
 		local titanHardening = tonumber(defender.PlayerObj:GetAttribute("Titan_Hardening_Val")) or 10
-		defBuff = defBuff * (1.0 + (titanHardening / 50.0)) 
+		defBuff = defBuff * (4.0 + (titanHardening / 15.0)) 
 	end
 
-	-- 4. Environment
 	if terrain == "Caverns" then
 		if (defender.IsPlayer and isDefenderTransformed) or (not defender.IsPlayer and defender.GateType) then
 			defBuff = defBuff * 1.3
 		end
 	end
 
-	-- 5. Clan, Prestige & Gear Buffs
 	if attacker.IsPlayer and attacker.PlayerObj then
 		local aStats = ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed)
 		atkBuff = atkBuff * aStats.DmgMult
@@ -169,14 +164,11 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		if (tonumber(attacker.AwakenedStats.IgnoreArmor) or 0) > 0 then armorPen = armorPen + tonumber(attacker.AwakenedStats.IgnoreArmor) end
 	end
 
-	-- 6. Apply Multipliers
 	local effectiveAttack = atkStrength * atkBuff
 	local effectiveDefense = defArmor * defBuff
 
 	if armorPen > 0 then effectiveDefense = effectiveDefense * math.max(0.1, 1.0 - armorPen) end
 
-	-- [[ THE PERMANENT SOLUTION: THE UNIVERSAL RPG DAMAGE FORMULA ]]
-	-- No more hardcaps. Smooth, infinite scaling.
 	local baseDmg = (effectiveAttack * effectiveAttack) / (effectiveAttack + effectiveDefense)
 
 	skillMult = tonumber(skillMult) or 1.0
@@ -184,7 +176,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 
 	if attacker.IsPlayer then baseDmg = baseDmg * 1.5 end
 
-	-- 7. Limb Targeting
 	targetLimb = tostring(targetLimb or "Body")
 	if targetLimb == "Nape" then
 		local napeMult = 1.5
@@ -197,7 +188,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	elseif targetLimb == "Legs" or targetLimb == "Arms" then baseDmg = baseDmg * 0.5
 	elseif targetLimb == "Eyes" then baseDmg = baseDmg * 0.2 end
 
-	-- 8. Co-op Synergy
 	local synergyOwner = defender.SynergyOwners and defender.SynergyOwners[targetLimb]
 	if defender.Statuses and defender.Statuses["SynergyMark_" .. targetLimb] then
 		if attacker.IsPlayer and attacker.PlayerObj and synergyOwner ~= attacker.PlayerObj.UserId then
@@ -205,7 +195,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		end
 	end
 
-	-- 9. Anti-One-Shot Soft Cap for Player HP
 	if defender.IsPlayer and not attacker.IsPlayer then
 		local pMaxHP = tonumber(defender.MaxHP) or 100
 		local dmgCeiling = attacker.IsBoss and (pMaxHP * 0.45) or (pMaxHP * 0.25)
@@ -214,7 +203,10 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		end
 	end
 
-	-- 10. Specific Boss Mechanics
+	if defender.IsBoss and isAttackerTransformed then
+		baseDmg = baseDmg * 0.50 
+	end
+
 	if defender.Name == "Abyssal Armored Titan" then
 		local aStyle = tostring(attacker.Style or "None")
 		if attacker.IsPlayer and not isAttackerTransformed and (aStyle == "Ultrahard Steel Blades" or aStyle == "None") then
@@ -335,20 +327,24 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 			attacker.LastSkill = skillName
 			return fLogName .. " used <b>" .. skillName .. "</b>! <font color='#AA55FF'>[" .. string.gsub(skill.Effect:upper(), "_", " ") .. " ACTIVATED]</font>", false, "None"
 
+			-- [[ THE FIX: Ensure Recover ACTUALLY refuels the Gas attribute! ]]
 		elseif skill.Effect == "Rest" or skillName == "Recover" or skillName == "Regroup" then
 			local healAmount = (tonumber(attacker.MaxHP) or 100) * 0.30
-			attacker.HP = math.min(tonumber(attacker.MaxHP) or 100, (tonumber(attacker.HP) or 0) + healAmount); attacker.LastSkill = skillName
+			attacker.HP = math.min(tonumber(attacker.MaxHP) or 100, (tonumber(attacker.HP) or 0) + healAmount); 
+
+			if attacker.IsPlayer then
+				attacker.Gas = tonumber(attacker.MaxGas) or 100
+			end
+
+			attacker.LastSkill = skillName
 			local regroupWord = attacker.IsPlayer and "regroup" or "regroups"
 			return fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. fLogName .. " " .. regroupWord .. ", recovering HP and Gas.</font>", false, "None"
 
 		elseif skill.Effect == "Transform" then
-			if attacker.IsPlayer then
-				local clan = attacker.Clan or "None"
-				if string.find(clan, "Ackerman") then
-					return fLogName .. " tried to bite their hand, but their Ackerman blood prevents Titan transformation!", false, "None"
-				end
+			local cName = attacker.Clan or "None"
+			if attacker.IsPlayer and (cName == "Ackerman" or cName == "Awakened Ackerman" or attacker.Titan == "None") then
+				return fLogName .. " attempted to use <b>" .. skillName .. "</b>, but their lineage prevents Titan transformation!", false, "None"
 			end
-
 			if not attacker.Statuses then attacker.Statuses = {} end
 			attacker.Statuses["Transformed"] = 999; attacker.LastSkill = skillName; attacker.HP = tonumber(attacker.MaxHP) or 100
 			attacker.TitanEnergy = tonumber(attacker.MaxTitanEnergy) or 100
@@ -450,19 +446,24 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		end
 
 		local effectLog = ""
-		local attackerHasSteam = attacker.GateType == "Steam" and (tonumber(attacker.GateHP) or 0) > 0
 
 		if skill.Unavoidable then 
-			if isDodging and attackerHasSteam then
-				dodgeChance = 100 
-			elseif isDodging then 
-				dodgeChance = 60 
-			else 
-				dodgeChance = 0 
+			dodgeChance = 0
+			if isDodging then 
+				isDodging = false
+				if skill.Range == "Any" then
+					effectLog = effectLog .. "\n<font color='#FF3333'><b>[DODGE FAILED: AREA ATTACK IS UNAVOIDABLE! YOU MUST BLOCK!]</b></font>"
+				else
+					effectLog = effectLog .. "\n<font color='#FF3333'><b>[DODGE FAILED: ATTACK IS UNAVOIDABLE! YOU MUST FALL BACK OR BLOCK!]</b></font>"
+				end
 			end
-		elseif isDodging then dodgeChance = 100 
-		elseif not defender.IsPlayer then dodgeChance = math.clamp(dodgeChance, 0, 20)
-		else dodgeChance = math.clamp(dodgeChance, 0, 75) end
+		elseif isDodging then 
+			dodgeChance = 100 
+		elseif not defender.IsPlayer then 
+			dodgeChance = math.clamp(dodgeChance, 0, 20)
+		else 
+			dodgeChance = math.clamp(dodgeChance, 0, 75) 
+		end
 
 		if isDodging and defender.Statuses and (tonumber(defender.Statuses.Immobilized) or 0) > 0 then
 			dodgeChance = 0; isDodging = false
@@ -542,7 +543,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 				local currentImmunity = tonumber(defender.Statuses[safeEffect .. "Immunity"]) or 0
 
 				local isBossImmune = (defender.IsBoss and defender.Statuses and defender.Statuses["Telegraphing"]) or (defender.Statuses and defender.Statuses["Enraged"])
-
 				local isShroudImmune = false
 				if safeEffect == "Stun" and defender.IsPlayer and defender.PlayerObj then
 					local acc = defender.PlayerObj:GetAttribute("EquippedAccessory")
