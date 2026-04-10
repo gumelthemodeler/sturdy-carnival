@@ -25,9 +25,9 @@ local GetSquadRequests = Instance.new("RemoteFunction", Network); GetSquadReques
 local ActiveSquads = {}
 local GlobalSquadCache = {}
 local isFetchingCache = false
-local PendingRequests = {} -- [SquadName] = { [UserId] = UserName }
+local PendingRequests = {} 
 
-local currentTopSquadName = nil -- Keep this global for the script
+local currentTopSquadName = nil 
 
 local function SaveSquadData(squadName, data)
 	pcall(function() SquadStore:SetAsync(squadName, data); SquadLeaderboard:SetAsync(squadName, data.SP or 0) end)
@@ -48,7 +48,6 @@ local function UpdateOnlineMembers(sqName)
 	end
 end
 
--- [NEW] Listen for SP updates
 AddSquadSP.Event:Connect(function(sqName, amount)
 	local sqData = ActiveSquads[sqName]
 	if sqData then
@@ -80,7 +79,6 @@ local function RefreshGlobalCache()
 	isFetchingCache = false
 end
 
--- YMIR'S FAVORED DYNAMIC CHECKING
 local function FetchTopSquad()
 	pcall(function()
 		local pages = SquadLeaderboard:GetSortedAsync(false, 1)
@@ -95,7 +93,6 @@ local function FetchTopSquad()
 					end
 				end
 			end
-			-- Re-sync everyone based purely on real-time ranking
 			for _, p in ipairs(Players:GetPlayers()) do
 				local pSquad = p:GetAttribute("SquadName")
 				if pSquad and pSquad ~= "None" and pSquad ~= "" then
@@ -180,6 +177,10 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local targetName = PendingRequests[sqName][targetId]
 		PendingRequests[sqName][targetId] = nil 
 
+		-- Fetch the absolute newest member list before saving to prevent erasing offline players
+		local freshData = SquadStore:GetAsync(sqName)
+		if freshData then sqData.Members = freshData.Members end
+
 		if decision == "Accept" then
 			local memCount = 0; for _, _ in pairs(sqData.Members) do memCount += 1 end
 			if memCount >= 15 then NotificationEvent:FireClient(player, "Squad is full!", "Error"); return end
@@ -205,6 +206,46 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 
 		SaveSquadData(sqName, sqData)
 
+		-- [[ THE FIX: Added the Kick Member function ]]
+	elseif action == "KickMember" then
+		local sqName = player:GetAttribute("SquadName")
+		local targetId = tostring(data)
+		if not sqName or sqName == "None" or sqName == "" then return end
+
+		local sqData = ActiveSquads[sqName]
+		if not sqData or tonumber(sqData.Leader) ~= player.UserId then 
+			NotificationEvent:FireClient(player, "Error: Only the Leader can kick members.", "Error")
+			return 
+		end
+
+		if targetId == tostring(player.UserId) then
+			NotificationEvent:FireClient(player, "You cannot kick yourself.", "Error")
+			return
+		end
+
+		-- Fetch the absolute newest member list before saving
+		local freshData = SquadStore:GetAsync(sqName)
+		if freshData then sqData.Members = freshData.Members end
+
+		if sqData.Members[targetId] then
+			local targetName = sqData.Members[targetId].Name
+			sqData.Members[targetId] = nil
+			SaveSquadData(sqName, sqData)
+
+			for _, p in ipairs(Players:GetPlayers()) do
+				if tostring(p.UserId) == targetId and p:GetAttribute("SquadName") == sqName then
+					p:SetAttribute("SquadName", "None")
+					p:SetAttribute("SquadIsLeader", false)
+					p:SetAttribute("YmirFavored", false)
+					p:SetAttribute("SquadSP", 0)
+					p:SetAttribute("SquadVault", '{"1":"None","2":"None","3":"None","4":"None","5":"None","6":"None","7":"None","8":"None","9":"None"}')
+					NotificationEvent:FireClient(p, "You have been kicked from the Squad.", "Error")
+				end
+			end
+			NotificationEvent:FireClient(player, "Kicked " .. targetName .. " from the Squad.", "Success")
+			UpdateOnlineMembers(sqName)
+		end
+
 	elseif action == "DepositItem" then
 		local slot = tonumber(data.Slot)
 		local itemName = tostring(data.ItemName)
@@ -219,7 +260,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 			return
 		end
 
-		-- Verify Ymir's Favored directly against the current active #1
 		if slot > 6 and sqName ~= currentTopSquadName then
 			NotificationEvent:FireClient(player, "Bonus Vault slots are locked! Reach #1 Globally to unlock.", "Error")
 			return
@@ -363,7 +403,8 @@ GetSquadRoster.OnServerInvoke = function(player)
 
 	local roster = {}
 	for userId, memData in pairs(sqData.Members) do
-		table.insert(roster, { Name = memData.Name, Role = memData.Role })
+		-- Added tonumber so the client receives a usable User ID
+		table.insert(roster, { UserId = tonumber(userId), Name = memData.Name, Role = memData.Role })
 	end
 	table.sort(roster, function(a, b) 
 		if a.Role == "Leader" then return true end
@@ -421,6 +462,14 @@ local function LoadPlayerSquad(player)
 		end
 
 		if sqData then
+			-- [[ THE FIX: Check if the player was legitimately kicked while offline ]]
+			if not sqData.Members[tostring(player.UserId)] then
+				player:SetAttribute("SquadName", "None")
+				player:SetAttribute("SquadIsLeader", false)
+				player:SetAttribute("YmirFavored", false)
+				return
+			end
+
 			player:SetAttribute("SquadDesc", sqData.Desc)
 			player:SetAttribute("SquadLogo", sqData.Logo)
 			player:SetAttribute("SquadSP", sqData.SP)
