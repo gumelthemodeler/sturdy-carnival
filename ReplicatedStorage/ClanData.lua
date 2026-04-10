@@ -11,15 +11,17 @@ local ClanData = {
 			TitanSynergies = { ["War Hammer"] = { DmgMult = 0.30 } }
 		},
 		["Ackerman"] = {
-			BaseDmgMult = 1.25, AwakenedDmgMult = 1.60,
-			BaseSpdMult = 1.20, AwakenedSpdMult = 1.60,
+			-- [[ THE FIX: Massive buffs to compensate for no Titan shifting ]]
+			BaseDmgMult = 1.50, AwakenedDmgMult = 3.00,
+			BaseSpdMult = 1.50, AwakenedSpdMult = 2.00,
 			BaseSurvivals = 1, AwakenedSurvivals = 3,
 			SurvivalChance = 100,
-			-- [[ ACKERMAN OVERHAUL PROPERTIES ]]
-			NapeCritMultiplier = 4.0, 
-			MomentumDamagePerHit = 0.02, 
-			MaxMomentumStacks = 25,
-			GasEfficiency = 0.50 
+
+			-- Custom CombatCore Mechanics
+			NapeCritMultiplier = 3.0, 
+			MomentumDamagePerHit = 0.05, 
+			MaxMomentumStacks = 20,
+			GasEfficiency = 0.20 
 		},
 		["Galliard"] = {
 			BaseDmgMult = 1.05, AwakenedDmgMult = 1.15,
@@ -50,11 +52,10 @@ function ClanData.GetClanStats(clanNameStr, isAwakened, titanNameStr, isTransfor
 	local baseName = string.gsub(clanNameStr or "None", "Awakened ", "")
 	local data = ClanData.Clans[baseName]
 
-	-- Added new default empty stats for the Ackerman overhaul variables
 	local stats = {
 		DmgMult = 1.0, ArmorMult = 1.0, SpdMult = 1.0, ResolveMult = 1.0, HpMult = 1.0,
 		CritBonus = 0, DodgeBonus = 0, Survivals = 0, SurvivalChance = 0,
-		NapeCritMultiplier = 2.0, MomentumDamagePerHit = 0, MaxMomentumStacks = 0, GasEfficiency = 1.0
+		NapeCritMultiplier = 1.5, MomentumDamagePerHit = 0, MaxMomentumStacks = 0, GasEfficiency = 1.0
 	}
 
 	if data then
@@ -68,13 +69,11 @@ function ClanData.GetClanStats(clanNameStr, isAwakened, titanNameStr, isTransfor
 		stats.SurvivalChance = data.SurvivalChance or 0
 		stats.DodgeBonus = data.DodgeBonus or 0
 
-		-- Pass through Ackerman mechanics
-		stats.NapeCritMultiplier = data.NapeCritMultiplier or 2.0
+		stats.NapeCritMultiplier = data.NapeCritMultiplier or 1.5
 		stats.MomentumDamagePerHit = data.MomentumDamagePerHit or 0
 		stats.MaxMomentumStacks = data.MaxMomentumStacks or 0
 		stats.GasEfficiency = data.GasEfficiency or 1.0
 
-		-- Apply Titan Specific Synergies if transformed
 		if isTransformed and titanNameStr and data.TitanSynergies then
 			for tName, tData in pairs(data.TitanSynergies) do
 				if string.find(titanNameStr, tName) then
