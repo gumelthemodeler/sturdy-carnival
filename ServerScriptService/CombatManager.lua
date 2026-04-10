@@ -58,16 +58,21 @@ local function GetValidEndlessMob(partData)
 end
 
 local function GetHPScale(targetPart, isEndless, wave)
-	-- [[ THE FIX: Halved the Campaign HP padding from 0.8 per chapter to 0.4 ]]
 	local base = 1.0 + ((targetPart - 1) * 0.4) 
 	if isEndless then base = base + ((wave or 1) * 0.15) end
 	return base
 end
 
 local function GetDmgScale(targetPart, isEndless, wave)
-	-- [[ THE FIX: Halved the Campaign Damage scaling from 0.5 per chapter to 0.25 ]]
 	local base = 1.0 + ((targetPart - 1) * 0.25) 
 	if isEndless then base = base + ((wave or 1) * 0.1) end
+	return base
+end
+
+-- [[ THE FIX: Independent Defense Scaling so it scales much slower than HP/Damage ]]
+local function GetDefScale(targetPart, isEndless, wave)
+	local base = 1.0 + ((targetPart - 1) * 0.15) 
+	if isEndless then base = base + ((wave or 1) * 0.05) end
 	return base
 end
 
@@ -76,6 +81,7 @@ local function GetSpdScale(targetPart, isEndless, wave)
 	if isEndless then base = base + (math.pow(wave or 1, 0.5) * 0.05) end
 	return base
 end
+
 local function GetActualStyle(plr)
 	local eqWpn = plr:GetAttribute("EquippedWeapon") or "None"
 	if ItemData.Equipment[eqWpn] and ItemData.Equipment[eqWpn].Style then return ItemData.Equipment[eqWpn].Style end
@@ -206,6 +212,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 
 	local hpMult = GetHPScale(targetPart, isEndless, startingWave)
 	local dmgMult = GetDmgScale(targetPart, isEndless, startingWave)
+	local defMult = GetDefScale(targetPart, isEndless, startingWave)
 	local spdMult = GetSpdScale(targetPart, isEndless, startingWave)
 	local dropMult = 1.0 + (targetPart * 0.1) + (prestige * 0.25)
 
@@ -216,6 +223,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 		local pathScale = math.pow(1.10, floor - 1) 
 		hpMult = hpMult * (0.60 * pathScale) 
 		dmgMult = dmgMult * (1.10 * pathScale)
+		defMult = GetDefScale(1, false, 1) * (1.05 * pathScale)
 		dropMult = 1.0 + (prestige * 0.25) + (floor * 0.1)
 	end
 
@@ -258,7 +266,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 	local eGateType = eTemplate.GateType
 	local eGateHP = math.floor((eTemplate.GateHP or 0) * (eGateType == "Steam" and 1 or hpMult))
 	local eStr = math.floor((eTemplate.Strength or 10) * dmgMult)
-	local eDef = math.floor((eTemplate.Defense or 10) * dmgMult)
+	local eDef = math.floor((eTemplate.Defense or 10) * defMult)
 	local eSpd = math.floor((eTemplate.Speed or 10) * spdMult)
 	local enemyAwakenedStats = nil
 
@@ -341,7 +349,15 @@ local function StartBattle(player, encounterType, requestedPartId)
 	ActiveBattles[player.UserId] = {
 		IsProcessing = false,
 		Context = { IsStoryMission = isStory, IsEndless = isEndless, IsPaths = isPaths, IsWorldBoss = isWorldBoss, IsNightmare = isNightmare, TargetPart = targetPart, CurrentWave = startingWave, TotalWaves = totalWaves, MissionData = activeMissionData, TurnCount = 0, Range = ctxRange, Terrain = cTerrain, Weather = cWeather },
-		Player = { IsPlayer = true, Name = player.Name, PlayerObj = player, Titan = player:GetAttribute("Titan") or "None", Style = GetActualStyle(player), Clan = clanName, HP = pMaxHP, MaxHP = pMaxHP, TitanEnergy = 100, MaxTitanEnergy = 100, Gas = pMaxGas, MaxGas = pMaxGas, TotalStrength = pTotalStr, TotalDefense = pTotalDef, TotalSpeed = pTotalSpd, TotalResolve = pTotalRes, Statuses = {}, Cooldowns = {}, LastSkill = "None", AwakenedStats = awakenedStats },
+		Player = { 
+			IsPlayer = true, Name = player.Name, PlayerObj = player, Titan = player:GetAttribute("Titan") or "None", 
+			Style = GetActualStyle(player), Clan = clanName, 
+			HP = pMaxHP, MaxHP = pMaxHP, TitanEnergy = 100, MaxTitanEnergy = 100, Gas = pMaxGas, MaxGas = pMaxGas, 
+			TotalStrength = pTotalStr, TotalDefense = pTotalDef, TotalSpeed = pTotalSpd, TotalResolve = pTotalRes, 
+			BaseStrength = (player:GetAttribute("Strength") or 10), BaseDefense = (player:GetAttribute("Defense") or 10), BaseSpeed = (player:GetAttribute("Speed") or 10), BaseResolve = (player:GetAttribute("Resolve") or 10),
+			MomentumStacks = 0,
+			Statuses = {}, Cooldowns = {}, LastSkill = "None", AwakenedStats = awakenedStats 
+		},
 		Enemy = { IsMinigame = eTemplate.IsMinigame, IsPlayer = false, Name = eTemplate.Name, IsHuman = isPaths and false or (eTemplate.IsHuman or false), IsNightmare = isNightmare, IsBoss = eTemplate.IsBoss or false, HP = eHP, MaxHP = eHP, GateType = eGateType, GateHP = eGateHP, MaxGateHP = eGateHP, TotalStrength = eStr, TotalDefense = eDef, TotalSpeed = eSpd, Statuses = {}, Cooldowns = initCooldowns, Skills = eSkills, Drops = { XP = math.floor((eTemplate.Drops and eTemplate.Drops.XP or 15) * dropMult), Dews = math.floor((eTemplate.Drops and eTemplate.Drops.Dews or 10) * dropMult), ItemChance = eTemplate.Drops and eTemplate.Drops.ItemChance or {} }, AwakenedStats = enemyAwakenedStats, LastSkill = "None", AIPoints = 0 }
 	}
 
@@ -376,10 +392,9 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		battle.IsProcessing = false
 		return
 	end
-	
+
 	UpdateBountyProgress(player, "Kill", 1); UpdateBountyProgress(player, "Clear", 1)
 
-	-- [THE FIX]: Nightmare Achievement Grants
 	if battle.Enemy.IsNightmare then
 		if battle.Enemy.Name == "Frenzied Beast Titan" then
 			player:SetAttribute("Ach_Defeat_Frenzied", true)
@@ -388,9 +403,6 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		end
 	end
 
-	-- [NEW] Communicate with SquadManager to award Squad Points (SP)
-
-	-- [NEW] Communicate with SquadManager to award Squad Points (SP)
 	local sqName = player:GetAttribute("SquadName")
 	if sqName and sqName ~= "None" then
 		local squadEvent = Network:FindFirstChild("AddSquadSP")
@@ -451,6 +463,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		local pathScale = math.pow(1.10, floor)
 		local hpMult = GetHPScale(1, false, 1) * (0.60 * pathScale)
 		local dmgMult = GetDmgScale(1, false, 1) * (1.10 * pathScale)
+		local defMult = GetDefScale(1, false, 1) * (1.05 * pathScale)
 		local spdMult = GetSpdScale(1, false, 1)
 		local dropMult = 1.0 + (prestige * 0.25) + ((floor + 1) * 0.1)
 
@@ -458,7 +471,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		local eGateType = nextEnemyTemplate.GateType
 		local eGateHP = math.floor((nextEnemyTemplate.GateHP or 0) * (eGateType == "Steam" and 1 or hpMult))
 		local eStr = math.floor(nextEnemyTemplate.Strength * dmgMult)
-		local eDef = math.floor(nextEnemyTemplate.Defense * dmgMult)
+		local eDef = math.floor(nextEnemyTemplate.Defense * defMult)
 		local eSpd = math.floor(nextEnemyTemplate.Speed * spdMult)
 
 		local enemyAwakenedStats = nil
@@ -519,6 +532,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 
 		local hpMult = GetHPScale(targetPart, true, nextWave) * 1.3
 		local dmgMult = GetDmgScale(targetPart, true, nextWave) * 1.25
+		local defMult = GetDefScale(targetPart, true, nextWave) * 1.15
 		local spdMult = GetSpdScale(targetPart, true, nextWave)
 		local dropMult = (1.0 + (targetPart * 0.1) + (prestige * 0.25)) * 1.5
 
@@ -526,7 +540,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		local eGateType = nextEnemyTemplate.GateType
 		local eGateHP = math.floor((nextEnemyTemplate.GateHP or 0) * (eGateType == "Steam" and 1 or hpMult))
 		local eStr = math.floor(nextEnemyTemplate.Strength * dmgMult)
-		local eDef = math.floor(nextEnemyTemplate.Defense * dmgMult)
+		local eDef = math.floor(nextEnemyTemplate.Defense * defMult)
 		local eSpd = math.floor(nextEnemyTemplate.Speed * spdMult)
 
 		local flavorText = "<font color='#AA55FF'>[ENDLESS EXPEDITION - WAVE " .. nextWave .. "]</font>\nYou encounter a " .. nextEnemyTemplate.Name .. "!"
@@ -571,6 +585,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 
 		local hpMult = GetHPScale(targetPart, false, currentWave)
 		local dmgMult = GetDmgScale(targetPart, false, currentWave)
+		local defMult = GetDefScale(targetPart, false, currentWave)
 		local spdMult = GetSpdScale(targetPart, false, currentWave)
 
 		local partData = EnemyData.Parts[targetPart]
@@ -618,7 +633,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			IsMinigame = nextEnemyTemplate.IsMinigame, IsPlayer = false, Name = nextEnemyTemplate.Name, IsHuman = nextEnemyTemplate.IsHuman or false, IsNightmare = false, IsBoss = nextEnemyTemplate.IsBoss or false,
 			HP = math.floor((nextEnemyTemplate.Health or 100) * hpMult), MaxHP = math.floor((nextEnemyTemplate.Health or 100) * hpMult),
 			GateType = nextEnemyTemplate.GateType, GateHP = math.floor((nextEnemyTemplate.GateHP or 0) * (nextEnemyTemplate.GateType == "Steam" and 1 or hpMult)), MaxGateHP = math.floor((nextEnemyTemplate.GateHP or 0) * (nextEnemyTemplate.GateType == "Steam" and 1 or hpMult)),
-			TotalStrength = math.floor((nextEnemyTemplate.Strength or 10) * dmgMult), TotalDefense = math.floor((nextEnemyTemplate.Defense or 10) * dmgMult), TotalSpeed = math.floor((nextEnemyTemplate.Speed or 10) * spdMult),
+			TotalStrength = math.floor((nextEnemyTemplate.Strength or 10) * dmgMult), TotalDefense = math.floor((nextEnemyTemplate.Defense or 10) * defMult), TotalSpeed = math.floor((nextEnemyTemplate.Speed or 10) * spdMult),
 			Statuses = {}, Cooldowns = initCooldowns, Skills = eSkills,
 			Drops = { XP = nextFinalDropXP, Dews = nextFinalDropDews, ItemChance = nextEnemyTemplate.Drops and nextEnemyTemplate.Drops.ItemChance or {} },
 			LastSkill = "None", AIPoints = 0
@@ -691,8 +706,8 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	local hasGas = true
 	local hasHeat = true
 	if skill then
-		local actualGasCost = skill.GasCost or 0
-		local actualHeatCost = skill.HeatCost or skill.GasCost or 0 -- Uses HeatCost, defaults to GasCost if missing
+		local actualGasCost = tonumber(skill.GasCost) or tonumber(skill.EnergyCost) or 0
+		local actualHeatCost = tonumber(skill.HeatCost) or tonumber(skill.EnergyCost) or tonumber(skill.GasCost) or 0 
 
 		if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
 		elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
@@ -705,10 +720,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	end
 
 	if skillName ~= "Retreat" and (not skill or (battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0) or not hasGas or not hasHeat) then 
-		CombatUpdate:FireClient(player, "Update", {Battle = battle}); return 
-	end
-
-	if skillName ~= "Retreat" and (not skill or (battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0) or not hasGas) then 
 		CombatUpdate:FireClient(player, "Update", {Battle = battle}); return 
 	end
 
@@ -784,8 +795,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 	for _, combatant in ipairs(combatants) do
 
-		-- [[ THE FIX: Evaluate Boss Enrage globally BEFORE death checks! ]]
-		-- This prevents the boss from being one-shot and dying before it can enrage.
 		if battle.Enemy.IsBoss and not battle.Enemy.EnragedOnce then
 			local hpRatio = battle.Enemy.HP / battle.Enemy.MaxHP
 			if hpRatio <= 0.30 then
@@ -802,7 +811,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				battle.Enemy.Statuses["Debuff_Defense"] = nil
 				battle.Enemy.Statuses["Telegraphing"] = nil
 
-				-- Revive to 50% HP (even if they were knocked to 0)
 				battle.Enemy.HP = math.floor(battle.Enemy.MaxHP * 0.5)
 				if battle.Enemy.MaxGateHP and battle.Enemy.MaxGateHP > 0 then
 					battle.Enemy.GateHP = battle.Enemy.MaxGateHP
@@ -812,7 +820,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = enrageMsg, DidHit = false, ShakeType = "Heavy", EnrageTrigger = true})
 				task.wait(turnDelay)
-				-- We removed 'continue' so the boss immediately gets to attack with its new buffs!
 			end
 		end
 
@@ -861,12 +868,12 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 			if skill then
 				if not (combatant.Statuses and combatant.Statuses["Transformed"]) then
-					local actualGasCost = skill.GasCost or 0
+					local actualGasCost = tonumber(skill.GasCost) or tonumber(skill.EnergyCost) or 0
 					if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
 					elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
 					combatant.Gas = math.max(0, combatant.Gas - actualGasCost) 
 				else
-					local actualHeatCost = skill.HeatCost or skill.GasCost or 0
+					local actualHeatCost = tonumber(skill.HeatCost) or tonumber(skill.EnergyCost) or tonumber(skill.GasCost) or 0
 					combatant.TitanEnergy = math.max(0, (combatant.TitanEnergy or 0) - actualHeatCost)
 				end
 			end
@@ -908,7 +915,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 						allyName = allyData.Name
 
-						-- [NEW] Filter out non-damaging/healing moves
 						local validAllySkills = {}
 						if allyData.Skills then
 							for _, s in ipairs(allyData.Skills) do
@@ -1026,6 +1032,12 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				local aiTargets = {"Body", "Body", "Arms", "Legs", "Nape"}
 				DispatchStrike(battle.Enemy, battle.Player, aiSkill, aiTargets[math.random(1, #aiTargets)])
 			end
+		end
+
+		if battle.Player.Statuses and battle.Player.Statuses["Transformed"] and (tonumber(battle.Player.TitanEnergy) or 0) <= 0 then
+			battle.Player.Statuses["Transformed"] = nil
+			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF5555'><b>[HEAT DEPLETED]</b> Your Titan body evaporates into steam! You are forced back into human form!</font>", DidHit = false, ShakeType = "None"})
+			task.wait(turnDelay)
 		end
 	end
 
