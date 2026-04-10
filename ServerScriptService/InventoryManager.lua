@@ -42,7 +42,6 @@ Network:WaitForChild("SellItem").OnServerEvent:Connect(function(player, itemName
 			player:SetAttribute(safeName, newCount)
 			player.leaderstats.Dews.Value += (sellPrice * amountToSell)
 
-			-- [SECURITY FIX] Force unequip if they sold their last copy
 			if newCount <= 0 then
 				if player:GetAttribute("EquippedWeapon") == itemName then
 					player:SetAttribute("EquippedWeapon", "None")
@@ -75,10 +74,16 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 		if count > 0 then
 			player:SetAttribute(safeName, count - 1)
 			if itemInfo.Action == "EquipTitan" then
-				player:SetAttribute("Titan", itemInfo.TitanName)
-				NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.TitanName .. "!", "Success")
+				-- [[ THE FIX: Prevent Ackermans from inheriting Titans via Serums/Spines ]]
+				local clan = player:GetAttribute("Clan") or "None"
+				if string.find(clan, "Ackerman") then
+					player:SetAttribute(safeName, count) -- Refund the item
+					NotificationEvent:FireClient(player, "Ackermans cannot inherit Titans!", "Error")
+				else
+					player:SetAttribute("Titan", itemInfo.TitanName)
+					NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.TitanName .. "!", "Success")
+				end
 
-				-- [NEW] Awakens the player's current Clan
 			elseif itemInfo.Action == "AwakenClan" then
 				local currentClan = player:GetAttribute("Clan") or "None"
 				if currentClan ~= "None" and not string.find(currentClan, "Awakened") then
@@ -89,7 +94,6 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 					NotificationEvent:FireClient(player, "You cannot awaken your current lineage.", "Error")
 				end
 
-				-- [NEW] Awakens the Attack Titan to the Coordinate
 			elseif itemInfo.Action == "AwakenTitan" then
 				local currentTitan = player:GetAttribute("Titan") or "None"
 				if currentTitan == "Attack Titan" then
