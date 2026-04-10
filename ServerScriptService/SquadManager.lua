@@ -136,6 +136,13 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		ActiveSquads[data.Name] = newSquadData
 		SaveSquadData(data.Name, newSquadData)
 
+		-- [[ THE FIX: Remove lingering requests when they create a squad ]]
+		for _, reqList in pairs(PendingRequests) do
+			if reqList[tostring(player.UserId)] then
+				reqList[tostring(player.UserId)] = nil
+			end
+		end
+
 		player:SetAttribute("SquadName", data.Name)
 		player:SetAttribute("SquadDesc", newSquadData.Desc)
 		player:SetAttribute("SquadLogo", newSquadData.Logo)
@@ -177,11 +184,23 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local targetName = PendingRequests[sqName][targetId]
 		PendingRequests[sqName][targetId] = nil 
 
-		-- Fetch the absolute newest member list before saving to prevent erasing offline players
 		local freshData = SquadStore:GetAsync(sqName)
 		if freshData then sqData.Members = freshData.Members end
 
 		if decision == "Accept" then
+			-- [[ THE FIX: Verify target is not secretly already inside another squad ]]
+			local alreadyInSquad = false
+			for _, otherSq in pairs(ActiveSquads) do
+				if otherSq.Members[targetId] then
+					alreadyInSquad = true
+					break
+				end
+			end
+			if alreadyInSquad then
+				NotificationEvent:FireClient(player, targetName .. " is already in another Squad and cannot be accepted.", "Error")
+				return
+			end
+
 			local memCount = 0; for _, _ in pairs(sqData.Members) do memCount += 1 end
 			if memCount >= 15 then NotificationEvent:FireClient(player, "Squad is full!", "Error"); return end
 
@@ -206,7 +225,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 
 		SaveSquadData(sqName, sqData)
 
-		-- [[ THE FIX: Added the Kick Member function ]]
 	elseif action == "KickMember" then
 		local sqName = player:GetAttribute("SquadName")
 		local targetId = tostring(data)
@@ -223,7 +241,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 			return
 		end
 
-		-- Fetch the absolute newest member list before saving
 		local freshData = SquadStore:GetAsync(sqName)
 		if freshData then sqData.Members = freshData.Members end
 
@@ -403,7 +420,6 @@ GetSquadRoster.OnServerInvoke = function(player)
 
 	local roster = {}
 	for userId, memData in pairs(sqData.Members) do
-		-- Added tonumber so the client receives a usable User ID
 		table.insert(roster, { UserId = tonumber(userId), Name = memData.Name, Role = memData.Role })
 	end
 	table.sort(roster, function(a, b) 
@@ -462,7 +478,6 @@ local function LoadPlayerSquad(player)
 		end
 
 		if sqData then
-			-- [[ THE FIX: Check if the player was legitimately kicked while offline ]]
 			if not sqData.Members[tostring(player.UserId)] then
 				player:SetAttribute("SquadName", "None")
 				player:SetAttribute("SquadIsLeader", false)
