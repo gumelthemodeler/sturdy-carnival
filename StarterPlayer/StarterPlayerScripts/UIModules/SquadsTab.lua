@@ -135,7 +135,9 @@ function SquadsTab.Initialize(parentFrame)
 
 	local activeVaultSlot = 1
 	local function OpenInventorySelection(slotId)
-		activeVaultSlot = slotId; InvOverlay.Visible = true; invTitle.Text = "DEPOSIT ITEM"; noItemsLbl.Visible = true
+		activeVaultSlot = slotId; InvOverlay.Visible = true
+		invTitle.Text = "DEPOSIT ITEM"
+		noItemsLbl.Visible = true
 		for _, c in ipairs(InvScroll:GetChildren()) do if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end end
 		local foundAny = false
 		local function ScanItems(dictionary)
@@ -252,7 +254,7 @@ function SquadsTab.Initialize(parentFrame)
 				LeaveDisbandBtn.Text = "DISBAND SQUAD"
 				if _G.DisbandConn then _G.DisbandConn:Disconnect() end
 				_G.DisbandConn = LeaveDisbandBtn.MouseButton1Click:Connect(function()
-					ShowConfirm("DISBAND SQUAD", "Are you sure? This is permanent and the Vault will be wiped.", function()
+					ShowConfirm("DISBAND SQUAD", "Are you sure you want to DISBAND your squad? This action is permanent and all items in the Vault will be lost.", function()
 						Network:WaitForChild("SquadAction"):FireServer("Disband")
 					end)
 				end)
@@ -319,6 +321,20 @@ function SquadsTab.Initialize(parentFrame)
 						local mCard, _ = CreateGrimPanel(RosterList); mCard.Size = UDim2.new(1, -10, 0, 40)
 						local mName = UIHelpers.CreateLabel(mCard, member.Name, UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14); mName.Position = UDim2.new(0, 15, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
 						local mRole = UIHelpers.CreateLabel(mCard, member.Role, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12); mRole.Position = UDim2.new(0.7, -15, 0, 0); mRole.TextXAlignment = Enum.TextXAlignment.Right
+
+						if isLeader and member.Role ~= "Leader" then
+							mRole.Position = UDim2.new(0.7, -80, 0, 0) 
+							local kickBtn, kStrk = CreateSharpButton(mCard, "KICK", UDim2.new(0, 60, 0, 26), Enum.Font.GothamBlack, 11)
+							kickBtn.Position = UDim2.new(1, -10, 0.5, 0); kickBtn.AnchorPoint = Vector2.new(1, 0.5)
+							kickBtn.TextColor3 = Color3.fromRGB(255, 85, 85); kStrk.Color = Color3.fromRGB(255, 85, 85)
+							kickBtn.MouseButton1Click:Connect(function()
+								ShowConfirm("KICK MEMBER", "Are you sure you want to kick " .. member.Name .. "?", function()
+									Network:WaitForChild("SquadAction"):FireServer("KickMember", member.UserId)
+									task.wait(0.5)
+									UpdateSquadUI()
+								end)
+							end)
+						end
 					end
 				end
 			end)
