@@ -1,12 +1,12 @@
 -- @ScriptType: ModuleScript
-
--- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 local GameData = {}
 
 GameData.TitanRanks = { ["E"] = 5, ["D"] = 10, ["C"] = 15, ["B"] = 20, ["A"] = 25, ["S"] = 30, ["None"] = 0 }
-GameData.BaseStats = { Health = 1, Strength = 1, Defense = 1, Speed = 1, Stamina = 1, Willpower = 1 }
+
+-- [[ THE FIX: Raised starting defaults to 10 so players start with 100 HP and 100 Gas ]]
+GameData.BaseStats = { Health = 10, Gas = 10, Strength = 10, Defense = 10, Speed = 10, Resolve = 10 }
+
 GameData.TitanStats = { "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val" }
 
 GameData.WeaponBonuses = {
@@ -43,7 +43,6 @@ GameData.BattleConditions = {
 	["The Rumbling"] = { Description = "Absolute chaos. Everyone (Player and Enemies) deals +50% damage.", Color = "#FF0000" }
 }
 
--- [[ NEW: EXPANDED PRESTIGE SKILL TREE ]]
 GameData.PrestigeNodes = {
 	-- CORE (Start at bottom center)
 	["Core_1"] = { Name = "Awakened Potential", Cost = 1, Req = nil, BuffType = "FlatStat", BuffStat = "Health", BuffValue = 50, Desc = "Increases Base Health by 50.", Pos = UDim2.new(0.5, 0, 0.85, 0), Color = "#FFFFFF" },
@@ -81,8 +80,6 @@ function GameData.CalculateStatCost(currentStat, baseStat, prestige)
 	local baseCost = 10
 	local prestigeMultiplier = math.max(0.1, 1 - ((prestige or 0) * 0.05))
 	local statDifference = math.max(0, currentStat - baseStat)
-
-	-- [THE FIX]: Replaced extreme exponential scaling with manageable polynomial scaling
 	local cost = baseCost + (statDifference * 25) + math.floor(statDifference ^ 1.8)
 	return math.floor(cost * prestigeMultiplier)
 end
