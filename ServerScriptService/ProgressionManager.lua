@@ -129,32 +129,30 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 	local isTitanStat = string.match(statName, "Titan_.*_Val$")
 	local xpAttr = isTitanStat and "TitanXP" or "XP"
 
-	local currentStat = player:GetAttribute(statName) or 10
-	if type(currentStat) == "string" then currentStat = GameData.TitanRanks[currentStat] or 10 end
+	-- THE FIX: Safely parse the stat to prevent silent string-indexing crashes
+	local rawStat = player:GetAttribute(statName)
+	local currentStat = tonumber(rawStat)
+	if not currentStat then
+		currentStat = (type(GameData) == "table" and GameData.TitanRanks and GameData.TitanRanks[rawStat]) or 10
+	end
 
-	-- [[ THE FIX: Separate Invested Stats from Prestige Bonuses ]]
 	local prestigeBonus = player:GetAttribute("Prestige_" .. statName) or 0
 	local investedStat = player:GetAttribute("Invested_" .. statName)
 
 	if not investedStat then
-		-- Migration: If the player hasn't upgraded since this fix, calculate their true invested amount
 		investedStat = currentStat - prestigeBonus
 		player:SetAttribute("Invested_" .. statName, investedStat)
 	end
 
 	local ls = player:FindFirstChild("leaderstats")
 	local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
-
 	local cleanName = statName:gsub("_Val", ""):gsub("Titan_", "")
 	local base = (prestige == 0) and (GameData.BaseStats[cleanName] or 10) or (prestige * 5)
-
-	-- The stat cap now ONLY applies to invested points
 	local statCap = GameData.GetStatCap(prestige)
 
-	local totalCost = 0
-	local actualAmount = 0 
-
+	local totalCost, actualAmount = 0, 0 
 	local pXP = player:GetAttribute(xpAttr) or 0
+
 	for i = 0, amount - 1 do
 		if investedStat + i >= statCap then break end
 		totalCost += GameData.CalculateStatCost(investedStat + i, base, prestige)
@@ -163,12 +161,23 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 
 	if pXP >= totalCost and actualAmount > 0 then
 		player:SetAttribute(xpAttr, pXP - totalCost)
-
-		-- Update the invested tracking and then sum them up for the final attribute value
 		local newInvestedAmount = investedStat + actualAmount
 		player:SetAttribute("Invested_" .. statName, newInvestedAmount)
 		player:SetAttribute(statName, newInvestedAmount + prestigeBonus) 
 	end
+end)
+
+local function VerifyCoordinateTitle(player)
+	local titan = player:GetAttribute("Titan")
+	if titan and string.match(titan, "Founding") then
+		player:SetAttribute("UnlockedTitle_Coordinate", true)
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	player:GetAttributeChangedSignal("Titan"):Connect(function()
+		VerifyCoordinateTitle(player)
+	end)
 end)
 
 local UnlockPrestigeNode = Network:FindFirstChild("UnlockPrestigeNode") or Instance.new("RemoteEvent", Network)
