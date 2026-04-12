@@ -316,7 +316,7 @@ local function UpdatePvPState(data)
 	end
 end
 
-local function CloseUI()
+local function CloseUI(forcePathsOpen)
 	currentPvPMatch = nil
 	currentBattleState = nil
 	pendingSkillName = nil
@@ -324,7 +324,10 @@ local function CloseUI()
 	HideAlly()
 
 	if GUI.ExecuteOverlay then GUI.ExecuteOverlay.Visible = false end
-	if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then VFXManager.ToggleHeartbeat(false) end
+
+	if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then 
+		VFXManager.ToggleHeartbeat(false) 
+	end
 
 	if GUI.CombatBackdrop then
 		local t2 = TweenService:Create(GUI.CombatBackdrop, TweenInfo.new(0.2), {BackgroundTransparency = 1})
@@ -335,6 +338,15 @@ local function CloseUI()
 
 	local MusicManager = require(script.Parent.Parent:WaitForChild("MusicManager"))
 	if MusicManager then MusicManager.SetCategory("Lobby") end
+
+	if forcePathsOpen then
+		task.delay(0.2, function()
+			local pathsModule = player.PlayerScripts:WaitForChild("UIModules"):FindFirstChild("PathsShopUI")
+			if pathsModule then
+				require(pathsModule).OpenShop()
+			end
+		end)
+	end
 end
 
 local function UpdateState(data)
@@ -421,32 +433,21 @@ local function UpdateState(data)
 end
 
 local function GetTitanSkills(titanName)
-	-- Default fallback moveset
 	if not titanName or titanName == "None" then 
 		return {"Titan Punch", "Titan Kick", "Block", "Cannibalize"} 
 	end
 
-	-- Fully unique movesets per Titan (Slot 3 is Defensive)
 	local movesets = {
 		["Attack Titan"] = {"Titan Punch", "Berserk Rush", "Block", "Future Memories"},
 		["Jaw Titan"] = {"Frenzied Thrash", "Agile Leap", "Block", "Crushing Bite"},
 		["Cart Titan"] = {"Titan Bite", "Endurance Run", "Block", "Panzer Artillery"},
 		["Armored Titan"] = {"Hardened Punch", "Armored Tackle", "Block", "Shattering Charge"},
-
-		-- [FIX]: Female Titan now uses Nape Guard as her unique block in Slot 3
 		["Female Titan"] = {"Titan Kick", "Crystal Kick", "Nape Guard", "Attraction Scream"}, 
-
 		["War Hammer Titan"] = {"Hardened Punch", "Crossbow Construct", "Block", "War Hammer Spike"},
 		["Beast Titan"] = {"Crushed Boulders", "Pitching Ace", "Block", "Titan Roar"},
 		["Colossal Titan"] = {"Brutal Swipe", "Devastating Kick", "Block", "Colossal Steam"},
-
-		-- [FIX]: Founding Titan now has Titan Punch as its slot 1 attack
 		["Founding Titan"] = {"Titan Punch", "Titan Roar", "Block", "Coordinate Command"}, 
-
-		-- Transcendent Fusions (Combines the signature moves of both parent Titans)
-		-- [FIX]: Founding Female Titan inherits the Nape Guard block
 		["Founding Female Titan"] = {"Crystal Kick", "Attraction Scream", "Nape Guard", "Coordinate Command"},
-
 		["Armored Attack Titan"] = {"Berserk Rush", "Armored Tackle", "Block", "Shattering Charge"},
 		["War Hammer Attack Titan"] = {"Berserk Rush", "Crossbow Construct", "Block", "War Hammer Spike"},
 		["Colossal Jaw Titan"] = {"Crushing Bite", "Devastating Kick", "Block", "Colossal Steam"},
@@ -506,7 +507,7 @@ local function UpdateSkills()
 			if sData.Range and sData.Range ~= "Any" and sData.Range ~= currentRange then isWrongRange = true end
 		end
 
-		if skillName == "Retreat" then
+		if skillName == "Retreat" or skillName == "Flee" then
 			hasGas = true
 			isWrongRange = false
 		elseif skillName == "Close In" or skillName == "Charge" or skillName == "Advance" then
@@ -546,11 +547,20 @@ local function UpdateSkills()
 				inputLocked = true 
 				HideAlly()
 
-				if InstantSkills[skillName] then
+				if InstantSkills[skillName] or skillName == "Flee" then
+					local wasPaths = (skillName == "Retreat" or skillName == "Flee") and currentBattleState and currentBattleState.Context and currentBattleState.Context.IsPaths
+
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
 					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
 					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 20
 					Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = skillName})
+
+					if wasPaths then
+						task.delay(1.5, function()
+							local pathsModule = player.PlayerScripts:WaitForChild("UIModules"):FindFirstChild("PathsShopUI")
+							if pathsModule then require(pathsModule).OpenShop() end
+						end)
+					end
 				else
 					pendingSkillName = skillName
 					GUI.ActionGrid.Visible = false
@@ -561,7 +571,6 @@ local function UpdateSkills()
 		end
 	end
 
-	-- [[ THE FIX: Check if equipped weapon matches the skill's style requirements, otherwise fallback ]]
 	for i = 1, 4 do
 		local skillName = player:GetAttribute("EquippedSkill_" .. i)
 		local isValid = false
@@ -580,7 +589,6 @@ local function UpdateSkills()
 				end
 			end
 		end
-
 		if isTransformed or not isValid then skillName = fallbacks[i] end
 		CreateSkillButton(skillName)
 	end
@@ -660,7 +668,6 @@ local function ShowUI(data)
 	end
 	UpdateSkills()
 end
-
 
 -- ==========================================
 -- INITIALIZATION
@@ -1021,7 +1028,6 @@ function MobileCombatUI.Initialize(masterScreenGui)
 					local retreatBtn = CreateMinimalButton(GUI.ActionGrid, "RETREAT TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
 					retreatBtn.MouseButton1Click:Connect(function()
 						Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = "Retreat"})
-						CloseUI()
 					end)
 				end
 
@@ -1085,6 +1091,8 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				end
 
 			elseif action == "Defeat" or action == "PathsDeath" then
+				local wasPaths = data.Battle and data.Battle.Context and data.Battle.Context.IsPaths
+
 				HideAlly()
 				if GUI.CombatantsFrame then GUI.CombatantsFrame.Visible = true end
 				if GUI.LogContainer then GUI.LogContainer.Visible = true end
@@ -1108,11 +1116,13 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if GUI.ActionGrid then
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "RETURN TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
 					closeBtn.MouseButton1Click:Connect(function() 
-						CloseUI() 
+						CloseUI(wasPaths) 
 					end)
 				end
 
 			elseif action == "Fled" then
+				local wasPaths = data.Battle and data.Battle.Context and data.Battle.Context.IsPaths
+
 				HideAlly()
 				if GUI.CombatantsFrame then GUI.CombatantsFrame.Visible = true end
 
@@ -1120,7 +1130,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 				AppendLog("<b><font color='#AAAAAA'>YOU FLED THE BATTLE.</font></b>", "#AAAAAA")
 				task.wait(1.5)
-				CloseUI()
+				CloseUI(wasPaths)
 			end
 		end)
 
