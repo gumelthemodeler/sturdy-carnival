@@ -35,7 +35,6 @@ ItemData.Equipment = {
 	["Abyssal Thunder Spear"] = { Type = "Weapon", Style = "Thunder Spears", Rarity = "Transcendent", Cost = 1000000, Bonus = { Strength = 800, Speed = -50 }, Cursed = true, SelfDamage = 0.10, Desc = "<font color='#FF3333'>[CURSED]</font> A nuclear payload. You take 10% Max HP damage on launch. Sluggish speed." },
 	["Shroud of the Doomed"] = { Type = "Accessory", Rarity = "Transcendent", Cost = 1000000, Bonus = { Resolve = 500, Health = 500, Defense = 200 }, Cursed = true, NoDodge = true, Desc = "<font color='#FF3333'>[CURSED]</font> Makes you incredibly tanky and immune to stun, but permanently drops your Dodge chance to 0%." },
 
-	-- [[ THE FIX: Added Paths Shop Exclusives as Transcendent Accessories ]]
 	["Eldian Crown"] = { Type = "Accessory", Rarity = "Transcendent", Cost = 0, Bonus = { Strength = 300, Defense = 300, Resolve = 1000 }, Desc = "<font color='#FFD700'>[EXCLUSIVE PATHS RELIC]</font> The crown of the ancient Eldian Empire. Grants massive vitality and damage scaling." },
 	["Founder's Parasite"] = { Type = "Accessory", Rarity = "Transcendent", Cost = 0, Bonus = { Health = 2000, Speed = 150, Gas = 150 }, Desc = "<font color='#55FF55'>[MYTHIC PATHS RELIC]</font> The origin of all organic matter. Grants godlike health, extreme agility, and boundless stamina." }
 }
@@ -58,7 +57,6 @@ ItemData.Consumables = {
 	["Titan Research Notes"] = { Rarity = "Rare", Cost = 5000, Action = "Consume", Buff = "XP", Duration = 900, Desc = "Doubles all XP gained from combat and training for 15 minutes." },
 	["Garrison Supply Crate"] = { Rarity = "Uncommon", Cost = 15000, Action = "Consume", Buff = "Dews", MinAmount = 5000, MaxAmount = 20000, Desc = "Instantly grants between 5,000 and 20,000 Dews when opened." },
 
-	-- [[ GIFTS & GAMEPASSES ]]
 	["Auto Train (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "AutoTrain", Desc = "Permanently unlocks Auto Train. Cannot be sold." },
 	["2x XP & Funds (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "DoubleXP", Desc = "Permanently unlocks 2x XP & Dews. Cannot be sold." },
 	["Titan Vault Expansion (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "TitanVault", Desc = "Unlocks Titan Vault slots 4-6. Cannot be sold." },
