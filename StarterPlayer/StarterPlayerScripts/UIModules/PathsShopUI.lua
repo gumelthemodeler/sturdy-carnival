@@ -35,8 +35,20 @@ local function CreateSharpButton(parent, text, size, font, textSize, baseColor, 
 	stroke.Color = Color3.fromRGB(50, 50, 65); stroke.Thickness = 1; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 	local gColor = glowColor or C_GLOW
-	btn.MouseEnter:Connect(function() stroke.Color = gColor; btn.TextColor3 = gColor end)
-	btn.MouseLeave:Connect(function() stroke.Color = Color3.fromRGB(50, 50, 65); btn.TextColor3 = baseColor or Color3.fromRGB(245, 245, 245) end)
+
+	-- [[ THE FIX: Smooth Mobile Touch Interactions ]]
+	btn.InputBegan:Connect(function(input) 
+		if btn.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then 
+			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35)}):Play()
+			TweenService:Create(stroke, TweenInfo.new(0.2), {Color = gColor}):Play()
+		end
+	end)
+	btn.InputEnded:Connect(function(input) 
+		if btn.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then 
+			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 25)}):Play()
+			TweenService:Create(stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(50, 50, 65)}):Play()
+		end
+	end)
 	return btn, stroke
 end
 
@@ -69,19 +81,23 @@ function PathsShopUI.UpdateShop()
 			local dewsCost = math.floor(rDef.BaseDews * (rDef.Mult ^ currentLvl))
 			local xpCost = math.floor(rDef.BaseXP * (rDef.Mult ^ currentLvl))
 
-			data.CostLbl.Text = "Req: " .. dustCost .. " Dust | " .. AbbreviateNumber(xpCost) .. " XP"
+			data.CostLbl.Text = "Req: " .. dustCost .. " Dust | " .. AbbreviateNumber(dewsCost) .. " Dews | " .. AbbreviateNumber(xpCost) .. " XP"
 
 			if pDust >= dustCost and pDews >= dewsCost and pXP >= xpCost then
 				data.Btn.TextColor3 = Color3.fromHex(rDef.Color); data.Stroke.Color = Color3.fromHex(rDef.Color)
+				data.CanAfford = true
 			else
 				data.Btn.TextColor3 = Color3.fromRGB(100, 100, 100); data.Stroke.Color = Color3.fromRGB(50, 50, 65)
+				data.CanAfford = false
 			end
 		elseif data.Type == "Item" then
 			local iDef = data.Def
 			if pDust >= iDef.Cost then
 				data.Btn.TextColor3 = Color3.fromHex(iDef.Color); data.Stroke.Color = Color3.fromHex(iDef.Color)
+				data.CanAfford = true
 			else
 				data.Btn.TextColor3 = Color3.fromRGB(100, 100, 100); data.Stroke.Color = Color3.fromRGB(50, 50, 65)
+				data.CanAfford = false
 			end
 		end
 	end
@@ -95,6 +111,10 @@ function PathsShopUI.OpenShop()
 
 		local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
 		if VFXManager then VFXManager.PlaySFX("Reveal", 1) end
+
+		PathsShopUI.Overlay.BackgroundTransparency = 1
+		PathsShopUI.MainContainer.Position = UDim2.new(0.5, 0, 0.55, 0)
+		PathsShopUI.MainContainer.GroupTransparency = 1
 
 		TweenService:Create(PathsShopUI.Overlay, TweenInfo.new(0.6, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {BackgroundTransparency = 0.4}):Play()
 		TweenService:Create(PathsShopUI.MainContainer, TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, 0, 0.5, 0), GroupTransparency = 0}):Play()
@@ -137,7 +157,6 @@ function PathsShopUI.Initialize(masterScreenGui)
 	local Header = UIHelpers.CreateLabel(MainContainer, "THE COORDINATE", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, C_GLOW, 24)
 	Header.Position = UDim2.new(0, 0, 0, 15)
 
-	-- [[ FIX: TextScaling applied to the Subheader ]]
 	local SubHeader = UIHelpers.CreateLabel(MainContainer, "Your physical form has perished or retreated. Spend your gathered dust before your connection severs.", UDim2.new(0.9, 0, 0, 35), Enum.Font.GothamMedium, C_MUTED, 14)
 	SubHeader.Position = UDim2.new(0.5, 0, 0, 50); SubHeader.AnchorPoint = Vector2.new(0.5, 0); SubHeader.TextWrapped = true; SubHeader.TextScaled = true
 	local subTc = Instance.new("UITextSizeConstraint", SubHeader); subTc.MaxTextSize = 14; subTc.MinTextSize = 8
@@ -207,7 +226,6 @@ function PathsShopUI.Initialize(masterScreenGui)
 		card.BackgroundColor3 = Color3.fromRGB(20, 20, 25); card.BorderSizePixel = 0
 		local stroke = Instance.new("UIStroke", card); stroke.Color = Color3.fromHex(def.Color); stroke.Thickness = 1
 
-		-- [[ FIX: Dynamic Text Scaling added to Title, Description, and Cost ]]
 		local title = UIHelpers.CreateLabel(card, def.Name, UDim2.new(0.65, 0, 0, 25), Enum.Font.GothamBlack, Color3.fromHex(def.Color), 14)
 		title.Position = UDim2.new(0, 10, 0, 5); title.TextXAlignment = Enum.TextXAlignment.Left; title.TextScaled = true; title.RichText = true
 		local tc = Instance.new("UITextSizeConstraint", title); tc.MaxTextSize = 14; tc.MinTextSize = 9
@@ -229,15 +247,29 @@ function PathsShopUI.Initialize(masterScreenGui)
 
 	for _, rDef in ipairs(RuneDefs) do
 		local title, costLbl, btn, bStroke = BuildCard(RunesGrid, rDef, true)
-		btn.MouseButton1Click:Connect(function() Network:WaitForChild("UpgradeRune"):FireServer(rDef.Id) end)
-		PathsShopUI.Cards[rDef.Id] = { Type = "Rune", Title = title, CostLbl = costLbl, Btn = btn, Stroke = bStroke, Def = rDef }
+		btn.Activated:Connect(function() 
+			if PathsShopUI.Cards[rDef.Id] and not PathsShopUI.Cards[rDef.Id].CanAfford then
+				local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
+				if VFXManager then VFXManager.PlaySFX("Error", 1) end
+				return
+			end
+			Network:WaitForChild("UpgradeRune"):FireServer(rDef.Id) 
+		end)
+		PathsShopUI.Cards[rDef.Id] = { Type = "Rune", Title = title, CostLbl = costLbl, Btn = btn, Stroke = bStroke, Def = rDef, CanAfford = false }
 	end
 
 	for _, iDef in ipairs(ItemDefs) do
 		local title, costLbl, btn, bStroke = BuildCard(RelicsGrid, iDef, false)
 		costLbl.Text = "Req: " .. iDef.Cost .. " Dust"
-		btn.MouseButton1Click:Connect(function() Network:WaitForChild("PathsShopBuy"):FireServer(iDef.Id) end)
-		PathsShopUI.Cards[iDef.Id] = { Type = "Item", CostLbl = costLbl, Btn = btn, Stroke = bStroke, Def = iDef }
+		btn.Activated:Connect(function() 
+			if PathsShopUI.Cards[iDef.Id] and not PathsShopUI.Cards[iDef.Id].CanAfford then
+				local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
+				if VFXManager then VFXManager.PlaySFX("Error", 1) end
+				return
+			end
+			Network:WaitForChild("PathsShopBuy"):FireServer(iDef.Id) 
+		end)
+		PathsShopUI.Cards[iDef.Id] = { Type = "Item", CostLbl = costLbl, Btn = btn, Stroke = bStroke, Def = iDef, CanAfford = false }
 	end
 
 	player.AttributeChanged:Connect(function(attr) if string.find(attr, "Rune_") or attr == "PathDust" or attr == "XP" then PathsShopUI.UpdateShop() end end)
@@ -249,19 +281,19 @@ function PathsShopUI.Initialize(masterScreenGui)
 		end)
 	end
 
-	LeaveBtn.MouseButton1Click:Connect(function()
+	LeaveBtn.Activated:Connect(function()
 		if not PathsShopUI.IsOpen then return end
 		PathsShopUI.IsOpen = false
 
 		local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
 		if VFXManager then VFXManager.PlaySFX("Click", 1) end
 
-		TweenService:Create(Overlay, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-		local exitTween = TweenService:Create(MainContainer, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.55, 0), GroupTransparency = 1})
+		TweenService:Create(PathsShopUI.Overlay, TweenInfo.new(0.4, Enum.EasingStyle.Sine, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+		local exitTween = TweenService:Create(PathsShopUI.MainContainer, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.55, 0), GroupTransparency = 1})
 		exitTween:Play()
 
 		exitTween.Completed:Wait()
-		ScreenGui.Enabled = false
+		PathsShopUI.ScreenGui.Enabled = false
 		if PathsShopEvent then PathsShopEvent:FireServer("Close") end
 	end)
 end
