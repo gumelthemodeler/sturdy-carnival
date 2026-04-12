@@ -20,7 +20,6 @@ ItemData.Equipment = {
 
 	["Worn Trainee Badge"] = { Type = "Accessory", Rarity = "Common", Cost = 300, Bonus = { Resolve = 2, Health = 2 }, Desc = "A badge worn by new recruits." },
 	["Scout Training Manual"] = { Type = "Accessory", Rarity = "Common", Cost = 500, Bonus = { Resolve = 5 }, Desc = "Basic training guidelines." },
-	-- [[ FIX: Significantly buffed high-tier accessories so they noticeably overlap stat caps ]]
 	["Garrison Hip Flask"] = { Type = "Accessory", Rarity = "Uncommon", Cost = 1200, Bonus = { Health = 30, Resolve = 5 }, Desc = "Liquid courage for the wall guards." },
 	["Marleyan Armband"] = { Type = "Accessory", Rarity = "Uncommon", Cost = 1500, Bonus = { Defense = 5, Strength = 5 }, Desc = "An armband worn by Marleyan forces." },
 	["Scout Regiment Cloak"] = { Type = "Accessory", Rarity = "Rare", Cost = 2500, Bonus = { Defense = 20, Resolve = 15 }, Desc = "The Wings of Freedom." },
@@ -34,7 +33,11 @@ ItemData.Equipment = {
 
 	["Blade of the Frenzied"] = { Type = "Weapon", Style = "Ultrahard Steel Blades", Rarity = "Transcendent", Cost = 1000000, Bonus = { Strength = 400, Speed = 100, Defense = -100 }, Cursed = true, SelfDamage = 0.05, Desc = "<font color='#FF3333'>[CURSED]</font> Insane damage, but you take 5% Max HP damage every time you attack. Halves your Defense." },
 	["Abyssal Thunder Spear"] = { Type = "Weapon", Style = "Thunder Spears", Rarity = "Transcendent", Cost = 1000000, Bonus = { Strength = 800, Speed = -50 }, Cursed = true, SelfDamage = 0.10, Desc = "<font color='#FF3333'>[CURSED]</font> A nuclear payload. You take 10% Max HP damage on launch. Sluggish speed." },
-	["Shroud of the Doomed"] = { Type = "Accessory", Rarity = "Transcendent", Cost = 1000000, Bonus = { Resolve = 500, Health = 500, Defense = 200 }, Cursed = true, NoDodge = true, Desc = "<font color='#FF3333'>[CURSED]</font> Makes you incredibly tanky and immune to stun, but permanently drops your Dodge chance to 0%." }
+	["Shroud of the Doomed"] = { Type = "Accessory", Rarity = "Transcendent", Cost = 1000000, Bonus = { Resolve = 500, Health = 500, Defense = 200 }, Cursed = true, NoDodge = true, Desc = "<font color='#FF3333'>[CURSED]</font> Makes you incredibly tanky and immune to stun, but permanently drops your Dodge chance to 0%." },
+
+	-- [[ THE FIX: Added Paths Shop Exclusives as Transcendent Accessories ]]
+	["Eldian Crown"] = { Type = "Accessory", Rarity = "Transcendent", Cost = 0, Bonus = { Strength = 300, Defense = 300, Resolve = 1000 }, Desc = "<font color='#FFD700'>[EXCLUSIVE PATHS RELIC]</font> The crown of the ancient Eldian Empire. Grants massive vitality and damage scaling." },
+	["Founder's Parasite"] = { Type = "Accessory", Rarity = "Transcendent", Cost = 0, Bonus = { Health = 2000, Speed = 150, Gas = 150 }, Desc = "<font color='#55FF55'>[MYTHIC PATHS RELIC]</font> The origin of all organic matter. Grants godlike health, extreme agility, and boundless stamina." }
 }
 
 ItemData.Consumables = {
@@ -44,8 +47,6 @@ ItemData.Consumables = {
 
 	["Ancestral Awakening Serum"] = { Rarity = "Mythical", Cost = 150000, Action = "AwakenClan", Desc = "Awakens the true power of your current lineage. Only works on major clans." },
 	["Ymir's Clay Fragment"] = { Rarity = "Mythical", Cost = 150000, Action = "AwakenTitan", Desc = "Allows the Attack Titan to reach the Coordinate." },
-
-	-- [[ THE FIX: Updated description so players know exactly where to find this item! ]]
 	["Titan Hardening Extract"] = { Rarity = "Legendary", Cost = 75000, Desc = "(Obtained in the Supply Shop) Used in the Forge to Awaken max-tier weapons with random Substats." },
 
 	["Iron Bamboo Heart"] = { Rarity = "Epic", Cost = 3000, IsMaterial = true, Desc = "A rare material extracted from the Titan Forest via Expeditions. Used for complex forging." },
