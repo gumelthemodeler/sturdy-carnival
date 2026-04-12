@@ -1,13 +1,12 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: LootManager
--- @ScriptType: ModuleScript
 local LootManager = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
 
-local MAX_INVENTORY_CAPACITY = 50
+local MAX_INVENTORY_CAPACITY = 25
 local SellValues = { Common = 10, Uncommon = 25, Rare = 75, Epic = 200, Legendary = 500, Mythical = 1500, Transcendent = 0 }
 
 local function GetUniqueSlotCount(plr)
@@ -29,7 +28,7 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 
 	local dropMultiplier = player:GetAttribute("HasDoubleDrops") and 2 or 1
 	local isYmirFavored = player:GetAttribute("YmirFavored")
-	local favoredMultiplier = isYmirFavored and 1.5 or 1.0 -- 50% Drop rate buff for #1 Squad
+	local favoredMultiplier = isYmirFavored and 1.5 or 1.0 
 
 	if enemyDrops and enemyDrops.ItemChance then
 		for itemName, baseChance in pairs(enemyDrops.ItemChance) do
@@ -37,9 +36,8 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			local rarity = iData and iData.Rarity or "Common"
 			local finalChance = baseChance
 
-			-- [[ THE FIX: Rarity and Serum Drop Nerfs / Buffs ]]
 			if string.find(string.lower(itemName), "serum") then
-				finalChance = baseChance * 0.10 -- Massive nerf to Titan Serums
+				finalChance = baseChance * 0.10 
 			elseif rarity == "Mythical" or rarity == "Transcendent" then
 				finalChance = baseChance * 0.25
 			elseif rarity == "Legendary" then
@@ -49,13 +47,18 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			elseif rarity == "Rare" then
 				finalChance = baseChance * 2.0
 			elseif rarity == "Uncommon" or rarity == "Common" then
-				finalChance = baseChance * 4.0 -- Massive buff to crafting materials
+				finalChance = baseChance * 4.0 
 			end
 
 			if isEndless then
-				if rarity == "Mythical" then finalChance += (currentWave * 0.05)
-				elseif rarity == "Legendary" then finalChance += (currentWave * 0.15)
-				else finalChance += (currentWave * 0.5) end
+				-- Massively buffed wave scaling for endless mode
+				if rarity == "Mythical" then finalChance += (currentWave * 0.1)
+				elseif rarity == "Legendary" then finalChance += (currentWave * 0.3)
+				elseif rarity == "Epic" then finalChance += (currentWave * 1.0)
+				else finalChance += (currentWave * 2.0) end
+
+				-- Flat 50% bonus to base rates during endless mode
+				finalChance = finalChance * 1.5
 			end
 
 			finalChance = finalChance * favoredMultiplier
@@ -68,10 +71,8 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 				local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
 
 				if isAutoSellEnabled then
-					-- Directly sell based on user preference
 					autoSoldDewsSettings += (SellValues[rarity] or 10) * dropMultiplier
 				elseif currentAmt == 0 and currentSlots >= MAX_INVENTORY_CAPACITY then
-					-- Forced sell because they hit 50/50 unique items
 					autoSoldDewsCapacity += (SellValues[rarity] or 10) * dropMultiplier
 				else
 					local nameTag = (dropMultiplier > 1) and (itemName .. " (x" .. dropMultiplier .. ")") or itemName
@@ -82,7 +83,8 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			end
 		end
 
-		if isEndless and #droppedItems == 0 and autoSoldDewsCapacity == 0 and autoSoldDewsSettings == 0 and currentWave % 3 == 0 then
+		-- Guarantee a drop every single endless wave if nothing drops normally
+		if isEndless and #droppedItems == 0 and autoSoldDewsCapacity == 0 and autoSoldDewsSettings == 0 then
 			local pool = {}
 			for iname, _ in pairs(enemyDrops.ItemChance) do 
 				local iData = ItemData.Equipment[iname] or ItemData.Consumables[iname]
