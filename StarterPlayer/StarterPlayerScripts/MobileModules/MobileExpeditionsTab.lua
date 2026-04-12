@@ -11,7 +11,7 @@ local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 local AFKTab = require(UIModules:WaitForChild("AFKTab"))
 local notifModule = SharedUI:WaitForChild("NotificationManager", 2); local NotificationManager = notifModule and require(notifModule) or nil
 
-local CONFIG = { Decals = { Campaign = "rbxassetid://80153476985849", AFK = "rbxassetid://114506098039778", Raid = "rbxassetid://119392967268687", PvP = "rbxassetid://100826303284945", Nightmare = "rbxassetid://90132878979603", WorldBoss = "rbxassetid://129655150803684", Endless = "rbxassetid://108619507999123", Paths = "rbxassetid://90938848776194" } }
+local CONFIG = { Decals = { Campaign = "rbxassetid://80153476985849", AFK = "rbxassetid://114506098039778", Raid = "rbxassetid://119392967268687", PvP = "rbxassetid://100826303284945", Nightmare = "rbxassetid://90132878979603", WorldBoss = "rbxassetid://129655150803684", Endless = "rbxassetid://81075056647024", Paths = "rbxassetid://90938848776194" } }
 
 local CurrentParty = {}; local IsInParty = false; local IsPartyLeader = false; local PendingInvites = {}; local isListening = false
 
@@ -171,7 +171,7 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 	local campaignDescLbl = CreateModeCard(GridContainer, "STORY CAMPAIGN", string.format("Part %d - Mission %d\nProgress through the main storyline.", cPart, cMiss), CONFIG.Decals.Campaign, 1, function() InitiateDeployment("CombatAction", "EngageStory") end)
 	player.AttributeChanged:Connect(function(attr) if attr == "CurrentPart" or attr == "CurrentMission" then campaignDescLbl.Text = string.format("Part %d - Mission %d\nProgress through the main storyline.", player:GetAttribute("CurrentPart") or 1, player:GetAttribute("CurrentMission") or 1) end end)
 
-	-- [[ THE FIX: Added "The Paths" Weekend Event ]]
+	-- [[ THE FIX: The Paths Weekend Event (Sat, Sun, Mon) ]]
 	local wday = os.date("!*t").wday
 	local isPathsOpen = (wday == 7 or wday == 1 or wday == 2) -- 7 = Saturday, 1 = Sunday, 2 = Monday
 	local pathsDesc = isPathsOpen and "Venture into the coordinate to farm Path Dust for Memory Runes." or "[EVENT CLOSED] Opens on Sat, Sun, and Mon."
