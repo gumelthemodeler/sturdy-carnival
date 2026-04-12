@@ -282,7 +282,6 @@ local function StartBattle(player, encounterType, requestedPartId)
 	local pTotalSpd = (baseSpdStat) + (wpnBonus.Speed or 0) + (accBonus.Speed or 0) + awakenedStats.SpdBonus
 	local pTotalRes = (baseResStat) + (wpnBonus.Resolve or 0) + (accBonus.Resolve or 0)
 
-	-- [[ NEW: Titan Rune Hookup ]]
 	local titanRuneLvl = tonumber(player:GetAttribute("Rune_Titan")) or 0
 	local pMaxTitanEnergy = 100 + (titanRuneLvl * 25)
 
@@ -550,8 +549,9 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			LastSkill = "None", AwakenedStats = enemyAwakenedStats, AIPoints = 0
 		}
 		battle.Player.Cooldowns = {}; battle.Player.Statuses = {} 
-		-- [[ FIX: Correctly scale MaxTitanEnergy when healing between waves ]]
-		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(battle.Player.MaxTitanEnergy or 100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
+		local titanRuneLvl = tonumber(player:GetAttribute("Rune_Titan")) or 0
+		local pMaxTitanEnergy = 100 + (titanRuneLvl * 25)
+		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(pMaxTitanEnergy, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
 
 		if nextEnemyTemplate.IsMinigame then CombatUpdate:FireClient(player, "StartMinigame", {Battle = battle, LogMsg = flavorText .. "\n" .. rewardStr .. killMsg, MinigameType = nextEnemyTemplate.IsMinigame})
 		else CombatUpdate:FireClient(player, "WaveComplete", {Battle = battle, LogMsg = flavorText .. "\n" .. rewardStr .. killMsg, XP = xpGain, Dews = dewsGain, Items = droppedItems}) end
@@ -605,8 +605,9 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			LastSkill = "None", AIPoints = 0
 		}
 		battle.Player.Cooldowns = {}; battle.Player.Statuses = {} 
-		-- [[ FIX: Correctly scale MaxTitanEnergy when healing between waves ]]
-		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(battle.Player.MaxTitanEnergy or 100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
+		local titanRuneLvl = tonumber(player:GetAttribute("Rune_Titan")) or 0
+		local pMaxTitanEnergy = 100 + (titanRuneLvl * 25)
+		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(pMaxTitanEnergy, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
 
 		if nextEnemyTemplate.IsMinigame then CombatUpdate:FireClient(player, "StartMinigame", {Battle = battle, LogMsg = flavorText .. "\n" .. killMsg, MinigameType = nextEnemyTemplate.IsMinigame})
 		else CombatUpdate:FireClient(player, "WaveComplete", {Battle = battle, LogMsg = flavorText .. "\n" .. killMsg, XP = xpGain, Dews = dewsGain, Items = droppedItems}) end
@@ -678,8 +679,9 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			LastSkill = "None", AIPoints = 0
 		}
 		battle.Player.Cooldowns = {}; battle.Player.Statuses = {} 
-		-- [[ FIX: Correctly scale MaxTitanEnergy when healing between waves ]]
-		battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(battle.Player.MaxTitanEnergy or 100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
+		local titanRuneLvl = tonumber(player:GetAttribute("Rune_Titan")) or 0
+		local pMaxTitanEnergy = 100 + (titanRuneLvl * 25)
+		battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(pMaxTitanEnergy, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
 
 		if nextEnemyTemplate.IsMinigame then 
 			CombatUpdate:FireClient(player, "StartMinigame", {Battle = battle, LogMsg = "<font color='#FFD700'>[WAVE " .. battle.Context.CurrentWave .. "]</font>\n" .. flavorText, MinigameType = nextEnemyTemplate.IsMinigame})
@@ -786,7 +788,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 	local skillName = actionData.SkillName
 
-	-- [[ THE FIX: Retreat logic directly intercepts before anything else ]]
 	if skillName == "Retreat" or skillName == "Flee" then
 		CombatUpdate:FireClient(player, "Fled", {Battle = battle})
 		SafeTriggerPathsShop(battle.Context)
@@ -801,24 +802,27 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if skill then
 		local isTransformed = battle.Player.Statuses and battle.Player.Statuses["Transformed"]
 
-		if not isTransformed and skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
-			local myClan = player:GetAttribute("Clan")
-			if not (myClan and string.find(myClan, skill.Requirement)) then
-				local wpn = player:GetAttribute("EquippedWeapon")
-				local wpnStyle = wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style or "None"
-				if wpnStyle ~= skill.Requirement then
-					CombatUpdate:FireClient(player, "Update", {Battle = battle})
-					return
+		-- [[ THE FIX: Updated Server Validation Logic ]]
+		if not isTransformed then
+			if skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "Transformed" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
+				local myClan = player:GetAttribute("Clan")
+				if not (myClan and string.find(myClan, skill.Requirement)) then
+					local wpn = player:GetAttribute("EquippedWeapon")
+					local wpnStyle = wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style or "None"
+					if wpnStyle ~= skill.Requirement then
+						CombatUpdate:FireClient(player, "Update", {Battle = battle})
+						return
+					end
 				end
 			end
-		elseif isTransformed then
-			local validTitanMoves = GetTitanSkills(player:GetAttribute("Titan"))
+		else
 			local isValidMove = false
-			for _, m in ipairs(validTitanMoves) do
-				if m == skillName then isValidMove = true; break end
+
+			if skill.Requirement == "Transformed" or skill.Requirement == "AnyTitan" or skill.Requirement == player:GetAttribute("Titan") then
+				isValidMove = true
 			end
 
-			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" then
+			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Cannibalize" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" then
 				isValidMove = true
 			end
 
@@ -859,7 +863,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				battle.Player.Gas = math.max(0, (tonumber(battle.Player.Gas) or 0) - actualGasCost) 
 			else
 				local actualHeatCost = tonumber(skill.EnergyCost) or tonumber(skill.HeatCost) or 0
-				-- [[ FIX: Correctly scale MaxTitanEnergy when consuming heat ]]
 				battle.Player.TitanEnergy = math.max(0, (tonumber(battle.Player.TitanEnergy) or 0) - actualHeatCost)
 			end
 		end
