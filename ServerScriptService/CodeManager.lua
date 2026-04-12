@@ -45,7 +45,13 @@ local ActiveCodes = {
 		Items = {
 			["Clan Blood Vial"] = 5,
 		}
-	}
+	},
+	["HAVECLANS"] = { 
+		Items = {
+			["Clan Blood Vial"] = 5,
+		}
+	},
+
 }
 
 RemotesFolder:WaitForChild("RedeemCode").OnServerEvent:Connect(function(player, codeStr)
