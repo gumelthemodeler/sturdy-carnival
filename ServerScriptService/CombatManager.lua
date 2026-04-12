@@ -81,30 +81,40 @@ local function GetSpdScale(targetPart, isEndless, wave)
 	return base
 end
 
--- [[ THE FIX: Extracted Titan Skills to map valid moves correctly! ]]
 local function GetTitanSkills(titanName)
-	local tSkills = {"Titan Punch", "Titan Kick", "Cannibalize", "Hardened Punch"}
-	if not titanName or titanName == "None" then return tSkills end
-
-	if titanName:find("Founding") then tSkills[4] = "Coordinate Command"
-	elseif titanName:find("Colossal") then tSkills[4] = "Colossal Steam"
-	elseif titanName:find("War Hammer") then tSkills[4] = "War Hammer Spike"
-	elseif titanName:find("Armored") then tSkills[4] = "Armored Tackle"
-	elseif titanName:find("Female") then tSkills[4] = "Crystal Kick"
-	elseif titanName:find("Beast") then tSkills[4] = "Pitching Ace"
-	elseif titanName:find("Jaw") then tSkills[4] = "Crushing Bite"
-	elseif titanName:find("Cart") then tSkills[4] = "Panzer Artillery"
-	elseif titanName:find("Attack") then tSkills[4] = "Berserk Rush"
+	-- Default fallback moveset
+	if not titanName or titanName == "None" then 
+		return {"Titan Punch", "Titan Kick", "Block", "Cannibalize"} 
 	end
 
-	if titanName == "Founding Female Titan" then tSkills[3] = "Crystal Kick"
-	elseif titanName == "Armored Attack Titan" then tSkills[3] = "Armored Tackle"; tSkills[4] = "Berserk Rush"
-	elseif titanName == "War Hammer Attack Titan" then tSkills[3] = "War Hammer Spike"; tSkills[4] = "Berserk Rush"
-	elseif titanName == "Colossal Jaw Titan" then tSkills[3] = "Crushing Bite"; tSkills[4] = "Colossal Steam"
-	elseif titanName == "Founding Attack Titan" then tSkills[3] = "Berserk Rush"; tSkills[4] = "Coordinate Command"
-	end
+	-- Fully unique movesets per Titan (Slot 3 is Defensive)
+	local movesets = {
+		["Attack Titan"] = {"Titan Punch", "Berserk Rush", "Block", "Future Memories"},
+		["Jaw Titan"] = {"Frenzied Thrash", "Agile Leap", "Block", "Crushing Bite"},
+		["Cart Titan"] = {"Titan Bite", "Endurance Run", "Block", "Panzer Artillery"},
+		["Armored Titan"] = {"Hardened Punch", "Armored Tackle", "Block", "Shattering Charge"},
 
-	return tSkills
+		-- [FIX]: Female Titan now uses Nape Guard as her unique block in Slot 3
+		["Female Titan"] = {"Titan Kick", "Crystal Kick", "Nape Guard", "Attraction Scream"}, 
+
+		["War Hammer Titan"] = {"Hardened Punch", "Crossbow Construct", "Block", "War Hammer Spike"},
+		["Beast Titan"] = {"Crushed Boulders", "Pitching Ace", "Block", "Titan Roar"},
+		["Colossal Titan"] = {"Brutal Swipe", "Devastating Kick", "Block", "Colossal Steam"},
+
+		-- [FIX]: Founding Titan now has Titan Punch as its slot 1 attack
+		["Founding Titan"] = {"Titan Punch", "Titan Roar", "Block", "Coordinate Command"}, 
+
+		-- Transcendent Fusions (Combines the signature moves of both parent Titans)
+		-- [FIX]: Founding Female Titan inherits the Nape Guard block
+		["Founding Female Titan"] = {"Crystal Kick", "Attraction Scream", "Nape Guard", "Coordinate Command"},
+
+		["Armored Attack Titan"] = {"Berserk Rush", "Armored Tackle", "Block", "Shattering Charge"},
+		["War Hammer Attack Titan"] = {"Berserk Rush", "Crossbow Construct", "Block", "War Hammer Spike"},
+		["Colossal Jaw Titan"] = {"Crushing Bite", "Devastating Kick", "Block", "Colossal Steam"},
+		["Founding Attack Titan"] = {"Berserk Rush", "Future Memories", "Block", "Coordinate Command"}
+	}
+
+	return movesets[titanName] or {"Titan Punch", "Titan Kick", "Block", "Cannibalize"}
 end
 
 local function GetActualStyle(plr)
