@@ -30,6 +30,12 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 	local isYmirFavored = player:GetAttribute("YmirFavored")
 	local favoredMultiplier = isYmirFavored and 1.5 or 1.0 
 
+	-- [[ MEMORY RUNE: Avarice (+0.1% Global Drop Rate per level) ]]
+	local avariceRune = tonumber(player:GetAttribute("Rune_Avarice")) or 0
+	if avariceRune > 0 then
+		favoredMultiplier = favoredMultiplier + (avariceRune * 0.001)
+	end
+
 	if enemyDrops and enemyDrops.ItemChance then
 		for itemName, baseChance in pairs(enemyDrops.ItemChance) do
 			local iData = ItemData.Equipment[itemName] or ItemData.Consumables[itemName]
@@ -51,13 +57,11 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			end
 
 			if isEndless then
-				-- Massively buffed wave scaling for endless mode
 				if rarity == "Mythical" then finalChance += (currentWave * 0.1)
 				elseif rarity == "Legendary" then finalChance += (currentWave * 0.3)
 				elseif rarity == "Epic" then finalChance += (currentWave * 1.0)
 				else finalChance += (currentWave * 2.0) end
 
-				-- Flat 50% bonus to base rates during endless mode
 				finalChance = finalChance * 1.5
 			end
 
@@ -83,7 +87,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			end
 		end
 
-		-- Guarantee a drop every single endless wave if nothing drops normally
 		if isEndless and #droppedItems == 0 and autoSoldDewsCapacity == 0 and autoSoldDewsSettings == 0 then
 			local pool = {}
 			for iname, _ in pairs(enemyDrops.ItemChance) do 
