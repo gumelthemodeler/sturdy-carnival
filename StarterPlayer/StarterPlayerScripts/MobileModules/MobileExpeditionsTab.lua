@@ -1,7 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: MobileExpeditionsTab
--- @ScriptType: ModuleScript
 local MobileExpeditionsTab = {}
 
 local Players = game:GetService("Players"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local TweenService = game:GetService("TweenService"); local Network = ReplicatedStorage:WaitForChild("Network")
@@ -10,8 +9,9 @@ local player = Players.LocalPlayer; local playerScripts = player:WaitForChild("P
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 local AFKTab = require(UIModules:WaitForChild("AFKTab"))
+local notifModule = SharedUI:WaitForChild("NotificationManager", 2); local NotificationManager = notifModule and require(notifModule) or nil
 
-local CONFIG = { Decals = { Campaign = "rbxassetid://80153476985849", AFK = "rbxassetid://114506098039778", Raid = "rbxassetid://119392967268687", PvP = "rbxassetid://100826303284945", Nightmare = "rbxassetid://90132878979603", WorldBoss = "rbxassetid://129655150803684", Endless = "rbxassetid://108619507999123" } }
+local CONFIG = { Decals = { Campaign = "rbxassetid://80153476985849", AFK = "rbxassetid://114506098039778", Raid = "rbxassetid://119392967268687", PvP = "rbxassetid://100826303284945", Nightmare = "rbxassetid://90132878979603", WorldBoss = "rbxassetid://129655150803684", Endless = "rbxassetid://108619507999123", Paths = "rbxassetid://90938848776194" } }
 
 local CurrentParty = {}; local IsInParty = false; local IsPartyLeader = false; local PendingInvites = {}; local isListening = false
 
@@ -171,12 +171,27 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 	local campaignDescLbl = CreateModeCard(GridContainer, "STORY CAMPAIGN", string.format("Part %d - Mission %d\nProgress through the main storyline.", cPart, cMiss), CONFIG.Decals.Campaign, 1, function() InitiateDeployment("CombatAction", "EngageStory") end)
 	player.AttributeChanged:Connect(function(attr) if attr == "CurrentPart" or attr == "CurrentMission" then campaignDescLbl.Text = string.format("Part %d - Mission %d\nProgress through the main storyline.", player:GetAttribute("CurrentPart") or 1, player:GetAttribute("CurrentMission") or 1) end end)
 
-	CreateModeCard(GridContainer, "ENDLESS FRONTIER", "Fight infinite waves to harvest resources.", CONFIG.Decals.Endless, 2, function() InitiateDeployment("CombatAction", "EngageEndless") end)
-	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 3, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
-	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared.", CONFIG.Decals.WorldBoss, 4, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
-	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain Cursed Weapons.", CONFIG.Decals.Nightmare, 5, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
-	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 6, function() ShowPage("PvP", "PVP ARENA") end)
-	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources.", CONFIG.Decals.AFK, 7, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
+	-- [[ THE FIX: Added "The Paths" Weekend Event ]]
+	local wday = os.date("!*t").wday
+	local isPathsOpen = (wday == 7 or wday == 1 or wday == 2) -- 7 = Saturday, 1 = Sunday, 2 = Monday
+	local pathsDesc = isPathsOpen and "Venture into the coordinate to farm Path Dust for Memory Runes." or "[EVENT CLOSED] Opens on Sat, Sun, and Mon."
+	local pathsCardLbl = CreateModeCard(GridContainer, "THE PATHS (EVENT)", pathsDesc, CONFIG.Decals.Paths, 2, function() 
+		if isPathsOpen then
+			InitiateDeployment("CombatAction", "EngagePaths")
+		else
+			if NotificationManager and type(NotificationManager.Show) == "function" then 
+				NotificationManager.Show("The Paths are currently closed. Returns Sat, Sun & Mon.", "Error") 
+			end
+		end
+	end)
+	if not isPathsOpen then pathsCardLbl.TextColor3 = Color3.fromRGB(255, 100, 100) end
+
+	CreateModeCard(GridContainer, "ENDLESS FRONTIER", "Fight infinite waves to harvest resources.", CONFIG.Decals.Endless, 3, function() InitiateDeployment("CombatAction", "EngageEndless") end)
+	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 4, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
+	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared.", CONFIG.Decals.WorldBoss, 5, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
+	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain Cursed Weapons.", CONFIG.Decals.Nightmare, 6, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
+	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 7, function() ShowPage("PvP", "PVP ARENA") end)
+	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources.", CONFIG.Decals.AFK, 8, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
 
 	local function CreateSubPage(name)
 		local page = Instance.new("Frame", MissionsPanel); page.Size = UDim2.new(1, 0, 0, 0); page.AutomaticSize = Enum.AutomaticSize.Y; page.BackgroundTransparency = 1; page.Visible = false; page.LayoutOrder = 2
@@ -186,7 +201,6 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 
 	local AFKPage = Instance.new("Frame", MissionsPanel); AFKPage.Size = UDim2.new(1, 0, 0, 600); AFKPage.BackgroundTransparency = 1; AFKPage.Visible = false; AFKPage.LayoutOrder = 2
 	Pages["AFK"] = AFKPage; AFKTab.Initialize(AFKPage, InitiateDeployment)
-
 
 	local NightmarePage = CreateSubPage("Nightmare")
 	local nIndex = 1
@@ -227,7 +241,6 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 		else QueueBtn.Text = "ENTER QUEUE"; QueueBtn.TextColor3 = UIHelpers.Colors.TextWhite; Network:WaitForChild("PvPAction"):FireServer("LeaveQueue") end
 	end)
 
-	-- [[ FIX: Automatically un-toggles the queue button if the server successfully matches them ]]
 	Network:WaitForChild("PvPUpdate").OnClientEvent:Connect(function(action)
 		if action == "MatchStarted" then
 			inQueue = false
