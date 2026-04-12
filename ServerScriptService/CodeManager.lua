@@ -11,20 +11,6 @@ local BackupDataStore = DataStoreService:GetDataStore("AoT_Backups_V1")
 local RemotesFolder = ReplicatedStorage:WaitForChild("Network")
 
 local ActiveCodes = { 
-	["NIGHTMAREMODE"] = { 
-		Dews = 1500,
-		Items = {
-			["Standard Titan Serum"] = 5,
-			["Titan Research Notes"] = 1,
-		}
-	},
-	["SQUADS"] = { 
-		Dews = 1000,
-		XP = 100,
-		Items = {
-			["Standard Titan Serum"] = 10,
-		}
-	},
 	["CAMPAIGN!"] = { 
 		Items = {
 			["Standard Titan Serum"] = 15,
