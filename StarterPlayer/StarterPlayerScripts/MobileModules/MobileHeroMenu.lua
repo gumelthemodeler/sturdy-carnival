@@ -1,6 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
 -- Name: MobileHeroMenu
 local MobileHeroMenu = {}
 local Players = game:GetService("Players"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local TweenService = game:GetService("TweenService"); local Network = ReplicatedStorage:WaitForChild("Network")
@@ -26,7 +25,7 @@ EvaluateCosmetics()
 
 local function CreateGrimPanel(parent) local f = Instance.new("Frame", parent); f.BackgroundColor3 = Color3.fromRGB(18, 18, 22); f.BorderSizePixel = 0; local s = Instance.new("UIStroke", f); s.Color = Color3.fromRGB(70, 70, 80); s.Thickness = 2; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; return f, s end
 local function CreateSharpLabel(p, txt, sz, f, c, ts) local l = Instance.new("TextLabel", p); l.Size = sz; l.BackgroundTransparency = 1; l.Font = f; l.TextColor3 = c; l.TextSize = ts; l.Text = txt; l.TextXAlignment = Enum.TextXAlignment.Center; l.TextYAlignment = Enum.TextYAlignment.Center; return l end
-local function CreateSharpButton(p, txt, sz, f, ts) local b = Instance.new("TextButton", p); b.Size = sz; b.BackgroundColor3 = Color3.fromRGB(28,28,34); b.BorderSizePixel = 0; b.AutoButtonColor = false; b.Font = f; b.TextColor3 = Color3.fromRGB(245,245,245); b.TextSize = ts; b.Text = txt; local s = Instance.new("UIStroke", b); s.Color = Color3.fromRGB(70,70,80); s.Thickness = 2; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; b.InputBegan:Connect(function() s.Color = Color3.fromRGB(225,185,60); b.TextColor3 = Color3.fromRGB(225,185,60) end); b.InputEnded:Connect(function() s.Color = Color3.fromRGB(70,70,80); b.TextColor3 = Color3.fromRGB(245,245,245) end); return b, s end
+local function CreateSharpButton(p, txt, sz, f, ts) local b = Instance.new("TextButton", p); b.Size = sz; b.BackgroundColor3 = Color3.fromRGB(28,28,34); b.BorderSizePixel = 0; b.AutoButtonColor = false; b.Font = f; b.TextColor3 = Color3.fromRGB(245,245,245); b.TextSize = ts; b.Text = txt; local s = Instance.new("UIStroke", b); s.Color = Color3.fromRGB(70,70,80); s.Thickness = 2; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; b.InputBegan:Connect(function(input) if b.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35)}):Play() end end); b.InputEnded:Connect(function(input) if b.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 26)}):Play() end end); return b, s end
 
 local Suffixes = {"", "K", "M", "B", "T", "Qa", "Qi", "Sx"}
 local function AbbreviateNumber(n) if not n then return "0" end; n = tonumber(n) or 0; if n < 1000 then return tostring(math.floor(n)) end; local suffixIndex = math.floor(math.log10(n) / 3); local value = n / (10 ^ (suffixIndex * 3)); local str = string.format("%.1f", value); str = str:gsub("%.0$", ""); return str .. (Suffixes[suffixIndex + 1] or "") end
@@ -173,50 +172,55 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			local nameLbl = CreateSharpLabel(card, item.Name, UDim2.new(0.88, 0, 0.5, 0), Enum.Font.GothamBold, Color3.fromRGB(245, 245, 245), 12); nameLbl.Position = UDim2.new(0.5, 0, 0.5, 2); nameLbl.AnchorPoint = Vector2.new(0.5, 0.5); nameLbl.TextScaled = true; nameLbl.TextWrapped = true; nameLbl.ZIndex = 3; local tCon2 = Instance.new("UITextSizeConstraint", nameLbl); tCon2.MaxTextSize = 12; tCon2.MinTextSize = 8
 			local rarityTag = CreateSharpLabel(card, string.sub(rarityKey, 1, 1), UDim2.new(0, 16, 0, 16), Enum.Font.GothamBlack, rarityRGB, 12); rarityTag.Position = UDim2.new(0, 6, 1, -22); rarityTag.TextTransparency = 0.3; rarityTag.ZIndex = 3
 			local btnCover = Instance.new("TextButton", card); btnCover.Size = UDim2.new(1,0,1,0); btnCover.BackgroundTransparency = 1; btnCover.Text = ""; btnCover.ZIndex = 5
-			if not item.Data.IsGift then
-				local ActionsOverlay = Instance.new("Frame", card); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.05; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
-				local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
-				local buttonConsumed = false; 
-				local function MakeOverlayBtn(text) 
-					local obtn, _ = CreateSharpButton(ActionsOverlay, text, UDim2.new(0.9, 0, 0, 20), Enum.Font.GothamBlack, 10)
-					obtn.ZIndex = 11; return obtn 
-				end
+			local ActionsOverlay = Instance.new("Frame", card); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.05; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
+			local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
-				local equipBtn = MakeOverlayBtn("EQUIP")
-				local sellBtn = MakeOverlayBtn("SELL 1x")
-				local sellAllBtn = MakeOverlayBtn("SELL ALL")
-				local lockBtn = MakeOverlayBtn(isLocked and "UNLOCK" or "LOCK")
-
-				if isLocked then 
-					lockBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
-					sellBtn.Visible = false 
-					sellAllBtn.Visible = false
-				else 
-					lockBtn.TextColor3 = Color3.fromRGB(100, 255, 100) 
-					if item.Count <= 1 then
-						sellAllBtn.Visible = false
-					end
-				end
-
-				if item.Data.Type ~= nil then 
-					local isEq = (player:GetAttribute("EquippedWeapon") == item.Name) or (player:GetAttribute("EquippedAccessory") == item.Name)
-					if isEq then equipBtn.Text = "UNEQUIP"; equipBtn.TextColor3 = Color3.fromRGB(255, 100, 100) else equipBtn.Text = "EQUIP"; equipBtn.TextColor3 = Color3.fromRGB(245, 245, 245) end
-					equipBtn.Activated:Connect(function() buttonConsumed = true; if isEq then Network:WaitForChild("EquipItem"):FireServer("Unequip_" .. item.Data.Type) else Network:WaitForChild("EquipItem"):FireServer(item.Name) end; ActionsOverlay.Visible = false end)
-				elseif item.Data.Action ~= nil then 
-					equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
-					equipBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
-				else 
-					equipBtn.Visible = false 
-				end
-
-				sellBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, false); ActionsOverlay.Visible = false end)
-				sellAllBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, true); ActionsOverlay.Visible = false end)
-				lockBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ToggleLock"):FireServer(item.Name); ActionsOverlay.Visible = false end)
-
-				local function CloseAllOverlays() for _, c in ipairs(InvGrid:GetChildren()) do if c.Name == "ItemCard" then local ov = c:FindFirstChild("ActionsOverlay"); if ov then ov.Visible = false end end end end
-				btnCover.Activated:Connect(function() if buttonConsumed then buttonConsumed = false; return end; if ActionsOverlay.Visible then ActionsOverlay.Visible = false else CloseAllOverlays(); ActionsOverlay.Visible = true end end)
+			local buttonConsumed = false; 
+			local function MakeOverlayBtn(text) 
+				local obtn, _ = CreateSharpButton(ActionsOverlay, text, UDim2.new(0.9, 0, 0, 20), Enum.Font.GothamBlack, 10)
+				obtn.ZIndex = 11; return obtn 
 			end
+
+			local equipBtn = MakeOverlayBtn("EQUIP")
+			local sellBtn = MakeOverlayBtn("SELL 1x")
+			local sellAllBtn = MakeOverlayBtn("SELL ALL")
+			local lockBtn = MakeOverlayBtn(isLocked and "UNLOCK" or "LOCK")
+
+			if isLocked then 
+				lockBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+				sellBtn.Visible = false 
+				sellAllBtn.Visible = false
+			else 
+				lockBtn.TextColor3 = Color3.fromRGB(100, 255, 100) 
+				if item.Count <= 1 then
+					sellAllBtn.Visible = false
+				end
+			end
+
+			-- [[ THE FIX: Gifts have interaction menus but hides the sell buttons ]]
+			if item.Data.IsGift then
+				sellBtn.Visible = false
+				sellAllBtn.Visible = false
+			end
+
+			if item.Data.Type ~= nil then 
+				local isEq = (player:GetAttribute("EquippedWeapon") == item.Name) or (player:GetAttribute("EquippedAccessory") == item.Name)
+				if isEq then equipBtn.Text = "UNEQUIP"; equipBtn.TextColor3 = Color3.fromRGB(255, 100, 100) else equipBtn.Text = "EQUIP"; equipBtn.TextColor3 = Color3.fromRGB(245, 245, 245) end
+				equipBtn.Activated:Connect(function() buttonConsumed = true; if isEq then Network:WaitForChild("EquipItem"):FireServer("Unequip_" .. item.Data.Type) else Network:WaitForChild("EquipItem"):FireServer(item.Name) end; ActionsOverlay.Visible = false end)
+			elseif item.Data.Action ~= nil then 
+				equipBtn.Text = "USE"; equipBtn.TextColor3 = Color3.fromRGB(200, 150, 255)
+				equipBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ConsumeItem"):FireServer(item.Name); ActionsOverlay.Visible = false end)
+			else 
+				equipBtn.Visible = false 
+			end
+
+			sellBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, false); ActionsOverlay.Visible = false end)
+			sellAllBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("SellItem"):FireServer(item.Name, true); ActionsOverlay.Visible = false end)
+			lockBtn.Activated:Connect(function() buttonConsumed = true; Network:WaitForChild("ToggleLock"):FireServer(item.Name); ActionsOverlay.Visible = false end)
+
+			local function CloseAllOverlays() for _, c in ipairs(InvGrid:GetChildren()) do if c.Name == "ItemCard" then local ov = c:FindFirstChild("ActionsOverlay"); if ov then ov.Visible = false end end end end
+			btnCover.Activated:Connect(function() if buttonConsumed then buttonConsumed = false; return end; if ActionsOverlay.Visible then ActionsOverlay.Visible = false else CloseAllOverlays(); ActionsOverlay.Visible = true end end)
 		end
 		local MAX_INVENTORY_CAPACITY = 50; InvTitle.Text = "INVENTORY (" .. currentSlotsUsed .. "/" .. MAX_INVENTORY_CAPACITY .. ")"; if currentSlotsUsed >= MAX_INVENTORY_CAPACITY then InvTitle.TextColor3 = Color3.fromRGB(255, 100, 100) else InvTitle.TextColor3 = Color3.fromRGB(225, 185, 60) end
 	end
@@ -312,7 +316,6 @@ local function BuildAttributesTab(parentFrame)
 				else data.Label.Text = cleanName .. ": <font color='" .. (isTitanStat and "#FF5555" or "#FFFFFF") .. "'>" .. val .. "</font>" .. bonusText; local function toggle(btn, stroke, canAfford) if canAfford then btn.TextColor3 = UIHelpers.Colors.TextWhite; stroke.Color = UIHelpers.Colors.BorderMuted else btn.TextColor3 = UIHelpers.Colors.BorderMuted; stroke.Color = Color3.fromRGB(40, 40, 50) end end; toggle(data.BtnAdd, data.AddStroke, (isTitanStat and tXP or hXP) >= cost1); toggle(data.BtnMax, data.MaxStroke, (isTitanStat and tXP or hXP) >= cost1) end
 			end
 		end
-		task.delay(0.05, function() if MainFrame then MainFrame.CanvasSize = UDim2.new(0, 0, 0, mainLayout.AbsoluteContentSize.Y + 20) end end)
 	end
 	player.AttributeChanged:Connect(function(attr) if table.find(playerStatsList, attr) or table.find(titanStatsList, attr) or attr == "XP" or attr == "TitanXP" or attr == "Titan" then UpdateStats() end end); task.spawn(function() local ls = player:WaitForChild("leaderstats", 10); if ls and ls:FindFirstChild("Prestige") then ls.Prestige.Changed:Connect(UpdateStats) end end); UpdateStats()
 end
@@ -328,7 +331,6 @@ local function BuildSkillsTab(parentFrame)
 	local HeaderContainer = Instance.new("Frame", MainFrame); HeaderContainer.Size = UDim2.new(0.95, 0, 0, 130); HeaderContainer.BackgroundTransparency = 1; HeaderContainer.LayoutOrder = 1
 	local HeaderLabel = CreateSharpLabel(HeaderContainer, "ACTIVE LOADOUT", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, Color3.fromRGB(225, 185, 60), 16); HeaderLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-	-- [[ THE FIX: Dynamically scaled bounding boxes to fit 4 slots beautifully on any mobile screen width ]]
 	local TopLoadoutGrid = Instance.new("Frame", HeaderContainer); TopLoadoutGrid.Size = UDim2.new(1, 0, 0, 95); TopLoadoutGrid.Position = UDim2.new(0, 0, 0, 30); TopLoadoutGrid.BackgroundTransparency = 1; local lgLayout = Instance.new("UIListLayout", TopLoadoutGrid); lgLayout.FillDirection = Enum.FillDirection.Horizontal; lgLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; lgLayout.VerticalAlignment = Enum.VerticalAlignment.Center; lgLayout.Padding = UDim.new(0.02, 0)
 
 	local SkillSlotLabels = {}
@@ -359,7 +361,31 @@ local function BuildSkillsTab(parentFrame)
 			end
 		end
 		table.sort(defaultMoves)
-		for i, lbl in ipairs(SkillSlotLabels) do local rawName = player:GetAttribute("EquippedSkill_" .. i); local sData = tData[rawName]; if not rawName or rawName == "" or not sData or sData.Type == "Basic" or sData.Type == "Titan" or sData.IsBasic or sData.IsTitan then rawName = defaultMoves[i] or "EMPTY" end; lbl.Text = string.upper(rawName) end
+
+		for i, lbl in ipairs(SkillSlotLabels) do 
+			local rawName = player:GetAttribute("EquippedSkill_" .. i)
+			local sData = tData[rawName]
+
+			local isValid = false
+			if rawName and rawName ~= "" and rawName ~= "None" and sData then
+				local req = sData.Requirement
+				local myClan = player:GetAttribute("Clan")
+				if req == "ODM" or (myClan and string.find(myClan, req)) then
+					isValid = true
+				else
+					local wpn = player:GetAttribute("EquippedWeapon")
+					if wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style == req then
+						isValid = true
+					end
+				end
+			end
+
+			if not isValid or not sData or sData.Type == "Basic" or sData.Type == "Titan" or sData.IsBasic or sData.IsTitan then 
+				rawName = defaultMoves[i] or "EMPTY" 
+			end
+			lbl.Text = string.upper(rawName) 
+		end
+
 		local sortedCats = {}; for k, _ in pairs(categorizedSkills) do table.insert(sortedCats, k) end
 		table.sort(sortedCats, function(a, b) local aUnlocked = categorizedSkills[a].HasUnlocked; local bUnlocked = categorizedSkills[b].HasUnlocked; if aUnlocked ~= bUnlocked then return aUnlocked and not bUnlocked end; return a < b end)
 
@@ -396,7 +422,6 @@ local function BuildSkillsTab(parentFrame)
 				end
 			end
 		end
-		task.delay(0.05, function() if MainFrame then MainFrame.CanvasSize = UDim2.new(0, 0, 0, mLayout.AbsoluteContentSize.Y + 20) end end)
 	end
 	player.AttributeChanged:Connect(function(attr) if string.match(attr, "^EquippedSkill") then RefreshSkills() end end); RefreshSkills()
 end
@@ -425,7 +450,7 @@ local function BuildPrestigeTab(parentFrame)
 	local ASub = CreateSharpLabel(HeaderPanel, "TIER " .. pLevel .. " ➔ TIER " .. nextLevel, UDim2.new(1, 0, 0, 20), Enum.Font.GothamBold, Color3.fromRGB(150, 255, 150), 14); ASub.Position = UDim2.new(0, 0, 0, 35)
 
 	local ptsGain = 5 + (pLevel * 2)
-	local rDesc = UIHelpers.CreateLabel(HeaderPanel, "<b>Rewards:</b> +"..ptsGain.." Points, Stat Caps Unlocked, +20% HP & Damage\n\n<font color='#FF5555'><b>WARNING:</b> Ascending resets Level, Stats, and Campaign.</font>", UDim2.new(1, -20, 0, 60), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11); rDesc.Position = UDim2.new(0, 10, 0, 60); rDesc.RichText = true; rDesc.TextWrapped = true
+	local rDesc = UIHelpers.CreateLabel(HeaderPanel, "<b>Rewards:</b> +1 Point, Stat Caps Unlocked, +20% HP & Damage\n\n<font color='#FF5555'><b>WARNING:</b> Ascending resets Level, Stats, and Campaign.</font>", UDim2.new(1, -20, 0, 60), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11); rDesc.Position = UDim2.new(0, 10, 0, 60); rDesc.RichText = true; rDesc.TextWrapped = true
 
 	local AscendBtn, aStroke = CreateSharpButton(HeaderPanel, "ASCEND TO TIER " .. nextLevel, UDim2.new(0.8, 0, 0, 40), Enum.Font.GothamBlack, 14); AscendBtn.Position = UDim2.new(0.5, 0, 1, -15); AscendBtn.AnchorPoint = Vector2.new(0.5, 1); AscendBtn.BackgroundColor3 = Color3.fromRGB(100, 20, 20); AscendBtn.TextColor3 = Color3.fromRGB(255, 200, 200); aStroke.Color = Color3.fromRGB(255, 50, 50)
 
@@ -490,7 +515,7 @@ local function BuildPrestigeTab(parentFrame)
 					elseif node.BuffStat == "IgnoreArmor" then CreateStatCard(StatCardContainer, "Armor Pen", "+" .. (node.BuffValue*100) .. "%", node.Color)
 					else CreateStatCard(StatCardContainer, "Passive", "UNLOCKED", node.Color) end
 				end
-				UpdateUI(); task.delay(0.05, function() MainScroll.CanvasSize = UDim2.new(0, 0, 0, mLayout.AbsoluteContentSize.Y + 20) end)
+				UpdateUI()
 			end)
 			NodeGuis[id] = { Btn = btn, Icon = iconLbl, Glow = glow, BaseColor = Color3.fromHex(node.Color:gsub("#", "")) }
 		end
@@ -516,7 +541,8 @@ local function BuildPrestigeTab(parentFrame)
 		UpdateUI()
 	end
 	TreeContainer:GetPropertyChangedSignal("AbsoluteSize"):Connect(RenderLinesAndNodes); task.delay(0.1, RenderLinesAndNodes)
-	player.AttributeChanged:Connect(function(attr) if string.find(attr, "Prestige") then UpdateUI() end end); UpdateUI()
+	player.AttributeChanged:Connect(function(attr) if string.find(attr, "Prestige") then UpdateUI() end end)
+	UpdateUI()
 end
 
 -- ==========================================
@@ -601,7 +627,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 			table.sort(sortedTitans, function(a, b) return RarityOrder[a.Rarity] < RarityOrder[b.Rarity] end)
 			for _, drop in ipairs(sortedTitans) do
 				local cColor = RarityColors[drop.Rarity] or "#FFFFFF"; local rarityRGB = Color3.fromHex(cColor:gsub("#", ""))
-				local card = Instance.new("Frame", ListContainer); card.Size = UDim2.new(1, -10, 0, 70); card.BackgroundColor3 = UIHelpers.Colors.Surface; card.BorderSizePixel = 1; card.BorderColor3 = rarityRGB
+				local card = Instance.new("Frame", ListContainer); card.Size = UDim2.new(1, -10, 0, 80); card.BackgroundColor3 = UIHelpers.Colors.Surface; card.BorderSizePixel = 1; card.BorderColor3 = rarityRGB
 				local bgGlow = Instance.new("Frame", card); bgGlow.Size = UDim2.new(1, 0, 0.5, 0); bgGlow.Position = UDim2.new(0, 0, 0.5, 0); bgGlow.BackgroundColor3 = rarityRGB; bgGlow.BackgroundTransparency = 0.92; bgGlow.BorderSizePixel = 0; bgGlow.ZIndex = 1
 				local countInRarity = 0; for _, t in pairs(TitanData.Titans) do if t.Rarity == drop.Rarity then countInRarity += 1 end end
 				local pct = (TitanData.Rarities[drop.Rarity] and (TitanData.Rarities[drop.Rarity] / countInRarity)) or 0; local pctStr = pct > 0 and (" (" .. string.format("%.1f", pct) .. "%)") or " (Fusion)"
@@ -628,8 +654,6 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				local descLbl = CreateSharpLabel(card, buffText, UDim2.new(1, -20, 0, 30), Enum.Font.GothamMedium, Color3.fromRGB(150, 255, 150), 10); descLbl.Position = UDim2.new(0, 10, 0, 35); descLbl.TextXAlignment = Enum.TextXAlignment.Left; descLbl.RichText = true
 			end
 		end
-
-		task.delay(0.05, function() ListContainer.CanvasSize = UDim2.new(0, 0, 0, SList.AbsoluteContentSize.Y + 10) end)
 
 		local BottomArea = Instance.new("Frame", Panel); BottomArea.Size = UDim2.new(1, 0, 0, 240); BottomArea.Position = UDim2.new(0, 0, 0, 270); BottomArea.BackgroundTransparency = 1
 
@@ -883,7 +907,6 @@ local function BuildBountiesTab(parentFrame)
 		player.AttributeChanged:Connect(function(attr) if string.match(attr, "^" .. bountyId) then UpdateCard() end end); UpdateCard()
 	end
 	CreateBountyCard("D1", "DAILY 1"); CreateBountyCard("D2", "DAILY 2"); CreateBountyCard("D3", "DAILY 3"); CreateBountyCard("W1", "WEEKLY CHALLENGE")
-	slLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, slLayout.AbsoluteContentSize.Y + 40) end)
 end
 
 -- ==========================================
