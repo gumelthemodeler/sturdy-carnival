@@ -82,32 +82,22 @@ local function GetSpdScale(targetPart, isEndless, wave)
 end
 
 local function GetTitanSkills(titanName)
-	-- Default fallback moveset
 	if not titanName or titanName == "None" then 
 		return {"Titan Punch", "Titan Kick", "Block", "Cannibalize"} 
 	end
 
-	-- Fully unique movesets per Titan (Slot 3 is Defensive)
 	local movesets = {
 		["Attack Titan"] = {"Titan Punch", "Berserk Rush", "Block", "Future Memories"},
 		["Jaw Titan"] = {"Frenzied Thrash", "Agile Leap", "Block", "Crushing Bite"},
 		["Cart Titan"] = {"Titan Bite", "Endurance Run", "Block", "Panzer Artillery"},
 		["Armored Titan"] = {"Hardened Punch", "Armored Tackle", "Block", "Shattering Charge"},
-
-		-- [FIX]: Female Titan now uses Nape Guard as her unique block in Slot 3
 		["Female Titan"] = {"Titan Kick", "Crystal Kick", "Nape Guard", "Attraction Scream"}, 
-
 		["War Hammer Titan"] = {"Hardened Punch", "Crossbow Construct", "Block", "War Hammer Spike"},
 		["Beast Titan"] = {"Crushed Boulders", "Pitching Ace", "Block", "Titan Roar"},
 		["Colossal Titan"] = {"Brutal Swipe", "Devastating Kick", "Block", "Colossal Steam"},
-
-		-- [FIX]: Founding Titan now has Titan Punch as its slot 1 attack
 		["Founding Titan"] = {"Titan Punch", "Titan Roar", "Block", "Coordinate Command"}, 
 
-		-- Transcendent Fusions (Combines the signature moves of both parent Titans)
-		-- [FIX]: Founding Female Titan inherits the Nape Guard block
 		["Founding Female Titan"] = {"Crystal Kick", "Attraction Scream", "Nape Guard", "Coordinate Command"},
-
 		["Armored Attack Titan"] = {"Berserk Rush", "Armored Tackle", "Block", "Shattering Charge"},
 		["War Hammer Attack Titan"] = {"Berserk Rush", "Crossbow Construct", "Block", "War Hammer Spike"},
 		["Colossal Jaw Titan"] = {"Crushing Bite", "Devastating Kick", "Block", "Colossal Steam"},
@@ -722,6 +712,17 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		return
 	end
 
+	-- [[ THE FIX: Paths Shop Trigger Helper ]]
+	local function TriggerPathsShop(plr, battleCtx)
+		if battleCtx.IsPaths then
+			task.delay(2.5, function()
+				local pEvent = Network:FindFirstChild("PathsShopEvent") or Instance.new("RemoteEvent", Network)
+				pEvent.Name = "PathsShopEvent"
+				pEvent:FireClient(plr, "Open")
+			end)
+		end
+	end
+
 	if actionType == "MinigameResult" then
 		local battle = ActiveBattles[player.UserId]
 		if not battle then return end
@@ -731,9 +732,51 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			return
 		end
 
+		-- [[ THE FIX: Resolve the Clash Minigame ]]
+		if actionData.MinigameType == "Clash" then
+			local clashSkill = actionData.ClashSkill or "Attack"
+			local enemySkill = actionData.EnemySkill or "Ultimate"
+			local turnDelay = player:GetAttribute("HasDoubleSpeed") and 0.4 or 0.8
+
+			if actionData.Success then
+				battle.Enemy.Statuses["Telegraphing"] = nil
+				battle.Enemy.Statuses["Stun"] = 1
+				if battle.Enemy.GateHP and battle.Enemy.GateHP > 0 then
+					battle.Enemy.GateHP = 0 
+				end
+
+				local dmg = math.floor(battle.Enemy.MaxHP * 0.15) 
+				battle.Enemy.HP = math.max(1, battle.Enemy.HP - dmg)
+
+				local winMsg = "<font color='#FFD700'><b>[PERFECT CLASH!]</b></font>\nYou overpowered " .. battle.Enemy.Name .. "'s " .. enemySkill .. " with " .. clashSkill .. "!\nDealt " .. dmg .. " damage and shattered their stance!"
+				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = winMsg, DidHit = true, ShakeType = "Heavy"})
+			else
+				battle.Enemy.Statuses["Telegraphing"] = nil
+				local eSkillMult = (SkillData.Skills[enemySkill] and SkillData.Skills[enemySkill].Mult or 3.0) * 1.5
+				local baseDmg = CombatCore.CalculateDamage(battle.Enemy, battle.Player, eSkillMult, "Body", battle.Context)
+				CombatCore.TakeDamage(battle.Player, baseDmg, "Enemy")
+
+				local loseMsg = "<font color='#FF0000'><b>[OVERPOWERED!]</b></font>\nYou were crushed by " .. enemySkill .. "!\nTook " .. baseDmg .. " massive damage!"
+				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = loseMsg, DidHit = true, ShakeType = "Heavy"})
+			end
+
+			task.wait(turnDelay)
+			if battle.Player.HP < 1 then
+				CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); 
+				TriggerPathsShop(player, battle.Context)
+				ActiveBattles[player.UserId] = nil
+			elseif battle.Enemy.HP < 1 then
+				ProcessEnemyDeath(player, battle)
+			else
+				battle.IsProcessing = false
+				CombatUpdate:FireClient(player, "Update", {Battle = battle})
+			end
+			return
+		end
+
 		if battle.Enemy.IsMinigame then
 			if actionData.Success then ProcessEnemyDeath(player, battle)
-			else CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); ActiveBattles[player.UserId] = nil end
+			else CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); TriggerPathsShop(player, battle.Context); ActiveBattles[player.UserId] = nil end
 		end
 		return
 	end
@@ -743,6 +786,15 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if battle.IsProcessing then return end
 
 	local skillName = actionData.SkillName
+
+	-- [[ THE FIX: Restored Flee/Retreat functionality ]]
+	if skillName == "Retreat" or skillName == "Flee" then
+		CombatUpdate:FireClient(player, "Fled", {Battle = battle})
+		TriggerPathsShop(player, battle.Context)
+		ActiveBattles[player.UserId] = nil
+		return
+	end
+
 	local targetLimb = actionData.TargetLimb or "Body" 
 	local skill = SkillData.Skills[skillName]
 
@@ -751,7 +803,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if skill then
 		local isTransformed = battle.Player.Statuses and battle.Player.Statuses["Transformed"]
 
-		-- [[ THE FIX: Server Security Verification for Skills ]]
 		if not isTransformed and skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
 			local isClanSkill = false
 			local myClan = player:GetAttribute("Clan")
@@ -768,14 +819,13 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				end
 			end
 		elseif isTransformed then
-			-- [[ THE FIX: Authorizes Titan moves universally to bypass bad string requirements ]]
 			local validTitanMoves = GetTitanSkills(player:GetAttribute("Titan"))
 			local isValidMove = false
 			for _, m in ipairs(validTitanMoves) do
 				if m == skillName then isValidMove = true; break end
 			end
 
-			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Dodge" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" then
+			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" then
 				isValidMove = true
 			end
 
@@ -799,6 +849,36 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 	if skillName ~= "Retreat" and (not skill or (battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0) or not hasGas or not hasHeat) then 
 		CombatUpdate:FireClient(player, "Update", {Battle = battle}); return 
+	end
+
+	-- [[ THE FIX: Intercept for PERFECT CLASH ]]
+	local enemyTelegraph = battle.Enemy.Statuses and battle.Enemy.Statuses["Telegraphing"]
+	local isHeavyAttack = skill and (tonumber(skill.Mult) or 0) >= 3.0
+
+	if enemyTelegraph and isHeavyAttack and not (skill.Effect == "Block" or skill.Effect == "Dodge") then
+		battle.IsProcessing = true
+		battle.Player.LastSkill = skillName
+
+		if skill then
+			if not (battle.Player.Statuses and battle.Player.Statuses["Transformed"]) then
+				local actualGasCost = tonumber(skill.GasCost) or 0
+				if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
+				elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
+				battle.Player.Gas = math.max(0, (tonumber(battle.Player.Gas) or 0) - actualGasCost) 
+			else
+				local actualHeatCost = tonumber(skill.EnergyCost) or tonumber(skill.HeatCost) or 0
+				battle.Player.TitanEnergy = math.max(0, (tonumber(battle.Player.TitanEnergy) or 0) - actualHeatCost)
+			end
+		end
+
+		CombatUpdate:FireClient(player, "StartMinigame", {
+			Battle = battle,
+			MinigameType = "Clash",
+			LogMsg = "<font color='#FF0000'><b>[CLASH INITIATED!]</b></font>\nOverpower the enemy's attack!",
+			ClashSkill = skillName,
+			EnemySkill = enemyTelegraph
+		})
+		return
 	end
 
 	battle.IsProcessing = true
@@ -940,21 +1020,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		end
 
 		if combatant.IsPlayer then
-			if skillName == "Retreat" then 
-				CombatUpdate:FireClient(player, "Fled", {Battle = battle}); ActiveBattles[player.UserId] = nil; return 
-			end
-
-			if skill then
-				if not (combatant.Statuses and combatant.Statuses["Transformed"]) then
-					local actualGasCost = tonumber(skill.GasCost) or 0
-					if battle.Context.Terrain == "Forest" then actualGasCost = math.ceil(actualGasCost * 0.5)
-					elseif battle.Context.Terrain == "Plains" then actualGasCost = math.ceil(actualGasCost * 1.5) end
-					combatant.Gas = math.max(0, (tonumber(combatant.Gas) or 0) - actualGasCost) 
-				else
-					local actualHeatCost = tonumber(skill.EnergyCost) or tonumber(skill.HeatCost) or 0
-					combatant.TitanEnergy = math.max(0, (tonumber(combatant.TitanEnergy) or 0) - actualHeatCost)
-				end
-			end
 			DispatchStrike(battle.Player, battle.Enemy, skillName, targetLimb)
 		else
 			local pRatio = (battle.Player.HP or 0) / (battle.Player.MaxHP or 100)
@@ -1099,9 +1164,9 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 					local hintStr = ""
 					if SkillData.Skills[aiSkill].Unavoidable then
 						if SkillData.Skills[aiSkill].Range == "Any" then
-							hintStr = "\n<font color='#FF3333'><b>⚠️ MASSIVE AREA ATTACK! YOU MUST 'BLOCK'! ⚠️</b></font>"
+							hintStr = "\n<font color='#FF3333'><b>⚠️ MASSIVE AREA ATTACK! USE A HEAVY SKILL TO CLASH OR 'BLOCK'! ⚠️</b></font>"
 						else
-							hintStr = "\n<font color='#FF3333'><b>⚠️ UNAVOIDABLE CLOSE ATTACK! YOU MUST 'FALL BACK' OR 'BLOCK'! ⚠️</b></font>"
+							hintStr = "\n<font color='#FF3333'><b>⚠️ UNAVOIDABLE CLOSE ATTACK! CLASH, 'FALL BACK', OR 'BLOCK'! ⚠️</b></font>"
 						end
 					else
 						hintStr = "\n<font color='#55FF55'>[HINT: USE EVASIVE MANEUVER OR BLOCK!]</font>"
@@ -1130,8 +1195,11 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		end
 	end
 
+	-- [[ THE FIX: Ensure death/flee properly hooks into the Paths shop exit trigger ]]
 	if battle.Player.HP < 1 then
-		CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); ActiveBattles[player.UserId] = nil
+		CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
+		TriggerPathsShop(player, battle.Context)
+		ActiveBattles[player.UserId] = nil
 	elseif battle.Enemy.HP < 1 then
 		ProcessEnemyDeath(player, battle)
 	else
