@@ -81,15 +81,26 @@ if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
 	isMobile = true
 end
 
--- [[ THE FIX: Properly boot BOTH the Main UI and the Trading UI ]]
+-- [[ THE FIX: Properly boot BOTH the Main UI, Trading UI, and the Paths Shop ]]
 if isMobile then
 	local MobileModules = playerScripts:WaitForChild("MobileModules")
+	local UIModules = playerScripts:WaitForChild("UIModules") -- Still needed for shared modules
+
 	require(MobileModules:WaitForChild("MobileMainUI")).Initialize(MasterGui)
 	require(MobileModules:WaitForChild("MobileTradingUI")).Initialize(MasterGui)
+
+	-- Boot the standalone Paths Shop (which works perfectly on both PC/Mobile)
+	local PathsShop = UIModules:FindFirstChild("PathsShopUI")
+	if PathsShop then require(PathsShop).Initialize(MasterGui) end
 else
 	local UIModules = playerScripts:WaitForChild("UIModules")
+
 	require(UIModules:WaitForChild("MainUI")).Initialize(MasterGui)
 	require(UIModules:WaitForChild("TradingUI")).Initialize(MasterGui)
+
+	-- Boot the standalone Paths Shop
+	local PathsShop = UIModules:FindFirstChild("PathsShopUI")
+	if PathsShop then require(PathsShop).Initialize(MasterGui) end
 end
 
 -- ==========================================
