@@ -236,8 +236,23 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 				local now = os.time()
 				for _, tData in pairs(ActiveTimers) do
 					local elapsed = now - tData.StartTime
-					local mins = math.floor(elapsed / 60); local secs = elapsed % 60
-					tData.Label.Text = string.format("GATHERING... %02d:%02d", mins, secs)
+
+					-- Cap visual rewards at 12 Hours (43,200 seconds)
+					local isCapped = false
+					if elapsed >= 43200 then
+						elapsed = 43200
+						isCapped = true
+					end
+
+					local mins = math.floor(elapsed / 60)
+					local secs = elapsed % 60
+
+					if isCapped then
+						tData.Label.Text = string.format("MAX CAPACITY! %02d:%02d", mins, secs)
+						tData.Label.TextColor3 = Color3.fromRGB(255, 200, 50)
+					else
+						tData.Label.Text = string.format("GATHERING... %02d:%02d", mins, secs)
+					end
 				end
 			end
 		end
