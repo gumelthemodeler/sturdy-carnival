@@ -23,11 +23,13 @@ local LBCache = { Prestige = {}, Elo = {} }
 local RemotesFolder = ReplicatedStorage:FindFirstChild("Network") or Instance.new("Folder", ReplicatedStorage)
 RemotesFolder.Name = "Network"
 
+-- [[ THE FIX: PathsShopEvent, PathsShopBuy, and UpgradeRune explicitly registered! ]]
 local requiredRemotes = {
 	"ToggleMute", "CombatAction", "CombatUpdate", "PrestigeEvent", "NotificationEvent", "DungeonUpdate", "WorldBossUpdate", "WorldBossAction", 
 	"RaidAction", "RaidUpdate", "ToggleTraining", "ShopAction", "ShopUpdate", "UpgradeStat", "TrainAction", "EquipItem", "SellItem", "AutoSell", "AdminCommand",
 	"GachaRoll", "GachaRollAuto", "GachaResult", "AwakenAction", "ManageStorage", "VIPFreeReroll", "RedeemCode", "ClaimBounty", "ForgeItem", "ConsumeItem", "JoinRegiment", "ShowRegimentUI",
-	"FuseTitan", "PathsShopBuy", "AwakenWeapon", "DispatchAction", "TradeAction", "TradeUpdate", "TradeRequest", "DeployToDistrict", "EquipSkill"
+	"FuseTitan", "PathsShopBuy", "AwakenWeapon", "DispatchAction", "TradeAction", "TradeUpdate", "TradeRequest", "DeployToDistrict", "EquipSkill",
+	"PathsShopEvent", "UpgradeRune"
 }
 
 for _, remoteName in ipairs(requiredRemotes) do
@@ -321,26 +323,20 @@ local function RollBounties(player)
 	end
 end
 
--- [[ THE FIX: Robust Gamepass Verification Block ]]
 local function VerifyGamepasses(player)
 	for _, gp in ipairs(ItemData.Gamepasses) do 
-		-- Verify ownership through MarketplaceService with a retry pcall
 		local hasPass = false
 		local success, err = pcall(function() 
 			hasPass = MarketplaceService:UserOwnsGamePassAsync(player.UserId, gp.ID) 
 		end)
 
-		-- Always grant passes to the owner/admin
 		if player.UserId == 4068160397 or player.Name == "girthbender1209" then 
 			hasPass = true 
 		end
 
-		-- If they own it, forcefully set the "Has[PassName]" attribute to true
 		if success and hasPass then
 			player:SetAttribute("Has" .. gp.Key, true)
 		else
-			-- If they don't own it, only set it to false if it isn't already true
-			-- (This protects players who have "Gifted" versions of the pass via items)
 			if player:GetAttribute("Has" .. gp.Key) == nil then
 				player:SetAttribute("Has" .. gp.Key, false)
 			end
@@ -373,7 +369,6 @@ local function LoadPlayer(player)
 
 	local data = savedData or DefaultData
 
-	-- Apply the safe robust check before setting remaining attributes
 	VerifyGamepasses(player)
 
 	local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
