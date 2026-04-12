@@ -103,7 +103,7 @@ SkillData.Skills = {
 
 	["Heavy Slash"] = { Requirement = "Enemy", Range = "Close", Type = "Basic", Mult = 1.3, Cooldown = 2, SFX = "HeavySlash", VFX = "SlashMark", Description = "A powerful, slow swing." },
 
-	["Block"] = { Requirement = "Enemy", Range = "Any", Type = "Basic", Mult = 0, Effect = "Block", Cooldown = 2, SFX = "Block", VFX = "BlockMark", Description = "Defends against incoming damage." },
+	["Block"] = { Requirement = "None", Range = "Any", Type = "Basic", Mult = 0, Effect = "Block", Cooldown = 2, SFX = "Block", VFX = "BlockMark", Description = "Defends against incoming damage." },
 	["Evasive Maneuver"] = { Requirement = "Enemy", Range = "Any", Type = "Basic", Mult = 0, Effect = "Dodge", Cooldown = 5, SFX = "Dash", VFX = "BlockMark", Description = "Dodges incoming attacks." },
 	["Smoke Screen"] = { Requirement = "Enemy", Range = "Any", Type = "Basic", Mult = 0, Effect = "Dodge", Cooldown = 5, SFX = "Steam", VFX = "BlockMark", Description = "Creates a smoke screen to evade attacks." },
 	["Regroup"] = { Requirement = "Enemy", Range = "Any", Type = "Basic", Mult = 0, Effect = "Rest", Cooldown = 4, SFX = "Heal", VFX = "HealMark", Description = "Steps back to heal." },
