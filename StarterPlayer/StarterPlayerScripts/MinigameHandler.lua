@@ -1,6 +1,6 @@
 -- @ScriptType: LocalScript
--- @ScriptType: LocalScript
 -- Name: MinigameHandler
+-- @ScriptType: LocalScript
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -56,14 +56,8 @@ local isActive = false
 local loopConnection = nil
 local isPressing = false
 
--- Used specifically for mashing minigames
-local clickCount = 0
-local function RegisterMash()
-	if isActive then clickCount += 1 end
-end
-
 ClickCatcher.MouseButton1Down:Connect(function()
-	if isActive then isPressing = true; RegisterMash() end
+	if isActive then isPressing = true end
 end)
 ClickCatcher.MouseButton1Up:Connect(function()
 	if isActive then isPressing = false end
@@ -72,7 +66,7 @@ end)
 -- Mobile Touch Support
 ClickCatcher.InputBegan:Connect(function(input)
 	if isActive and input.UserInputType == Enum.UserInputType.Touch then
-		isPressing = true; RegisterMash()
+		isPressing = true
 	end
 end)
 ClickCatcher.InputEnded:Connect(function(input)
@@ -82,127 +76,28 @@ ClickCatcher.InputEnded:Connect(function(input)
 end)
 
 UserInputService.InputBegan:Connect(function(input, gpe)
-	if isActive and not gpe then if input.KeyCode == Enum.KeyCode.Space then isPressing = true; RegisterMash() end end
+	if isActive and not gpe then if input.KeyCode == Enum.KeyCode.Space then isPressing = true end end
 end)
 UserInputService.InputEnded:Connect(function(input, gpe)
 	if input.KeyCode == Enum.KeyCode.Space then isPressing = false end
 end)
 
-local function StopMinigame(success, minigameType, extraData)
+local function StopMinigame(success, minigameType)
 	isActive = false
 	if loopConnection then loopConnection:Disconnect() end
 	ScreenGui.Enabled = false
-
-	local payload = { Success = success, MinigameType = minigameType }
-	if extraData then
-		for k, v in pairs(extraData) do payload[k] = v end
-	end
-
-	CombatAction:FireServer("MinigameResult", payload)
+	CombatAction:FireServer("MinigameResult", { Success = success, MinigameType = minigameType })
 end
 
 CombatUpdate.OnClientEvent:Connect(function(action, data)
 	if action == "StartMinigame" then
 
-		-- [[ THE FIX: NEW PERFECT CLASH MINIGAME ]]
-		if data.MinigameType == "Clash" then
-			ScreenGui.Enabled = true
-			isActive = true
-			clickCount = 0
-			ClickCatcher.Visible = true
-
-			if Overlay:FindFirstChild("ClashContainer") then Overlay.ClashContainer:Destroy() end
-
-			local clashContainer = Instance.new("Frame", Overlay)
-			clashContainer.Name = "ClashContainer"
-			clashContainer.Size = UDim2.new(1, 0, 1, 0)
-			clashContainer.BackgroundTransparency = 1
-			clashContainer.ZIndex = 500
-
-			Title.Text = "PERFECT CLASH!"
-			Title.TextColor3 = Color3.fromRGB(255, 100, 100)
-			Subtitle.Text = "Overpower the enemy! Rapidly tap or mash [SPACE]!"
-
-			-- Tug of War Bar
-			local BarBG = Instance.new("Frame", clashContainer)
-			BarBG.Size = UDim2.new(0.6, 0, 0, 40)
-			BarBG.Position = UDim2.new(0.5, 0, 0.5, 0)
-			BarBG.AnchorPoint = Vector2.new(0.5, 0.5)
-			BarBG.BackgroundColor3 = Color3.fromRGB(40, 10, 10)
-			Instance.new("UICorner", BarBG).CornerRadius = UDim.new(0, 8)
-			local bStroke = Instance.new("UIStroke", BarBG)
-			bStroke.Color = Color3.fromRGB(150, 40, 40)
-			bStroke.Thickness = 2
-
-			local PlayerPower = Instance.new("Frame", BarBG)
-			PlayerPower.Size = UDim2.new(0.5, 0, 1, 0)
-			PlayerPower.BackgroundColor3 = Color3.fromRGB(85, 170, 255)
-			Instance.new("UICorner", PlayerPower).CornerRadius = UDim.new(0, 8)
-
-			local Indicator = Instance.new("Frame", PlayerPower)
-			Indicator.Size = UDim2.new(0, 10, 1.5, 0)
-			Indicator.Position = UDim2.new(1, 0, 0.5, 0)
-			Indicator.AnchorPoint = Vector2.new(0.5, 0.5)
-			Indicator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-
-			local VFXManager = require(script.Parent:WaitForChild("VFXManager"))
-			if VFXManager then VFXManager.PlaySFX("Hover", 1.0) end
-
-			local powerLevel = 0.4 -- Start slightly at a disadvantage
-			local timeElapsed = 0
-			local TIME_LIMIT = 4.0 -- 4 seconds to win the clash
-
-			loopConnection = RunService.RenderStepped:Connect(function(dt)
-				if not isActive then return end
-				timeElapsed += dt
-
-				-- Boss constantly pushes back
-				powerLevel -= (0.15 * dt)
-
-				-- Player pushes forward with mashing
-				if clickCount > 0 then
-					powerLevel += (clickCount * 0.04)
-					clickCount = 0
-					if VFXManager then VFXManager.PlaySFX("Click", 1.5) end
-				end
-
-				powerLevel = math.clamp(powerLevel, 0, 1)
-				PlayerPower.Size = UDim2.new(powerLevel, 0, 1, 0)
-
-				-- Defeat (Pushed to 0 or Time Ran Out)
-				if powerLevel <= 0 or timeElapsed >= TIME_LIMIT then
-					isActive = false
-					Title.Text = "OVERPOWERED!"
-					Title.TextColor3 = Color3.fromRGB(255, 50, 50)
-					if VFXManager then VFXManager.ScreenShake(1.0, 0.5) end
-					task.wait(1.5)
-					clashContainer:Destroy()
-					StopMinigame(false, "Clash", { ClashSkill = data.ClashSkill, EnemySkill = data.EnemySkill })
-					return
-				end
-
-				-- Victory (Pushed to 100%)
-				if powerLevel >= 1 then
-					isActive = false
-					Title.Text = "ATTACK SHATTERED!"
-					Title.TextColor3 = Color3.fromRGB(255, 215, 0)
-					if VFXManager then 
-						VFXManager.PlaySFX("HeavySlash", 1.2) 
-						VFXManager.ScreenShake(1.5, 0.3)
-					end
-					task.wait(1.5)
-					clashContainer:Destroy()
-					StopMinigame(true, "Clash", { ClashSkill = data.ClashSkill, EnemySkill = data.EnemySkill })
-					return
-				end
-			end)
-
-		elseif data.MinigameType == "Balance" then
-			-- (Your existing Balance code remains unchanged)
+		-- [[ THE FIX: Brand New Vertical Suspension / Balance Minigame Rework! ]]
+		if data.MinigameType == "Balance" then
 			ScreenGui.Enabled = true
 			isActive = true
 			isPressing = false
-			ClickCatcher.Visible = true
+			ClickCatcher.Visible = true -- [NEW] Reset the visibility so taps register!
 
 			if Overlay:FindFirstChild("BalanceContainer") then Overlay.BalanceContainer:Destroy() end
 
@@ -268,6 +163,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 			local progress = 0
 			local timeElapsed = 0
 
+			-- Physics variables for tension tuning
 			local PULL_DOWN = 3.5
 			local PUSH_UP = -7.0
 			local DAMPING = 0.90
@@ -279,6 +175,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 				if not isActive then return end
 				timeElapsed += dt
 
+				-- Failure State
 				if timeElapsed >= 25 then 
 					Title.Text = "APTITUDE FAILED!"
 					Title.TextColor3 = Color3.fromRGB(255, 85, 85)
@@ -289,10 +186,12 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 					return 
 				end
 
+				-- Erratic sine wave to make the zone move
 				local szCenterOffset = math.sin(timeElapsed * 2.0) * 0.25 + math.sin(timeElapsed * 1.3) * 0.12
 				local szPos = 0.375 + szCenterOffset
 				SZ.Position = UDim2.new(0, 0, szPos, 0)
 
+				-- Apply tension vs gravity
 				if isPressing then velocity += PUSH_UP * dt else velocity += PULL_DOWN * dt end
 				velocity *= DAMPING
 				position = math.clamp(position + velocity * dt, 0, 1)
@@ -303,6 +202,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 				local safeTop = szPos
 				local safeBottom = szPos + 0.25
 
+				-- Collision Checking
 				if position >= safeTop and position <= safeBottom then
 					Reticle.BackgroundColor3 = Color3.fromRGB(85, 255, 85)
 					szStroke.Color = Color3.fromRGB(85, 255, 85)
@@ -317,6 +217,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 
 				ProgFill.Size = UDim2.new(1, 0, progress, 0)
 
+				-- Victory State
 				if progress >= 1 then
 					if VFXManager then VFXManager.PlaySFX("Reveal", 1.0) end
 					Title.Text = "APTITUDE PASSED!"
@@ -329,7 +230,6 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 			end)
 
 		elseif data.MinigameType == "GapClose" then
-			-- (Your existing GapClose code remains unchanged)
 			ScreenGui.Enabled = true
 			isActive = true
 
@@ -355,6 +255,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 			local function SpawnTarget()
 				if not isActive then return end
 
+				-- Main Diamond Background
 				local target = Instance.new("TextButton", gcContainer)
 				target.Size = UDim2.new(0, 60, 0, 60)
 				target.Position = UDim2.new(math.random(30, 70)/100, 0, math.random(30, 70)/100, 0)
@@ -371,6 +272,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 
 				if VFXManager then VFXManager.PlaySFX("Hover", 1.2) end
 
+				-- Central Warning Text (Counter-Rotated)
 				local icon = Instance.new("TextLabel", target)
 				icon.Size = UDim2.new(1, 0, 1, 0)
 				icon.BackgroundTransparency = 1
@@ -381,6 +283,7 @@ CombatUpdate.OnClientEvent:Connect(function(action, data)
 				icon.TextSize = 28
 				icon.ZIndex = 506
 
+				-- Shrinking Outer Ring
 				local shrinker = Instance.new("Frame", target)
 				shrinker.AnchorPoint = Vector2.new(0.5, 0.5)
 				shrinker.Position = UDim2.new(0.5, 0, 0.5, 0)
