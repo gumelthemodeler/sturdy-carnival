@@ -3,7 +3,7 @@
 -- Name: ProgressionManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MarketplaceService = game:GetService("MarketplaceService")
+local MarketplaceService = game:GetService("MarketplaceService") -- [NEW]
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 local CosmeticData = require(ReplicatedStorage:WaitForChild("CosmeticData"))
@@ -129,6 +129,7 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 	local isTitanStat = string.match(statName, "Titan_.*_Val$")
 	local xpAttr = isTitanStat and "TitanXP" or "XP"
 
+	-- THE FIX: Safely parse the stat to prevent silent string-indexing crashes
 	local rawStat = player:GetAttribute(statName)
 	local currentStat = tonumber(rawStat)
 	if not currentStat then
@@ -166,6 +167,19 @@ Network:WaitForChild("UpgradeStat").OnServerEvent:Connect(function(player, statN
 	end
 end)
 
+local function VerifyCoordinateTitle(player)
+	local titan = player:GetAttribute("Titan")
+	if titan and string.match(titan, "Founding") then
+		player:SetAttribute("UnlockedTitle_Coordinate", true)
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	player:GetAttributeChangedSignal("Titan"):Connect(function()
+		VerifyCoordinateTitle(player)
+	end)
+end)
+
 local UnlockPrestigeNode = Network:FindFirstChild("UnlockPrestigeNode") or Instance.new("RemoteEvent", Network)
 UnlockPrestigeNode.Name = "UnlockPrestigeNode"
 local ActivePrestigeTransactions = {}
@@ -197,6 +211,7 @@ UnlockPrestigeNode.OnServerEvent:Connect(function(player, nodeId)
 	player:SetAttribute("PrestigeNode_" .. nodeId, true)
 
 	if node.BuffType == "FlatStat" then
+		-- [[ THE FIX: Safely store the prestige overflow ]]
 		local currentPrestigeBonus = player:GetAttribute("Prestige_" .. node.BuffStat) or 0
 		player:SetAttribute("Prestige_" .. node.BuffStat, currentPrestigeBonus + node.BuffValue)
 
@@ -207,6 +222,7 @@ UnlockPrestigeNode.OnServerEvent:Connect(function(player, nodeId)
 			player:SetAttribute("Invested_" .. node.BuffStat, investedStat)
 		end
 
+		-- Apply flat bonus as an absolute overlay
 		player:SetAttribute(node.BuffStat, investedStat + currentPrestigeBonus + node.BuffValue)
 
 	elseif node.BuffType == "Special" then
@@ -229,6 +245,7 @@ PrestigeAction.OnServerInvoke = function(player)
 			player:SetAttribute("Prestige", ls.Prestige.Value)
 		end
 
+		-- Reset the stats to base
 		local statsToReset = {"Health", "Gas", "Strength", "Defense", "Speed", "Resolve", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 		for _, s in ipairs(statsToReset) do
 			player:SetAttribute(s, 10) 
@@ -238,6 +255,7 @@ PrestigeAction.OnServerInvoke = function(player)
 		player:SetAttribute("CurrentWave", 1)
 		player:SetAttribute("PathsFloor", 1)
 
+		-- Strictly award exactly 1 point
 		player:SetAttribute("PrestigePoints", (player:GetAttribute("PrestigePoints") or 0) + 1)
 
 		NotificationEvent:FireClient(player, "ASCENDED! Level and Stats have been reset. +1 Prestige Point!", "Success")
@@ -248,13 +266,15 @@ PrestigeAction.OnServerInvoke = function(player)
 	end
 end
 
+-- [[ THE FIX: Safely Handle In-Game Purchases without spamming the API ]]
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
-	if wasPurchased and passId == 1749846514 then 
+	if wasPurchased and passId == 1749846514 then -- Auto-Train Gamepass ID
 		player:SetAttribute("HasAutoTrain", true)
 		NotificationEvent:FireClient(player, "Auto-Train Gamepass activated!", "Success")
 	end
 end)
 
+-- [[ THE FIX: Add ToggleTraining handler for AFK Training areas (if applicable) ]]
 local ToggleTraining = Network:FindFirstChild("ToggleTraining") or Instance.new("RemoteEvent", Network)
 ToggleTraining.Name = "ToggleTraining"
 
@@ -264,18 +284,22 @@ ToggleTraining.OnServerEvent:Connect(function(player, isEnabled)
 	end
 end)
 
+-- [NEW] Passive Auto-Training (Safeguarded and upgraded)
 task.spawn(function()
 	while task.wait(5) do
 		for _, p in ipairs(Players:GetPlayers()) do
+			-- Failsafe 1: Don't give XP to players whose data hasn't loaded yet
 			if not p:GetAttribute("DataLoaded") then continue end
 
 			local hasAutoTrain = p:GetAttribute("HasAutoTrain")
 			local isAFKTraining = p:GetAttribute("IsTraining") 
 
+			-- Failsafe 2: Checks attributes instead of yielding web calls
 			if hasAutoTrain or isAFKTraining or p.UserId == 4068160397 then
 				local ls = p:FindFirstChild("leaderstats")
 				local prestige = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
 
+				-- Use tonumber() to prevent math errors if a stat briefly corrupts
 				local totalStats = (tonumber(p:GetAttribute("Strength")) or 10) + 
 					(tonumber(p:GetAttribute("Defense"))  or 10) + 
 					(tonumber(p:GetAttribute("Speed"))    or 10) + 
@@ -285,6 +309,8 @@ task.spawn(function()
 				local xpGain = math.floor(baseXP * 1.5) 
 
 				if p:GetAttribute("HasDoubleXP") then xpGain *= 2 end
+
+				-- Apply VIP Auto-Train Synergy (+25%)
 				if p:GetAttribute("HasVIP") then xpGain = math.floor(xpGain * 1.25) end
 
 				p:SetAttribute("XP", (p:GetAttribute("XP") or 0) + xpGain)
@@ -297,52 +323,34 @@ task.spawn(function()
 	end
 end)
 
-local function VerifyCoordinateTitle(player)
-	local titan = player:GetAttribute("Titan")
-	if titan and string.match(titan, "Founding") then
-		player:SetAttribute("UnlockedTitle_Coordinate", true)
-	end
-end
+-- [[ THE FIX: Path Dust Rare Materials Shop ]]
+local PathsShopBuy = Network:FindFirstChild("PathsShopBuy") or Instance.new("RemoteEvent", Network)
+PathsShopBuy.Name = "PathsShopBuy"
 
-Players.PlayerAdded:Connect(function(player)
-	player:GetAttributeChangedSignal("Titan"):Connect(function()
-		VerifyCoordinateTitle(player)
-	end)
-end)
-
--- [[ MEMORY RUNES: Infinite Progression Sink ]]
-local RuneCosts = {
-	Vanguard = { BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Name = "Rune of the Vanguard" },
-	Wall = { BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Name = "Rune of the Wall" },
-	Avarice = { BaseDust = 10, BaseDews = 25000, BaseXP = 50000, Mult = 1.20, Name = "Rune of Avarice" },
-	Titan = { BaseDust = 8, BaseDews = 15000, BaseXP = 30000, Mult = 1.15, Name = "Rune of the Titan" }
+local PathShopItems = {
+	["Spinal Fluid Syringe"] = 25,
+	["Coordinate Shard"] = 50,
+	["Abyssal Blood"] = 100,
+	["Ymir's Clay Fragment"] = 200,
+	["Eldian Crown"] = 500,
+	["Founder's Parasite"] = 1000
 }
 
-local UpgradeRuneEvent = Network:FindFirstChild("UpgradeRune") or Instance.new("RemoteEvent", Network)
-UpgradeRuneEvent.Name = "UpgradeRune"
+PathsShopBuy.OnServerEvent:Connect(function(player, itemName)
+	local cost = PathShopItems[itemName]
+	if not cost then return end
 
-UpgradeRuneEvent.OnServerEvent:Connect(function(player, runeId)
-	local rData = RuneCosts[runeId]
-	if not rData then return end
+	local currentDust = player:GetAttribute("PathDust") or 0
+	if currentDust >= cost then
+		-- Deduct Dust
+		player:SetAttribute("PathDust", currentDust - cost)
 
-	local currentLvl = player:GetAttribute("Rune_" .. runeId) or 0
+		-- Grant Item
+		local safeName = itemName:gsub("[^%w]", "") .. "Count"
+		player:SetAttribute(safeName, (player:GetAttribute(safeName) or 0) + 1)
 
-	local dustCost = math.floor(rData.BaseDust * (rData.Mult ^ currentLvl))
-	local dewsCost = math.floor(rData.BaseDews * (rData.Mult ^ currentLvl))
-	local xpCost = math.floor(rData.BaseXP * (rData.Mult ^ currentLvl))
-
-	local pDust = player:GetAttribute("PathDust") or 0
-	local pDews = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Dews") and player.leaderstats.Dews.Value or 0
-	local pXP = player:GetAttribute("XP") or 0
-
-	if pDust >= dustCost and pDews >= dewsCost and pXP >= xpCost then
-		player:SetAttribute("PathDust", pDust - dustCost)
-		player.leaderstats.Dews.Value -= dewsCost
-		player:SetAttribute("XP", pXP - xpCost)
-
-		player:SetAttribute("Rune_" .. runeId, currentLvl + 1)
-		NotificationEvent:FireClient(player, "Upgraded " .. rData.Name .. " to Level " .. (currentLvl + 1) .. "!", "Success")
+		NotificationEvent:FireClient(player, "Forged " .. itemName .. " from the dust!", "Success")
 	else
-		NotificationEvent:FireClient(player, "Not enough Path Dust, Dews, or XP!", "Error")
+		NotificationEvent:FireClient(player, "Not enough Path Dust!", "Error")
 	end
 end)
