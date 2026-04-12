@@ -135,6 +135,12 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		local aStats = ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed)
 		atkBuff = atkBuff * aStats.DmgMult
 
+		-- [[ MEMORY RUNE: Vanguard (+0.2% Total DMG per level) ]]
+		local vanguardRune = tonumber(attacker.PlayerObj:GetAttribute("Rune_Vanguard")) or 0
+		if vanguardRune > 0 then
+			atkBuff = atkBuff * (1.0 + (vanguardRune * 0.002))
+		end
+
 		if (aStats.MomentumDamagePerHit or 0) > 0 and not isAttackerTransformed then
 			local momentum = tonumber(attacker.MomentumStacks) or 0
 			atkBuff = atkBuff * (1.0 + (momentum * aStats.MomentumDamagePerHit))
@@ -157,6 +163,12 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	if defender.IsPlayer and defender.PlayerObj then
 		local dStats = ClanData.GetClanStats(defender.Clan, string.find(tostring(defender.Clan or ""), "Awakened"), defender.Titan, isDefenderTransformed)
 		defBuff = defBuff * dStats.ArmorMult
+
+		-- [[ MEMORY RUNE: Wall (+0.25% Damage Reduction per level) ]]
+		local wallRune = tonumber(defender.PlayerObj:GetAttribute("Rune_Wall")) or 0
+		if wallRune > 0 then
+			defBuff = defBuff * (1.0 + (wallRune * 0.0025))
+		end
 	end
 
 	if attacker.AwakenedStats then
@@ -327,7 +339,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 			attacker.LastSkill = skillName
 			return fLogName .. " used <b>" .. skillName .. "</b>! <font color='#AA55FF'>[" .. string.gsub(skill.Effect:upper(), "_", " ") .. " ACTIVATED]</font>", false, "None"
 
-			-- [[ THE FIX: Ensure Recover ACTUALLY refuels the Gas attribute! ]]
 		elseif skill.Effect == "Rest" or skillName == "Recover" or skillName == "Regroup" then
 			local healAmount = (tonumber(attacker.MaxHP) or 100) * 0.30
 			attacker.HP = math.min(tonumber(attacker.MaxHP) or 100, (tonumber(attacker.HP) or 0) + healAmount); 
