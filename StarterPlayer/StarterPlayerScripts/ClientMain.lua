@@ -81,7 +81,7 @@ if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
 	isMobile = true
 end
 
--- [[ THE FIX: Properly boot BOTH the Main UI, Trading UI, and the Paths Shop ]]
+-- [[ THE FIX: Replaced FindFirstChild with WaitForChild so it securely loads ]]
 if isMobile then
 	local MobileModules = playerScripts:WaitForChild("MobileModules")
 	local UIModules = playerScripts:WaitForChild("UIModules") -- Still needed for shared modules
@@ -90,8 +90,11 @@ if isMobile then
 	require(MobileModules:WaitForChild("MobileTradingUI")).Initialize(MasterGui)
 
 	-- Boot the standalone Paths Shop (which works perfectly on both PC/Mobile)
-	local PathsShop = UIModules:FindFirstChild("PathsShopUI")
-	if PathsShop then require(PathsShop).Initialize(MasterGui) end
+	local PathsShop = UIModules:WaitForChild("PathsShopUI", 10)
+	if PathsShop then 
+		require(PathsShop).Initialize(MasterGui) 
+		print("[AoT UI] Paths Shop Module Initialized.")
+	end
 else
 	local UIModules = playerScripts:WaitForChild("UIModules")
 
@@ -99,8 +102,11 @@ else
 	require(UIModules:WaitForChild("TradingUI")).Initialize(MasterGui)
 
 	-- Boot the standalone Paths Shop
-	local PathsShop = UIModules:FindFirstChild("PathsShopUI")
-	if PathsShop then require(PathsShop).Initialize(MasterGui) end
+	local PathsShop = UIModules:WaitForChild("PathsShopUI", 10)
+	if PathsShop then 
+		require(PathsShop).Initialize(MasterGui) 
+		print("[AoT UI] Paths Shop Module Initialized.")
+	end
 end
 
 -- ==========================================
