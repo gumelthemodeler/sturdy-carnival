@@ -72,19 +72,19 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	SubBtns["Inventory"].TextColor3 = Color3.fromRGB(245, 245, 245); SubBtns["Inventory"]:FindFirstChild("UIStroke").Color = Color3.fromRGB(225, 185, 60)
 
 	SubTabs["Inventory"], _ = CreateGrimPanel(ContentArea); SubTabs["Inventory"].Size = UDim2.new(1, 0, 0, 0); SubTabs["Inventory"].AutomaticSize = Enum.AutomaticSize.Y; SubTabs["Inventory"].Visible = true; local invPadd = Instance.new("UIPadding", SubTabs["Inventory"]); invPadd.PaddingBottom = UDim.new(0, 15)
-	local InvTitle = CreateSharpLabel(SubTabs["Inventory"], "INVENTORY (0/50)", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(225, 185, 60), 16)
+	local InvTitle = CreateSharpLabel(SubTabs["Inventory"], "INVENTORY (0/25)", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(225, 185, 60), 16)
 
 	local FilterFrame = Instance.new("Frame", SubTabs["Inventory"]); FilterFrame.Size = UDim2.new(1, -10, 0, 35); FilterFrame.Position = UDim2.new(0, 5, 0, 35); FilterFrame.BackgroundTransparency = 1; local ffLayout = Instance.new("UIListLayout", FilterFrame); ffLayout.FillDirection = Enum.FillDirection.Horizontal; ffLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; ffLayout.Padding = UDim.new(0.02, 0)
 
-	local currentInvFilter = "All"; local FilterBtns = {}; local RefreshProfile 
+	local currentInvFilter = "Gear"; local FilterBtns = {}; local RefreshProfile 
 	local function MakeFilterBtn(id, text)
 		local btn, stroke = CreateSharpButton(FilterFrame, text, UDim2.new(0.22, 0, 1, 0), Enum.Font.GothamBlack, 11); btn.TextColor3 = Color3.fromRGB(160, 160, 175)
 		btn.TextScaled = true; local tcon = Instance.new("UITextSizeConstraint", btn); tcon.MaxTextSize = 11; tcon.MinTextSize = 7
 		btn.Activated:Connect(function() currentInvFilter = id; for k, v in pairs(FilterBtns) do v.TextColor3 = Color3.fromRGB(160, 160, 175); v:FindFirstChild("UIStroke").Color = Color3.fromRGB(70, 70, 80) end; btn.TextColor3 = Color3.fromRGB(245, 245, 245); stroke.Color = Color3.fromRGB(225, 185, 60); if RefreshProfile then RefreshProfile() end end)
 		FilterBtns[id] = btn; return btn
 	end
-	MakeFilterBtn("All", "ALL"); MakeFilterBtn("Gear", "GEAR"); MakeFilterBtn("Items", "ITEMS")
-	FilterBtns["All"].TextColor3 = Color3.fromRGB(245, 245, 245); FilterBtns["All"]:FindFirstChild("UIStroke").Color = Color3.fromRGB(225, 185, 60)
+	MakeFilterBtn("Gear", "GEAR"); MakeFilterBtn("Items", "POUCH")
+	FilterBtns["Gear"].TextColor3 = Color3.fromRGB(245, 245, 245); FilterBtns["Gear"]:FindFirstChild("UIStroke").Color = Color3.fromRGB(225, 185, 60)
 
 	local AutoSellBtn, asStroke = CreateSharpButton(FilterFrame, "AUTO-SELL", UDim2.new(0.28, 0, 1, 0), Enum.Font.GothamBlack, 11); AutoSellBtn.TextColor3 = UIHelpers.Colors.TextMuted
 	AutoSellBtn.TextScaled = true; local tcon2 = Instance.new("UITextSizeConstraint", AutoSellBtn); tcon2.MaxTextSize = 11; tcon2.MinTextSize = 7
@@ -154,11 +154,26 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		local resolvedTitleData = nil; if type(CosmeticData) == "table" and CosmeticData.Titles then resolvedTitleData = CosmeticData.Titles[pTitle]; if not resolvedTitleData then for k, v in pairs(CosmeticData.Titles) do if v.Name == pTitle then resolvedTitleData = v break end end end end; if resolvedTitleData then AvatarTitle.Text = string.upper(resolvedTitleData.Name); AvatarTitle.TextColor3 = Color3.fromHex((resolvedTitleData.Color or "#FFFFFF"):gsub("#", "")) end
 		local resolvedAuraData = nil; if type(CosmeticData) == "table" and CosmeticData.Auras then resolvedAuraData = CosmeticData.Auras[pAura]; if not resolvedAuraData then for k, v in pairs(CosmeticData.Auras) do if v.Name == pAura then resolvedAuraData = v break end end end end; if UIAuraManager and type(UIAuraManager.ApplyAura) == "function" and resolvedAuraData then UIAuraManager.ApplyAura(AvatarAuraGlow, resolvedAuraData, AvatarBox) end
 		for _, child in ipairs(InvGrid:GetChildren()) do if child.Name == "ItemCard" then child:Destroy() end end
+
 		local inventoryItems = {}; local currentSlotsUsed = 0
 		if type(ItemData) == "table" then
-			for iName, iData in pairs(ItemData.Equipment or {}) do local safeNameBase = iName:gsub("[^%w]", ""); local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0; if count > 0 then currentSlotsUsed += 1; if currentInvFilter == "All" or currentInvFilter == "Gear" then table.insert(inventoryItems, {Name = iName, Data = iData, Count = count}) end end end
-			for iName, iData in pairs(ItemData.Consumables or {}) do local safeNameBase = iName:gsub("[^%w]", ""); local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0; if count > 0 then currentSlotsUsed += 1; if currentInvFilter == "All" or currentInvFilter == "Items" then table.insert(inventoryItems, {Name = iName, Data = iData, Count = count}) end end end
+			for iName, iData in pairs(ItemData.Equipment or {}) do 
+				local safeNameBase = iName:gsub("[^%w]", "")
+				local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0
+				if count > 0 then 
+					currentSlotsUsed += 1 
+					if currentInvFilter == "Gear" then table.insert(inventoryItems, {Name = iName, Data = iData, Count = count}) end 
+				end 
+			end
+			for iName, iData in pairs(ItemData.Consumables or {}) do 
+				local safeNameBase = iName:gsub("[^%w]", "")
+				local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0
+				if count > 0 then 
+					if currentInvFilter == "Items" then table.insert(inventoryItems, {Name = iName, Data = iData, Count = count}) end 
+				end 
+			end
 		end
+
 		table.sort(inventoryItems, function(a, b) local rA = RarityOrder[a.Data.Rarity or "Common"] or 7; local rB = RarityOrder[b.Data.Rarity or "Common"] or 7; if rA == rB then return a.Name < b.Name else return rA < rB end end)
 		local layoutOrderCounter = 1
 		for _, item in ipairs(inventoryItems) do
@@ -198,7 +213,6 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 				end
 			end
 
-			-- [[ THE FIX: Gifts have interaction menus but hides the sell buttons ]]
 			if item.Data.IsGift then
 				sellBtn.Visible = false
 				sellAllBtn.Visible = false
@@ -222,7 +236,15 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			local function CloseAllOverlays() for _, c in ipairs(InvGrid:GetChildren()) do if c.Name == "ItemCard" then local ov = c:FindFirstChild("ActionsOverlay"); if ov then ov.Visible = false end end end end
 			btnCover.Activated:Connect(function() if buttonConsumed then buttonConsumed = false; return end; if ActionsOverlay.Visible then ActionsOverlay.Visible = false else CloseAllOverlays(); ActionsOverlay.Visible = true end end)
 		end
-		local MAX_INVENTORY_CAPACITY = 50; InvTitle.Text = "INVENTORY (" .. currentSlotsUsed .. "/" .. MAX_INVENTORY_CAPACITY .. ")"; if currentSlotsUsed >= MAX_INVENTORY_CAPACITY then InvTitle.TextColor3 = Color3.fromRGB(255, 100, 100) else InvTitle.TextColor3 = Color3.fromRGB(225, 185, 60) end
+
+		local MAX_INVENTORY_CAPACITY = 25
+		if currentInvFilter == "Items" then
+			InvTitle.Text = "SCOUT'S POUCH (∞)"
+			InvTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
+		else
+			InvTitle.Text = "INVENTORY (" .. currentSlotsUsed .. "/" .. MAX_INVENTORY_CAPACITY .. ")"
+			if currentSlotsUsed >= MAX_INVENTORY_CAPACITY then InvTitle.TextColor3 = Color3.fromRGB(255, 100, 100) else InvTitle.TextColor3 = Color3.fromRGB(225, 185, 60) end
+		end
 	end
 	player.AttributeChanged:Connect(function(attr) EvaluateCosmetics(); RefreshProfile() end); RefreshProfile()
 end
@@ -630,7 +652,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				local card = Instance.new("Frame", ListContainer); card.Size = UDim2.new(1, -10, 0, 80); card.BackgroundColor3 = UIHelpers.Colors.Surface; card.BorderSizePixel = 1; card.BorderColor3 = rarityRGB
 				local bgGlow = Instance.new("Frame", card); bgGlow.Size = UDim2.new(1, 0, 0.5, 0); bgGlow.Position = UDim2.new(0, 0, 0.5, 0); bgGlow.BackgroundColor3 = rarityRGB; bgGlow.BackgroundTransparency = 0.92; bgGlow.BorderSizePixel = 0; bgGlow.ZIndex = 1
 				local countInRarity = 0; for _, t in pairs(TitanData.Titans) do if t.Rarity == drop.Rarity then countInRarity += 1 end end
-				local pct = (TitanData.Rarities[drop.Rarity] and (TitanData.Rarities[drop.Rarity] / countInRarity)) or 0; local pctStr = pct > 0 and (" (" .. string.format("%.1f", pct) .. "%)") or " (Fusion)"
+				local pct = (TitanData.Rarities[drop.Rarity] and (TitanData.Rarities[drop.Rarity] / countInRarity)) or 0; local pctStr = pct > 0 and (" (" .. string.format("%.1f", pct) .. "%)") or " (Fusion Exclusive)"
 				local titleLbl = CreateSharpLabel(card, "<b><font color='" .. cColor .. "'>[" .. drop.Rarity .. "] " .. drop.Name .. "</font></b><font color='#888888'>" .. pctStr .. "</font>", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBold, Color3.fromRGB(230, 230, 230), 12); titleLbl.Position = UDim2.new(0, 10, 0, 5); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.RichText = true
 				local statsArea = Instance.new("Frame", card); statsArea.Size = UDim2.new(1, -20, 0, 35); statsArea.Position = UDim2.new(0, 10, 0, 25); statsArea.BackgroundTransparency = 1; local saLayout = Instance.new("UIListLayout", statsArea); saLayout.FillDirection = Enum.FillDirection.Horizontal; saLayout.Padding = UDim.new(0, 4)
 				local s = drop.Stats; local statsOrder = { {Name="POW", Val=s.Power}, {Name="SPD", Val=s.Speed}, {Name="HRD", Val=s.Hardening}, {Name="END", Val=s.Endurance}, {Name="PRE", Val=s.Precision}, {Name="POT", Val=s.Potential} }
@@ -870,7 +892,82 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 end
 
 -- ==========================================
--- 6. BOUNTIES TAB
+-- 6. MEMORY RUNES TAB
+-- ==========================================
+local function BuildRunesTab(parentFrame)
+	local MainScroll = Instance.new("ScrollingFrame", parentFrame); MainScroll.Size = UDim2.new(1, 0, 1, 0); MainScroll.BackgroundTransparency = 1; MainScroll.Visible = true; MainScroll.ScrollBarThickness = 0; MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	local mLayout = Instance.new("UIListLayout", MainScroll); mLayout.Padding = UDim.new(0, 15); mLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	local mPad = Instance.new("UIPadding", MainScroll); mPad.PaddingTop = UDim.new(0, 15); mPad.PaddingBottom = UDim.new(0, 30)
+
+	local Header = CreateSharpLabel(MainScroll, "MEMORY RUNES", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 20); Header.LayoutOrder = 1
+	local SubHeader = CreateSharpLabel(MainScroll, "Manifest your infinite potential using Path Dust.", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 12); SubHeader.LayoutOrder = 2
+
+	local ResourceRow = Instance.new("Frame", MainScroll); ResourceRow.Size = UDim2.new(0.9, 0, 0, 40); ResourceRow.BackgroundTransparency = 1; ResourceRow.LayoutOrder = 3
+	local rLayout = Instance.new("UIListLayout", ResourceRow); rLayout.FillDirection = Enum.FillDirection.Horizontal; rLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; rLayout.Padding = UDim.new(0, 10)
+
+	local dustLbl = CreateSharpLabel(ResourceRow, "DUST: 0", UDim2.new(0.32, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex("#55FFFF"), 12)
+	local dewsLbl = CreateSharpLabel(ResourceRow, "DEWS: 0", UDim2.new(0.32, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex("#FF88FF"), 12)
+	local xpLbl = CreateSharpLabel(ResourceRow, "XP: 0", UDim2.new(0.32, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex("#55FF55"), 12)
+
+	local RunesContainer = Instance.new("Frame", MainScroll); RunesContainer.Size = UDim2.new(0.95, 0, 0, 0); RunesContainer.AutomaticSize = Enum.AutomaticSize.Y; RunesContainer.BackgroundTransparency = 1; RunesContainer.LayoutOrder = 4
+	local rcLayout = Instance.new("UIListLayout", RunesContainer); rcLayout.Padding = UDim.new(0, 10); rcLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+	local RuneDefs = {
+		{ Id = "Vanguard", Name = "Rune of the Vanguard", Desc = "+0.2% Total Damage per level.", BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Color = "#FF5555" },
+		{ Id = "Wall", Name = "Rune of the Wall", Desc = "+0.25% Damage Reduction per level.", BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Color = "#55AAFF" },
+		{ Id = "Avarice", Name = "Rune of Avarice", Desc = "+0.1% Global Drop Rate per level.", BaseDust = 10, BaseDews = 25000, BaseXP = 50000, Mult = 1.20, Color = "#FFD700" },
+		{ Id = "Titan", Name = "Rune of the Titan", Desc = "+25 Max Titan Heat per level.", BaseDust = 8, BaseDews = 15000, BaseXP = 30000, Mult = 1.15, Color = "#AA55FF" }
+	}
+
+	local runeCards = {}
+
+	for i, rDef in ipairs(RuneDefs) do
+		local card, _ = CreateGrimPanel(RunesContainer); card.Size = UDim2.new(1, 0, 0, 90)
+		local title = CreateSharpLabel(card, rDef.Name .. " [LVL 0]", UDim2.new(0.6, 0, 0, 25), Enum.Font.GothamBlack, Color3.fromHex(rDef.Color), 16); title.Position = UDim2.new(0, 10, 0, 10); title.TextXAlignment = Enum.TextXAlignment.Left
+		local desc = CreateSharpLabel(card, rDef.Desc, UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 11); desc.Position = UDim2.new(0, 10, 0, 35); desc.TextXAlignment = Enum.TextXAlignment.Left
+		local costLbl = CreateSharpLabel(card, "Cost: 0 Dust | 0 Dews | 0 XP", UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamMedium, Color3.fromHex("#AAAAAA"), 9); costLbl.Position = UDim2.new(0, 10, 0, 60); costLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+		local upgBtn, uStroke = CreateSharpButton(card, "UPGRADE", UDim2.new(0, 100, 0, 36), Enum.Font.GothamBlack, 12); upgBtn.Position = UDim2.new(1, -10, 0.5, 0); upgBtn.AnchorPoint = Vector2.new(1, 0.5)
+
+		upgBtn.Activated:Connect(function() Network:WaitForChild("UpgradeRune"):FireServer(rDef.Id) end)
+		runeCards[rDef.Id] = { Title = title, CostLbl = costLbl, Btn = upgBtn, Stroke = uStroke, Def = rDef }
+	end
+
+	local function UpdateRunes()
+		local pDust = player:GetAttribute("PathDust") or 0
+		local pXP = player:GetAttribute("XP") or 0
+		local ls = player:FindFirstChild("leaderstats"); local pDews = ls and ls:FindFirstChild("Dews") and ls.Dews.Value or 0
+
+		dustLbl.Text = "DUST: " .. AbbreviateNumber(pDust)
+		dewsLbl.Text = "DEWS: " .. AbbreviateNumber(pDews)
+		xpLbl.Text = "XP: " .. AbbreviateNumber(pXP)
+
+		for id, data in pairs(runeCards) do
+			local rDef = data.Def
+			local currentLvl = player:GetAttribute("Rune_" .. id) or 0
+			data.Title.Text = rDef.Name .. " <font color='#FFFFFF'>[LVL " .. currentLvl .. "]</font>"; data.Title.RichText = true
+
+			local dustCost = math.floor(rDef.BaseDust * (rDef.Mult ^ currentLvl))
+			local dewsCost = math.floor(rDef.BaseDews * (rDef.Mult ^ currentLvl))
+			local xpCost = math.floor(rDef.BaseXP * (rDef.Mult ^ currentLvl))
+
+			data.CostLbl.Text = "Cost: " .. AbbreviateNumber(dustCost) .. " Dust | " .. AbbreviateNumber(dewsCost) .. " Dews | " .. AbbreviateNumber(xpCost) .. " XP"
+
+			if pDust >= dustCost and pDews >= dewsCost and pXP >= xpCost then
+				data.Btn.TextColor3 = Color3.fromHex(rDef.Color:gsub("#", "")); data.Stroke.Color = Color3.fromHex(rDef.Color:gsub("#", ""))
+			else
+				data.Btn.TextColor3 = Color3.fromRGB(100, 100, 100); data.Stroke.Color = Color3.fromRGB(70, 70, 80)
+			end
+		end
+	end
+
+	player.AttributeChanged:Connect(function(attr) if string.find(attr, "Rune_") or attr == "PathDust" or attr == "XP" then UpdateRunes() end end)
+	task.spawn(function() local ls = player:WaitForChild("leaderstats", 10); if ls and ls:FindFirstChild("Dews") then ls.Dews.Changed:Connect(UpdateRunes) end end)
+	UpdateRunes()
+end
+
+-- ==========================================
+-- 7. BOUNTIES TAB
 -- ==========================================
 local function FormatBountyName(taskType, count)
 	if taskType == "Kill" then return "Eliminate " .. count .. " enemies"
@@ -918,7 +1015,7 @@ function MobileHeroMenu.Initialize(parentFrame, tooltipMgr)
 
 	local pContent = Instance.new("Frame", parentFrame); pContent.Size = UDim2.new(1, 0, 1, -45); pContent.Position = UDim2.new(0, 0, 0, 45); pContent.BackgroundTransparency = 1
 
-	local subTabs = {"IDENTITY", "ATTRIBUTES", "SKILLS", "PRESTIGE", "INHERITANCE", "BOUNTIES"}
+	local subTabs = {"IDENTITY", "ATTRIBUTES", "SKILLS", "PRESTIGE", "INHERITANCE", "RUNES", "BOUNTIES"}
 	local activeSubFrames = {}; local subBtns = {}
 
 	for i, tabName in ipairs(subTabs) do
@@ -943,6 +1040,7 @@ function MobileHeroMenu.Initialize(parentFrame, tooltipMgr)
 	BuildSkillsTab(activeSubFrames["SKILLS"])
 	BuildPrestigeTab(activeSubFrames["PRESTIGE"])
 	BuildInheritanceTab(activeSubFrames["INHERITANCE"], tooltipMgr)
+	BuildRunesTab(activeSubFrames["RUNES"])
 	BuildBountiesTab(activeSubFrames["BOUNTIES"])
 end
 
