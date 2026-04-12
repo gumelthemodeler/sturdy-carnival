@@ -282,11 +282,15 @@ local function StartBattle(player, encounterType, requestedPartId)
 	local pTotalSpd = (baseSpdStat) + (wpnBonus.Speed or 0) + (accBonus.Speed or 0) + awakenedStats.SpdBonus
 	local pTotalRes = (baseResStat) + (wpnBonus.Resolve or 0) + (accBonus.Resolve or 0)
 
+	-- [[ NEW: Titan Rune Hookup ]]
+	local titanRuneLvl = tonumber(player:GetAttribute("Rune_Titan")) or 0
+	local pMaxTitanEnergy = 100 + (titanRuneLvl * 25)
+
 	if eTemplate.IsDialogue then
 		ActiveBattles[player.UserId] = {
 			IsProcessing = false,
 			Context = { IsStoryMission = isStory, TargetPart = targetPart, CurrentWave = startingWave, TotalWaves = totalWaves, MissionData = activeMissionData, TurnCount = 0, Range = "Close" },
-			Player = { IsPlayer = true, Name = player.Name, PlayerObj = player, Titan = player:GetAttribute("Titan") or "None", Style = GetActualStyle(player), Clan = clanName, HP = pMaxHP, MaxHP = pMaxHP, TitanEnergy = 100, MaxTitanEnergy = 100, Gas = pMaxGas, MaxGas = pMaxGas, TotalStrength = pTotalStr, TotalDefense = pTotalDef, TotalSpeed = pTotalSpd, TotalResolve = pTotalRes, Statuses = {}, Cooldowns = {}, LastSkill = "None", AwakenedStats = awakenedStats },
+			Player = { IsPlayer = true, Name = player.Name, PlayerObj = player, Titan = player:GetAttribute("Titan") or "None", Style = GetActualStyle(player), Clan = clanName, HP = pMaxHP, MaxHP = pMaxHP, TitanEnergy = pMaxTitanEnergy, MaxTitanEnergy = pMaxTitanEnergy, Gas = pMaxGas, MaxGas = pMaxGas, TotalStrength = pTotalStr, TotalDefense = pTotalDef, TotalSpeed = pTotalSpd, TotalResolve = pTotalRes, Statuses = {}, Cooldowns = {}, LastSkill = "None", AwakenedStats = awakenedStats },
 			Enemy = { IsMinigame = false, IsDialogue = true, Name = "Story", Dialogues = eTemplate.Dialogues, Choices = eTemplate.Choices, Rewards = eTemplate.Rewards, HP = 1, MaxHP = 1, GateType = nil, GateHP = 0, MaxGateHP = 0, TotalStrength = 0, TotalDefense = 0, TotalSpeed = 0, Statuses = {}, Cooldowns = {}, Skills = {}, Drops = { XP = 0, Dews = 0, ItemChance = {} }, LastSkill = "None" }
 		}
 		CombatUpdate:FireClient(player, "Dialogue", { Dialogues = eTemplate.Dialogues, Choices = eTemplate.Choices, Battle = ActiveBattles[player.UserId] })
@@ -385,7 +389,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 		Player = { 
 			IsPlayer = true, Name = player.Name, PlayerObj = player, Titan = player:GetAttribute("Titan") or "None", 
 			Style = GetActualStyle(player), Clan = clanName, 
-			HP = pMaxHP, MaxHP = pMaxHP, TitanEnergy = 100, MaxTitanEnergy = 100, Gas = pMaxGas, MaxGas = pMaxGas, 
+			HP = pMaxHP, MaxHP = pMaxHP, TitanEnergy = pMaxTitanEnergy, MaxTitanEnergy = pMaxTitanEnergy, Gas = pMaxGas, MaxGas = pMaxGas, 
 			TotalStrength = pTotalStr, TotalDefense = pTotalDef, TotalSpeed = pTotalSpd, TotalResolve = pTotalRes, 
 			BaseStrength = baseStrStat, BaseDefense = baseDefStat, BaseSpeed = baseSpdStat, BaseResolve = baseResStat,
 			MomentumStacks = 0,
@@ -546,7 +550,8 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			LastSkill = "None", AwakenedStats = enemyAwakenedStats, AIPoints = 0
 		}
 		battle.Player.Cooldowns = {}; battle.Player.Statuses = {} 
-		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
+		-- [[ FIX: Correctly scale MaxTitanEnergy when healing between waves ]]
+		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(battle.Player.MaxTitanEnergy or 100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
 
 		if nextEnemyTemplate.IsMinigame then CombatUpdate:FireClient(player, "StartMinigame", {Battle = battle, LogMsg = flavorText .. "\n" .. rewardStr .. killMsg, MinigameType = nextEnemyTemplate.IsMinigame})
 		else CombatUpdate:FireClient(player, "WaveComplete", {Battle = battle, LogMsg = flavorText .. "\n" .. rewardStr .. killMsg, XP = xpGain, Dews = dewsGain, Items = droppedItems}) end
@@ -600,7 +605,8 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			LastSkill = "None", AIPoints = 0
 		}
 		battle.Player.Cooldowns = {}; battle.Player.Statuses = {} 
-		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
+		-- [[ FIX: Correctly scale MaxTitanEnergy when healing between waves ]]
+		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(battle.Player.MaxTitanEnergy or 100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
 
 		if nextEnemyTemplate.IsMinigame then CombatUpdate:FireClient(player, "StartMinigame", {Battle = battle, LogMsg = flavorText .. "\n" .. killMsg, MinigameType = nextEnemyTemplate.IsMinigame})
 		else CombatUpdate:FireClient(player, "WaveComplete", {Battle = battle, LogMsg = flavorText .. "\n" .. killMsg, XP = xpGain, Dews = dewsGain, Items = droppedItems}) end
@@ -672,7 +678,8 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			LastSkill = "None", AIPoints = 0
 		}
 		battle.Player.Cooldowns = {}; battle.Player.Statuses = {} 
-		battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
+		-- [[ FIX: Correctly scale MaxTitanEnergy when healing between waves ]]
+		battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(battle.Player.MaxTitanEnergy or 100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
 
 		if nextEnemyTemplate.IsMinigame then 
 			CombatUpdate:FireClient(player, "StartMinigame", {Battle = battle, LogMsg = "<font color='#FFD700'>[WAVE " .. battle.Context.CurrentWave .. "]</font>\n" .. flavorText, MinigameType = nextEnemyTemplate.IsMinigame})
@@ -700,39 +707,33 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 	end
 end
 
+local function SafeTriggerPathsShop(ctx)
+	if ctx and ctx.IsPaths then
+		local pEvent = Network:FindFirstChild("PathsShopEvent")
+		if pEvent then pEvent:FireClient(player, "Open") end
+	end
+end
+
 CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if actionType == "EngageStory" or actionType == "EngageWorldBoss" or actionType == "EngageNightmare" or actionType == "EngageRaid" or actionType == "EngageEndless" or actionType == "EngagePaths" then 
 		local pId = actionData and (actionData.PartId or actionData.BossId) or nil; StartBattle(player, actionType, pId); return 
 	end
 
+	local battle = ActiveBattles[player.UserId]
+	if not battle then return end
+
 	if actionType == "ExecutionComplete" then
-		local battle = ActiveBattles[player.UserId]
-		if not battle or not battle.Context.ExecutionTriggered then return end
+		if not battle.Context.ExecutionTriggered then return end
 		ProcessEnemyDeath(player, battle, battle.Enemy.Rewards)
 		return
 	end
 
-	-- [[ THE FIX: Paths Shop Trigger Helper ]]
-	local function TriggerPathsShop(plr, battleCtx)
-		if battleCtx.IsPaths then
-			task.delay(2.5, function()
-				local pEvent = Network:FindFirstChild("PathsShopEvent") or Instance.new("RemoteEvent", Network)
-				pEvent.Name = "PathsShopEvent"
-				pEvent:FireClient(plr, "Open")
-			end)
-		end
-	end
-
 	if actionType == "MinigameResult" then
-		local battle = ActiveBattles[player.UserId]
-		if not battle then return end
-
 		if actionData.MinigameType == "Dialogue" then
 			ProcessEnemyDeath(player, battle, battle.Enemy.Rewards)
 			return
 		end
 
-		-- [[ THE FIX: Resolve the Clash Minigame ]]
 		if actionData.MinigameType == "Clash" then
 			local clashSkill = actionData.ClashSkill or "Attack"
 			local enemySkill = actionData.EnemySkill or "Ultimate"
@@ -762,8 +763,8 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 			task.wait(turnDelay)
 			if battle.Player.HP < 1 then
-				CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); 
-				TriggerPathsShop(player, battle.Context)
+				CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
+				SafeTriggerPathsShop(battle.Context)
 				ActiveBattles[player.UserId] = nil
 			elseif battle.Enemy.HP < 1 then
 				ProcessEnemyDeath(player, battle)
@@ -776,41 +777,33 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 		if battle.Enemy.IsMinigame then
 			if actionData.Success then ProcessEnemyDeath(player, battle)
-			else CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); TriggerPathsShop(player, battle.Context); ActiveBattles[player.UserId] = nil end
+			else CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); SafeTriggerPathsShop(battle.Context); ActiveBattles[player.UserId] = nil end
 		end
 		return
 	end
 
-	local battle = ActiveBattles[player.UserId]
-	if not battle or actionType ~= "Attack" then return end
-	if battle.IsProcessing then return end
+	if actionType ~= "Attack" or battle.IsProcessing then return end
 
 	local skillName = actionData.SkillName
 
-	-- [[ THE FIX: Restored Flee/Retreat functionality ]]
+	-- [[ THE FIX: Retreat logic directly intercepts before anything else ]]
 	if skillName == "Retreat" or skillName == "Flee" then
 		CombatUpdate:FireClient(player, "Fled", {Battle = battle})
-		TriggerPathsShop(player, battle.Context)
+		SafeTriggerPathsShop(battle.Context)
 		ActiveBattles[player.UserId] = nil
 		return
 	end
 
 	local targetLimb = actionData.TargetLimb or "Body" 
 	local skill = SkillData.Skills[skillName]
+	local hasGas, hasHeat = true, true
 
-	local hasGas = true
-	local hasHeat = true
 	if skill then
 		local isTransformed = battle.Player.Statuses and battle.Player.Statuses["Transformed"]
 
 		if not isTransformed and skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
-			local isClanSkill = false
 			local myClan = player:GetAttribute("Clan")
-			if myClan and string.find(myClan, skill.Requirement) then
-				isClanSkill = true
-			end
-
-			if not isClanSkill then
+			if not (myClan and string.find(myClan, skill.Requirement)) then
 				local wpn = player:GetAttribute("EquippedWeapon")
 				local wpnStyle = wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style or "None"
 				if wpnStyle ~= skill.Requirement then
@@ -847,11 +840,10 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		end
 	end
 
-	if skillName ~= "Retreat" and (not skill or (battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0) or not hasGas or not hasHeat) then 
+	if not skill or (battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0) or not hasGas or not hasHeat then 
 		CombatUpdate:FireClient(player, "Update", {Battle = battle}); return 
 	end
 
-	-- [[ THE FIX: Intercept for PERFECT CLASH ]]
 	local enemyTelegraph = battle.Enemy.Statuses and battle.Enemy.Statuses["Telegraphing"]
 	local isHeavyAttack = skill and (tonumber(skill.Mult) or 0) >= 3.0
 
@@ -867,6 +859,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				battle.Player.Gas = math.max(0, (tonumber(battle.Player.Gas) or 0) - actualGasCost) 
 			else
 				local actualHeatCost = tonumber(skill.EnergyCost) or tonumber(skill.HeatCost) or 0
+				-- [[ FIX: Correctly scale MaxTitanEnergy when consuming heat ]]
 				battle.Player.TitanEnergy = math.max(0, (tonumber(battle.Player.TitanEnergy) or 0) - actualHeatCost)
 			end
 		end
@@ -1195,10 +1188,9 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		end
 	end
 
-	-- [[ THE FIX: Ensure death/flee properly hooks into the Paths shop exit trigger ]]
 	if battle.Player.HP < 1 then
 		CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
-		TriggerPathsShop(player, battle.Context)
+		SafeTriggerPathsShop(battle.Context)
 		ActiveBattles[player.UserId] = nil
 	elseif battle.Enemy.HP < 1 then
 		ProcessEnemyDeath(player, battle)
