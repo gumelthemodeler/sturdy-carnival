@@ -24,8 +24,8 @@ local CONFIG = {
 		PvP = "rbxassetid://100826303284945", 
 		Nightmare = "rbxassetid://90132878979603",
 		WorldBoss = "rbxassetid://129655150803684",
-		Endless = "rbxassetid://108619507999123",
-		Paths = "rbxassetid://90938848776194" -- Uses Ymir/Founder aesthetic
+		Endless = "rbxassetid://81075056647024",
+		Paths = "rbxassetid://90938848776194" 
 	}
 }
 
@@ -139,7 +139,7 @@ function ExpeditionsTab.Initialize(parentFrame)
 		end
 	end)
 
-	-- [[ THE FIX: Added "The Paths" Weekend Event ]]
+	-- [[ THE FIX: The Paths Weekend Event (Sat, Sun, Mon) ]]
 	local wday = os.date("!*t").wday
 	local isPathsOpen = (wday == 7 or wday == 1 or wday == 2) -- 7 = Saturday, 1 = Sunday, 2 = Monday
 	local pathsDesc = isPathsOpen and "Venture into the coordinate to farm Path Dust for Memory Runes." or "[EVENT CLOSED] Opens on Sat, Sun, and Mon."
