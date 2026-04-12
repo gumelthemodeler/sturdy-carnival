@@ -384,25 +384,12 @@ local function BuildSkillsTab(parentFrame)
 		end
 		table.sort(defaultMoves)
 
+		-- [[ THE FIX: Removed strict valid check. Loadout always displays whatever is equipped ]]
 		for i, lbl in ipairs(SkillSlotLabels) do 
 			local rawName = player:GetAttribute("EquippedSkill_" .. i)
 			local sData = tData[rawName]
 
-			local isValid = false
-			if rawName and rawName ~= "" and rawName ~= "None" and sData then
-				local req = sData.Requirement
-				local myClan = player:GetAttribute("Clan")
-				if req == "ODM" or (myClan and string.find(myClan, req)) then
-					isValid = true
-				else
-					local wpn = player:GetAttribute("EquippedWeapon")
-					if wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style == req then
-						isValid = true
-					end
-				end
-			end
-
-			if not isValid or not sData or sData.Type == "Basic" or sData.Type == "Titan" or sData.IsBasic or sData.IsTitan then 
+			if not rawName or rawName == "" or rawName == "None" or not sData or sData.Type == "Basic" or sData.Type == "Titan" or sData.IsBasic or sData.IsTitan then 
 				rawName = defaultMoves[i] or "EMPTY" 
 			end
 			lbl.Text = string.upper(rawName) 
@@ -437,7 +424,16 @@ local function BuildSkillsTab(parentFrame)
 						local ActionsOverlay = Instance.new("Frame", sCard); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.1; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
 						local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.FillDirection = Enum.FillDirection.Vertical; actLayout.Padding = UDim.new(0, 6); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
-						for sIndex = 1, 4 do local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); slotBtn.ZIndex = 11; slotBtn.Activated:Connect(function() Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName); player:SetAttribute("EquippedSkill_"..sIndex, sName); ActionsOverlay.Visible = false; RefreshSkills() end) end
+						for sIndex = 1, 4 do 
+							local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); 
+							slotBtn.ZIndex = 11; 
+							slotBtn.Activated:Connect(function() 
+								Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName)
+								player:SetAttribute("EquippedSkill_"..sIndex, sName)
+								ActionsOverlay.Visible = false
+								RefreshSkills() 
+							end) 
+						end
 						local closeBtn, _ = CreateSharpButton(ActionsOverlay, "CANCEL", UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); closeBtn.ZIndex = 11; closeBtn.TextColor3 = Color3.fromRGB(255, 100, 100); closeBtn.Activated:Connect(function() ActionsOverlay.Visible = false end)
 						eqBtn.Activated:Connect(function() if ActionsOverlay.Visible then ActionsOverlay.Visible = false else for _, sc in ipairs(SkillLibraryContainer:GetDescendants()) do if sc.Name == "ActionsOverlay" then sc.Visible = false end end; ActionsOverlay.Visible = true end end) 
 					end
@@ -892,82 +888,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 end
 
 -- ==========================================
--- 6. MEMORY RUNES TAB
--- ==========================================
-local function BuildRunesTab(parentFrame)
-	local MainScroll = Instance.new("ScrollingFrame", parentFrame); MainScroll.Size = UDim2.new(1, 0, 1, 0); MainScroll.BackgroundTransparency = 1; MainScroll.Visible = true; MainScroll.ScrollBarThickness = 0; MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	local mLayout = Instance.new("UIListLayout", MainScroll); mLayout.Padding = UDim.new(0, 15); mLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	local mPad = Instance.new("UIPadding", MainScroll); mPad.PaddingTop = UDim.new(0, 15); mPad.PaddingBottom = UDim.new(0, 30)
-
-	local Header = CreateSharpLabel(MainScroll, "MEMORY RUNES", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 20); Header.LayoutOrder = 1
-	local SubHeader = CreateSharpLabel(MainScroll, "Manifest your infinite potential using Path Dust.", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 12); SubHeader.LayoutOrder = 2
-
-	local ResourceRow = Instance.new("Frame", MainScroll); ResourceRow.Size = UDim2.new(0.9, 0, 0, 40); ResourceRow.BackgroundTransparency = 1; ResourceRow.LayoutOrder = 3
-	local rLayout = Instance.new("UIListLayout", ResourceRow); rLayout.FillDirection = Enum.FillDirection.Horizontal; rLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; rLayout.Padding = UDim.new(0, 10)
-
-	local dustLbl = CreateSharpLabel(ResourceRow, "DUST: 0", UDim2.new(0.32, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex("#55FFFF"), 12)
-	local dewsLbl = CreateSharpLabel(ResourceRow, "DEWS: 0", UDim2.new(0.32, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex("#FF88FF"), 12)
-	local xpLbl = CreateSharpLabel(ResourceRow, "XP: 0", UDim2.new(0.32, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex("#55FF55"), 12)
-
-	local RunesContainer = Instance.new("Frame", MainScroll); RunesContainer.Size = UDim2.new(0.95, 0, 0, 0); RunesContainer.AutomaticSize = Enum.AutomaticSize.Y; RunesContainer.BackgroundTransparency = 1; RunesContainer.LayoutOrder = 4
-	local rcLayout = Instance.new("UIListLayout", RunesContainer); rcLayout.Padding = UDim.new(0, 10); rcLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-	local RuneDefs = {
-		{ Id = "Vanguard", Name = "Rune of the Vanguard", Desc = "+0.2% Total Damage per level.", BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Color = "#FF5555" },
-		{ Id = "Wall", Name = "Rune of the Wall", Desc = "+0.25% Damage Reduction per level.", BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Color = "#55AAFF" },
-		{ Id = "Avarice", Name = "Rune of Avarice", Desc = "+0.1% Global Drop Rate per level.", BaseDust = 10, BaseDews = 25000, BaseXP = 50000, Mult = 1.20, Color = "#FFD700" },
-		{ Id = "Titan", Name = "Rune of the Titan", Desc = "+25 Max Titan Heat per level.", BaseDust = 8, BaseDews = 15000, BaseXP = 30000, Mult = 1.15, Color = "#AA55FF" }
-	}
-
-	local runeCards = {}
-
-	for i, rDef in ipairs(RuneDefs) do
-		local card, _ = CreateGrimPanel(RunesContainer); card.Size = UDim2.new(1, 0, 0, 90)
-		local title = CreateSharpLabel(card, rDef.Name .. " [LVL 0]", UDim2.new(0.6, 0, 0, 25), Enum.Font.GothamBlack, Color3.fromHex(rDef.Color), 16); title.Position = UDim2.new(0, 10, 0, 10); title.TextXAlignment = Enum.TextXAlignment.Left
-		local desc = CreateSharpLabel(card, rDef.Desc, UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 11); desc.Position = UDim2.new(0, 10, 0, 35); desc.TextXAlignment = Enum.TextXAlignment.Left
-		local costLbl = CreateSharpLabel(card, "Cost: 0 Dust | 0 Dews | 0 XP", UDim2.new(0.6, 0, 0, 20), Enum.Font.GothamMedium, Color3.fromHex("#AAAAAA"), 9); costLbl.Position = UDim2.new(0, 10, 0, 60); costLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-		local upgBtn, uStroke = CreateSharpButton(card, "UPGRADE", UDim2.new(0, 100, 0, 36), Enum.Font.GothamBlack, 12); upgBtn.Position = UDim2.new(1, -10, 0.5, 0); upgBtn.AnchorPoint = Vector2.new(1, 0.5)
-
-		upgBtn.Activated:Connect(function() Network:WaitForChild("UpgradeRune"):FireServer(rDef.Id) end)
-		runeCards[rDef.Id] = { Title = title, CostLbl = costLbl, Btn = upgBtn, Stroke = uStroke, Def = rDef }
-	end
-
-	local function UpdateRunes()
-		local pDust = player:GetAttribute("PathDust") or 0
-		local pXP = player:GetAttribute("XP") or 0
-		local ls = player:FindFirstChild("leaderstats"); local pDews = ls and ls:FindFirstChild("Dews") and ls.Dews.Value or 0
-
-		dustLbl.Text = "DUST: " .. AbbreviateNumber(pDust)
-		dewsLbl.Text = "DEWS: " .. AbbreviateNumber(pDews)
-		xpLbl.Text = "XP: " .. AbbreviateNumber(pXP)
-
-		for id, data in pairs(runeCards) do
-			local rDef = data.Def
-			local currentLvl = player:GetAttribute("Rune_" .. id) or 0
-			data.Title.Text = rDef.Name .. " <font color='#FFFFFF'>[LVL " .. currentLvl .. "]</font>"; data.Title.RichText = true
-
-			local dustCost = math.floor(rDef.BaseDust * (rDef.Mult ^ currentLvl))
-			local dewsCost = math.floor(rDef.BaseDews * (rDef.Mult ^ currentLvl))
-			local xpCost = math.floor(rDef.BaseXP * (rDef.Mult ^ currentLvl))
-
-			data.CostLbl.Text = "Cost: " .. AbbreviateNumber(dustCost) .. " Dust | " .. AbbreviateNumber(dewsCost) .. " Dews | " .. AbbreviateNumber(xpCost) .. " XP"
-
-			if pDust >= dustCost and pDews >= dewsCost and pXP >= xpCost then
-				data.Btn.TextColor3 = Color3.fromHex(rDef.Color:gsub("#", "")); data.Stroke.Color = Color3.fromHex(rDef.Color:gsub("#", ""))
-			else
-				data.Btn.TextColor3 = Color3.fromRGB(100, 100, 100); data.Stroke.Color = Color3.fromRGB(70, 70, 80)
-			end
-		end
-	end
-
-	player.AttributeChanged:Connect(function(attr) if string.find(attr, "Rune_") or attr == "PathDust" or attr == "XP" then UpdateRunes() end end)
-	task.spawn(function() local ls = player:WaitForChild("leaderstats", 10); if ls and ls:FindFirstChild("Dews") then ls.Dews.Changed:Connect(UpdateRunes) end end)
-	UpdateRunes()
-end
-
--- ==========================================
--- 7. BOUNTIES TAB
+-- 6. BOUNTIES TAB
 -- ==========================================
 local function FormatBountyName(taskType, count)
 	if taskType == "Kill" then return "Eliminate " .. count .. " enemies"
@@ -1015,7 +936,8 @@ function MobileHeroMenu.Initialize(parentFrame, tooltipMgr)
 
 	local pContent = Instance.new("Frame", parentFrame); pContent.Size = UDim2.new(1, 0, 1, -45); pContent.Position = UDim2.new(0, 0, 0, 45); pContent.BackgroundTransparency = 1
 
-	local subTabs = {"IDENTITY", "ATTRIBUTES", "SKILLS", "PRESTIGE", "INHERITANCE", "RUNES", "BOUNTIES"}
+	-- [[ THE FIX: RUNES Removed from nav, as it's now in the Paths Shop ]]
+	local subTabs = {"IDENTITY", "ATTRIBUTES", "SKILLS", "PRESTIGE", "INHERITANCE", "BOUNTIES"}
 	local activeSubFrames = {}; local subBtns = {}
 
 	for i, tabName in ipairs(subTabs) do
@@ -1040,7 +962,6 @@ function MobileHeroMenu.Initialize(parentFrame, tooltipMgr)
 	BuildSkillsTab(activeSubFrames["SKILLS"])
 	BuildPrestigeTab(activeSubFrames["PRESTIGE"])
 	BuildInheritanceTab(activeSubFrames["INHERITANCE"], tooltipMgr)
-	BuildRunesTab(activeSubFrames["RUNES"])
 	BuildBountiesTab(activeSubFrames["BOUNTIES"])
 end
 
