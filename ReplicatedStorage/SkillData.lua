@@ -1,5 +1,4 @@
 -- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
 -- Name: SkillData
 -- @ScriptType: ModuleScript
 local SkillData = {}
@@ -93,13 +92,6 @@ SkillData.Skills = {
 	["Coordinate Command"] = { Requirement = "Founding Titan", Range = "Any", Type = "Titan", Mult = 6.0, Effect = "Stun", Duration = 1, EnergyCost = 80, Cooldown = 12, Order = 13, Telegraphed = true, Unavoidable = true, SFX = "Roar", VFX = "ClawMark", Description = "Command pure titans to swarm and crush the enemy. Cannot be dodged." },
 
 	-- [[ ENEMY EXCLUSIVE MOVES ]]
-
-	-- New Boss Ultimates (Used to trigger the Perfect Clash Minigame)
-	["Titan Guillotine"] = { Requirement = "Enemy", Range = "Close", Type = "Titan", Mult = 4.5, Effect = "Stun", Duration = 1, Cooldown = 8, Telegraphed = true, Unavoidable = true, SFX = "HeavyPunch", VFX = "ExplosionMark", Description = "A devastating overhead slam meant to obliterate the target. Cannot be dodged." },
-	["Sniper's Mark"] = { Requirement = "Enemy", Range = "Any", Type = "Basic", Mult = 3.5, Effect = "Bleed", Duration = 3, Cooldown = 7, Telegraphed = true, Unavoidable = true, SFX = "Sniper", VFX = "ExplosionMark", Description = "A perfectly lined-up, lethal shot. Cannot be dodged." },
-	["Instructor's Wrath"] = { Requirement = "Enemy", Range = "Close", Type = "Basic", Mult = 3.5, Effect = "Stun", Duration = 1, Cooldown = 7, Telegraphed = true, Unavoidable = true, SFX = "HeavySlash", VFX = "SlashMark", Description = "A merciless, heavy strike. Cannot be dodged." },
-
-	-- Existing enemy moves
 	["Titan Grab"] = { Requirement = "Enemy", Range = "Close", Type = "Titan", Mult = 1.2, Effect = "Stun", Duration = 1, Cooldown = 3, SFX = "Dash", VFX = "ClawMark", Description = "The Titan attempts to grab the target." },
 	["Titan Bite"] = { Requirement = "Enemy", Range = "Close", Type = "Titan", Mult = 1.6, Effect = "Bleed", Duration = 2, Cooldown = 2, ComboReq = "Titan Grab", ComboMult = 1.5, SFX = "Bite", VFX = "ClawMark", Description = "A lethal bite targeting the head or torso." },
 	["Brutal Swipe"] = { Requirement = "Enemy", Range = "Close", Type = "Titan", Mult = 1.0, SFX = "HeavyPunch", VFX = "SlashMark", Description = "A heavy, sweeping arm strike." },
