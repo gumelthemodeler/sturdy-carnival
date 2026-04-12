@@ -51,6 +51,12 @@ local ActiveCodes = {
 			["Clan Blood Vial"] = 5,
 		}
 	},
+	["PATHS"] = { 
+		Items = {
+			["Clan Blood Vial"] = 5,
+			["Spinal Fluid Syringe"] = 1
+		}
+	},
 
 }
 
