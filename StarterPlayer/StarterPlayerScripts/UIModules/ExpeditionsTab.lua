@@ -1,7 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: ExpeditionsTab
--- @ScriptType: ModuleScript
 local ExpeditionsTab = {}
 
 local Players = game:GetService("Players")
@@ -13,6 +12,7 @@ local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 local AFKTab = require(script.Parent:WaitForChild("AFKTab"))
+local NotificationManager = require(SharedUI:WaitForChild("NotificationManager"))
 
 local player = Players.LocalPlayer
 
@@ -24,7 +24,8 @@ local CONFIG = {
 		PvP = "rbxassetid://100826303284945", 
 		Nightmare = "rbxassetid://90132878979603",
 		WorldBoss = "rbxassetid://129655150803684",
-		Endless = "rbxassetid://108619507999123"
+		Endless = "rbxassetid://108619507999123",
+		Paths = "rbxassetid://90938848776194" -- Uses Ymir/Founder aesthetic
 	}
 }
 
@@ -138,12 +139,27 @@ function ExpeditionsTab.Initialize(parentFrame)
 		end
 	end)
 
-	CreateModeCard(GridContainer, "ENDLESS FRONTIER", "Fight infinite waves to continually harvest Dews, XP, and materials.", CONFIG.Decals.Endless, 2, function() InitiateDeployment("CombatAction", "EngageEndless") end)
-	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 3, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
-	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared. Intercept immediately.", CONFIG.Decals.WorldBoss, 4, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
-	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain legendary Cursed Weapons.", CONFIG.Decals.Nightmare, 5, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
-	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 6, function() ShowPage("PvP", "PVP ARENA") end)
-	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources over long periods.", CONFIG.Decals.AFK, 7, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
+	-- [[ THE FIX: Added "The Paths" Weekend Event ]]
+	local wday = os.date("!*t").wday
+	local isPathsOpen = (wday == 7 or wday == 1 or wday == 2) -- 7 = Saturday, 1 = Sunday, 2 = Monday
+	local pathsDesc = isPathsOpen and "Venture into the coordinate to farm Path Dust for Memory Runes." or "[EVENT CLOSED] Opens on Sat, Sun, and Mon."
+	local pathsCardLbl = CreateModeCard(GridContainer, "THE PATHS (EVENT)", pathsDesc, CONFIG.Decals.Paths, 2, function() 
+		if isPathsOpen then
+			InitiateDeployment("CombatAction", "EngagePaths")
+		else
+			if NotificationManager and type(NotificationManager.Show) == "function" then 
+				NotificationManager.Show("The Paths are currently closed. Returns Sat, Sun & Mon.", "Error") 
+			end
+		end
+	end)
+	if not isPathsOpen then pathsCardLbl.TextColor3 = Color3.fromRGB(255, 100, 100) end
+
+	CreateModeCard(GridContainer, "ENDLESS FRONTIER", "Fight infinite waves to continually harvest Dews, XP, and materials.", CONFIG.Decals.Endless, 3, function() InitiateDeployment("CombatAction", "EngageEndless") end)
+	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 4, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
+	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared. Intercept immediately.", CONFIG.Decals.WorldBoss, 5, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
+	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain legendary Cursed Weapons.", CONFIG.Decals.Nightmare, 6, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
+	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 7, function() ShowPage("PvP", "PVP ARENA") end)
+	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources over long periods.", CONFIG.Decals.AFK, 8, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
 
 	local function CreateSubPage(name)
 		local page = Instance.new("Frame", MissionsPanel); page.Size = UDim2.new(1, 0, 0, 0); page.AutomaticSize = Enum.AutomaticSize.Y; page.BackgroundTransparency = 1; page.Visible = false; page.LayoutOrder = 2
@@ -153,7 +169,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 
 	local AFKPage = Instance.new("Frame", MissionsPanel); AFKPage.Size = UDim2.new(1, 0, 0, 600); AFKPage.BackgroundTransparency = 1; AFKPage.Visible = false; AFKPage.LayoutOrder = 2
 	Pages["AFK"] = AFKPage; AFKTab.Initialize(AFKPage, InitiateDeployment)
-
 
 	local NightmarePage = Instance.new("ScrollingFrame", MissionsPanel)
 	NightmarePage.Size = UDim2.new(1, 0, 1, -60); NightmarePage.Position = UDim2.new(0, 0, 0, 50); NightmarePage.BackgroundTransparency = 1; NightmarePage.ScrollBarThickness = 6; NightmarePage.BorderSizePixel = 0; NightmarePage.Visible = false
@@ -236,7 +251,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 		end
 	end)
 
-	-- [[ FIX: Automatically un-toggles the queue button if the server successfully matches them ]]
 	Network:WaitForChild("PvPUpdate").OnClientEvent:Connect(function(action)
 		if action == "MatchStarted" then
 			inQueue = false
