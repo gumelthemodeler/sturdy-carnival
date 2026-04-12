@@ -91,6 +91,10 @@ RemotesFolder:WaitForChild("DispatchAction").OnServerEvent:Connect(function(play
 		if not info then return end
 
 		local elapsedMins = math.floor((os.time() - info.StartTime) / 60)
+
+		-- [[ THE FIX: Cap Server-Side AFK Rewards to 12 Hours (720 minutes) ]]
+		elapsedMins = math.min(elapsedMins, 720)
+
 		if elapsedMins < 1 then
 			RemotesFolder.NotificationEvent:FireClient(player, allyName .. " returned empty-handed.", "Error")
 			dData[allyName] = nil; SaveDispatchData(player, dData); return
