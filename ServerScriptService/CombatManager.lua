@@ -81,6 +81,32 @@ local function GetSpdScale(targetPart, isEndless, wave)
 	return base
 end
 
+-- [[ THE FIX: Extracted Titan Skills to map valid moves correctly! ]]
+local function GetTitanSkills(titanName)
+	local tSkills = {"Titan Punch", "Titan Kick", "Cannibalize", "Hardened Punch"}
+	if not titanName or titanName == "None" then return tSkills end
+
+	if titanName:find("Founding") then tSkills[4] = "Coordinate Command"
+	elseif titanName:find("Colossal") then tSkills[4] = "Colossal Steam"
+	elseif titanName:find("War Hammer") then tSkills[4] = "War Hammer Spike"
+	elseif titanName:find("Armored") then tSkills[4] = "Armored Tackle"
+	elseif titanName:find("Female") then tSkills[4] = "Crystal Kick"
+	elseif titanName:find("Beast") then tSkills[4] = "Pitching Ace"
+	elseif titanName:find("Jaw") then tSkills[4] = "Crushing Bite"
+	elseif titanName:find("Cart") then tSkills[4] = "Panzer Artillery"
+	elseif titanName:find("Attack") then tSkills[4] = "Berserk Rush"
+	end
+
+	if titanName == "Founding Female Titan" then tSkills[3] = "Crystal Kick"
+	elseif titanName == "Armored Attack Titan" then tSkills[3] = "Armored Tackle"; tSkills[4] = "Berserk Rush"
+	elseif titanName == "War Hammer Attack Titan" then tSkills[3] = "War Hammer Spike"; tSkills[4] = "Berserk Rush"
+	elseif titanName == "Colossal Jaw Titan" then tSkills[3] = "Crushing Bite"; tSkills[4] = "Colossal Steam"
+	elseif titanName == "Founding Attack Titan" then tSkills[3] = "Berserk Rush"; tSkills[4] = "Coordinate Command"
+	end
+
+	return tSkills
+end
+
 local function GetActualStyle(plr)
 	local eqWpn = plr:GetAttribute("EquippedWeapon") or "None"
 	if ItemData.Equipment[eqWpn] and ItemData.Equipment[eqWpn].Style then return ItemData.Equipment[eqWpn].Style end
@@ -250,6 +276,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 	pMaxHP = math.floor((pMaxHP + awakenedStats.HpBonus) * cStats.HpMult)
 	local pMaxGas = (((baseGasStat) + (wpnBonus.Gas or 0) + (accBonus.Gas or 0)) * 10) + awakenedStats.GasBonus
 	pMaxGas = math.max(100, pMaxGas)
+
 	local pTotalStr = (baseStrStat) + (wpnBonus.Strength or 0) + (accBonus.Strength or 0)
 	local pTotalDef = (baseDefStat) + (wpnBonus.Defense or 0) + (accBonus.Defense or 0)
 	local pTotalSpd = (baseSpdStat) + (wpnBonus.Speed or 0) + (accBonus.Speed or 0) + awakenedStats.SpdBonus
@@ -730,9 +757,19 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 					return
 				end
 			end
-		elseif isTransformed and skill.Requirement and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "None" and skill.Requirement ~= "Enemy" then
-			local myTitan = player:GetAttribute("Titan")
-			if not myTitan or not string.find(myTitan, skill.Requirement) then
+		elseif isTransformed then
+			-- [[ THE FIX: Authorizes Titan moves universally to bypass bad string requirements ]]
+			local validTitanMoves = GetTitanSkills(player:GetAttribute("Titan"))
+			local isValidMove = false
+			for _, m in ipairs(validTitanMoves) do
+				if m == skillName then isValidMove = true; break end
+			end
+
+			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Dodge" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" then
+				isValidMove = true
+			end
+
+			if not isValidMove then
 				CombatUpdate:FireClient(player, "Update", {Battle = battle})
 				return
 			end
