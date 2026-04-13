@@ -232,6 +232,7 @@ PrestigeAction.OnServerInvoke = function(player)
 		local statsToReset = {"Health", "Gas", "Strength", "Defense", "Speed", "Resolve", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 		for _, s in ipairs(statsToReset) do
 			player:SetAttribute(s, 10) 
+			player:SetAttribute("Invested_" .. s, 10) -- Add this line to clear the hidden invested cap
 		end
 
 		player:SetAttribute("CurrentPart", 1)
