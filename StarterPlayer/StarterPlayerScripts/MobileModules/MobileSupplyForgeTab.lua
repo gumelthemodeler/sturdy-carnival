@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MobileSupplyForgeTab
 -- @ScriptType: ModuleScript
 local MobileSupplyForgeTab = {}
@@ -17,6 +18,7 @@ local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local NotificationManager = require(SharedUI:WaitForChild("NotificationManager"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local TitanData = require(ReplicatedStorage:WaitForChild("TitanData")) 
+local hasSkillData, SkillData = pcall(function() return require(ReplicatedStorage:WaitForChild("SkillData")) end)
 local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
 
 local CONFIG = {
@@ -95,28 +97,31 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	local mPad = Instance.new("UIPadding", MainFrame)
 	mPad.PaddingTop = UDim.new(0, 10)
 
-	local SubNav = Instance.new("Frame", MainFrame)
+	local SubNav = Instance.new("ScrollingFrame", MainFrame)
 	SubNav.Size = UDim2.new(1, -10, 0, 40)
 	SubNav.BackgroundTransparency = 1
 	SubNav.LayoutOrder = 1
+	SubNav.ScrollBarThickness = 0
+	SubNav.ScrollingDirection = Enum.ScrollingDirection.X
 
 	local navLayout = Instance.new("UIListLayout", SubNav)
 	navLayout.FillDirection = Enum.FillDirection.Horizontal
 	navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	navLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	navLayout.Padding = UDim.new(0, 5)
+	navLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() SubNav.CanvasSize = UDim2.new(0, navLayout.AbsoluteContentSize.X + 20, 0, 0) end)
 
 	local ContentArea = Instance.new("Frame", MainFrame)
 	ContentArea.Size = UDim2.new(1, -10, 1, -60)
 	ContentArea.BackgroundTransparency = 1
 	ContentArea.LayoutOrder = 2
 
-	local subTabs = { "MARKET", "FORGE", "FUSION", "TRADE" }
+	local subTabs = { "MARKET", "FORGE", "RITUAL", "FUSION", "TRADE" }
 	local activeSubFrames = {}
 	local subBtns = {}
 
 	for i, tabName in ipairs(subTabs) do
-		local btn, stroke = CreateSharpButton(SubNav, tabName, UDim2.new(0.23, 0, 0, 35), Enum.Font.GothamBold, 11)
+		local btn, stroke = CreateSharpButton(SubNav, tabName, UDim2.new(0, 85, 0, 35), Enum.Font.GothamBold, 11)
 		btn.TextColor3 = UIHelpers.Colors.TextMuted
 		stroke.Color = UIHelpers.Colors.BorderMuted
 
@@ -266,11 +271,11 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	rrContainer.BackgroundTransparency = 1
 	local rrLayout = Instance.new("UIListLayout", rrContainer); rrLayout.FillDirection = Enum.FillDirection.Horizontal; rrLayout.Padding = UDim.new(0, 10); rrLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-	local rrDews, rrDewsStroke = CreateSharpButton(rrContainer, "RESTOCK (300K)", UDim2.new(0.48, 0, 1, 0), Enum.Font.GothamBlack, 11)
+	local rrDews, rrDewsStroke = CreateSharpButton(rrContainer, "RESTOCK (300K Dews)", UDim2.new(0.48, 0, 1, 0), Enum.Font.GothamBlack, 11)
 	rrDews.TextColor3 = Color3.fromRGB(85, 170, 255)
 	rrDewsStroke.Color = Color3.fromRGB(85, 170, 255)
 
-	local rrPremium, rrPremStroke = CreateSharpButton(rrContainer, "RESTOCK (50 R$)", UDim2.new(0.48, 0, 1, 0), Enum.Font.GothamBlack, 11)
+	local rrPremium, rrPremStroke = CreateSharpButton(rrContainer, "RESTOCK (15 R$)", UDim2.new(0.48, 0, 1, 0), Enum.Font.GothamBlack, 11)
 
 	local isFreeRestock = false
 	local function UpdateRerollButton()
@@ -282,7 +287,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 			rrPremStroke.Color = Color3.fromRGB(200, 100, 255)
 			isFreeRestock = true
 		else
-			rrPremium.Text = "RESTOCK (15 R$)"
+			rrPremium.Text = "RESTOCK (50 R$)"
 			rrPremium.TextColor3 = Color3.fromRGB(85, 255, 85)
 			rrPremStroke.Color = Color3.fromRGB(85, 255, 85)
 			isFreeRestock = false
@@ -545,6 +550,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	rlLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RecipeList.Size = UDim2.new(1, -10, 0, rlLayout.AbsoluteContentSize.Y) end)
 
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
+		if rec == "Fritz Clan Serum" or rec == "Ancestral Awakening Serum" then continue end
 		local resItem = recipeData.Result
 		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
 		local rarity = resData and resData.Rarity or "Common"
@@ -620,40 +626,320 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	end
 
 	-- ==========================================
+	-- 2.5 BLOODLINE RITUAL
+	-- ==========================================
+	local RitualTab = activeSubFrames["RITUAL"]
+	local selectedRitualName = nil 
+
+	local rSplitContainer = Instance.new("ScrollingFrame", RitualTab)
+	rSplitContainer.Size = UDim2.new(1, 0, 1, 0)
+	rSplitContainer.BackgroundTransparency = 1
+	rSplitContainer.ScrollBarThickness = 4
+	rSplitContainer.BorderSizePixel = 0
+
+	local rsfLayout = Instance.new("UIListLayout", rSplitContainer)
+	rsfLayout.FillDirection = Enum.FillDirection.Vertical
+	rsfLayout.Padding = UDim.new(0, 15)
+	rsfLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	rsfLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+		rSplitContainer.CanvasSize = UDim2.new(0, 0, 0, rsfLayout.AbsoluteContentSize.Y + 20) 
+	end)
+
+	local RitualPanel = Instance.new("Frame", rSplitContainer)
+	RitualPanel.Size = UDim2.new(1, -10, 0, 350)
+	RitualPanel.LayoutOrder = 1
+	RitualPanel.BackgroundTransparency = 1 
+
+	local RInfoView = Instance.new("Frame", RitualPanel)
+	RInfoView.Size = UDim2.new(1, 0, 1, 0)
+	RInfoView.BackgroundTransparency = 1
+
+	local rbpTitle = UIHelpers.CreateLabel(RInfoView, "AWAITING TRIBUTE", UDim2.new(1, -20, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(150, 200, 255), 20)
+	rbpTitle.Position = UDim2.new(0, 10, 0, 10); rbpTitle.TextXAlignment = Enum.TextXAlignment.Center
+
+	local rbpDesc = UIHelpers.CreateLabel(RInfoView, "Select a rite from the tomes to rewrite your lineage.", UDim2.new(1, -40, 0, 40), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 12)
+	rbpDesc.Position = UDim2.new(0.5, 0, 0, 45); rbpDesc.AnchorPoint = Vector2.new(0.5, 0); rbpDesc.TextXAlignment = Enum.TextXAlignment.Center; rbpDesc.TextWrapped = true
+
+	local RReqTitle = UIHelpers.CreateLabel(RInfoView, "REQUIRED SACRIFICES", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14)
+	RReqTitle.Position = UDim2.new(0, 10, 0, 95); RReqTitle.TextXAlignment = Enum.TextXAlignment.Left; RReqTitle.Visible = false
+
+	local RReqList = Instance.new("Frame", RInfoView)
+	RReqList.Size = UDim2.new(1, -20, 0, 150)
+	RReqList.Position = UDim2.new(0, 10, 0, 120)
+	RReqList.BackgroundTransparency = 1
+	local rreqLayout = Instance.new("UIListLayout", RReqList); rreqLayout.Padding = UDim.new(0, 8)
+
+	rreqLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		RReqList.Size = UDim2.new(1, -20, 0, rreqLayout.AbsoluteContentSize.Y)
+		RitualPanel.Size = UDim2.new(1, -10, 0, 125 + rreqLayout.AbsoluteContentSize.Y + 70)
+	end)
+
+	local RCraftBtn, RCraftStroke = CreateSharpButton(RInfoView, "COMMENCE RITUAL", UDim2.new(0.8, 0, 0, 45), Enum.Font.GothamBlack, 16)
+	RCraftBtn.Position = UDim2.new(0.5, 0, 1, -15); RCraftBtn.AnchorPoint = Vector2.new(0.5, 1); RCraftBtn.Visible = false
+	RCraftBtn.TextColor3 = Color3.fromRGB(150, 200, 255)
+	RCraftStroke.Color = Color3.fromRGB(150, 200, 255)
+
+	TweenService:Create(RCraftStroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Transparency = 0.5}):Play()
+
+	local RMiniView = Instance.new("Frame", RitualPanel)
+	RMiniView.Size = UDim2.new(1, 0, 1, 0)
+	RMiniView.BackgroundTransparency = 1
+	RMiniView.Visible = false
+
+	local rChannelLbl = UIHelpers.CreateLabel(RMiniView, "SYNCHRONIZING WITH THE COORDINATE...", UDim2.new(1, -20, 0, 60), Enum.Font.GothamBlack, Color3.fromRGB(150, 200, 255), 18)
+	rChannelLbl.Position = UDim2.new(0.5, 0, 0.3, 0); rChannelLbl.AnchorPoint = Vector2.new(0.5, 0); rChannelLbl.TextWrapped = true
+
+	local rBarContainer, rBcStroke = CreateGrimPanel(RMiniView)
+	rBarContainer.Size = UDim2.new(0.8, 0, 0, 20)
+	rBarContainer.Position = UDim2.new(0.5, 0, 0.6, 0)
+	rBarContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+	rBarContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+	rBcStroke.Color = Color3.fromRGB(50, 50, 70); rBcStroke.Thickness = 2
+
+	local rProgressFill = Instance.new("Frame", rBarContainer)
+	rProgressFill.Size = UDim2.new(0, 0, 1, 0)
+	rProgressFill.BackgroundColor3 = Color3.fromRGB(150, 200, 255)
+	rProgressFill.BorderSizePixel = 0
+
+	RCraftBtn.MouseButton1Click:Connect(function()
+		if not RCraftBtn.Active or not selectedRitualName then return end
+		local recipe = ItemData.ForgeRecipes[selectedRitualName]
+		if not recipe then return end
+
+		local dews = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Dews") and player.leaderstats.Dews.Value or 0
+		if dews < recipe.DewCost then NotificationManager.Show("Not enough Dews for this Ritual!", "Error") return end
+
+		local hasMats = true
+		for req, amt in pairs(recipe.ReqItems) do
+			local count = player:GetAttribute(req:gsub("[^%w]", "") .. "Count") or 0
+			if count < amt then hasMats = false; break end
+		end
+
+		if recipe.SpecialType == "MythicalClanRequirement" then
+			local requiredCount = recipe.MythicalClanCount or 2
+			local mythicalClans = {"ItemizedReissCount", "ItemizedAckermanCount"}
+			local foundCount = 0
+			for _, mClanAttr in ipairs(mythicalClans) do
+				local c = player:GetAttribute(mClanAttr) or 0
+				foundCount += c
+			end
+			if foundCount < requiredCount then hasMats = false end
+		end
+
+		if not hasMats then NotificationManager.Show("Missing required sacrifices!", "Error") return end
+
+		RInfoView.Visible = false
+		RitualPanel.Size = UDim2.new(1, -10, 0, 300) 
+
+		local cinGui = Instance.new("ScreenGui", player.PlayerGui)
+		cinGui.Name = "RitualCinematicGui"
+		cinGui.DisplayOrder = 1000
+		cinGui.IgnoreGuiInset = true
+
+		local bg = Instance.new("Frame", cinGui)
+		bg.Size = UDim2.new(1, 0, 1, 0)
+		bg.BackgroundColor3 = Color3.fromRGB(5, 5, 15)
+		bg.BackgroundTransparency = 1
+
+		TweenService:Create(bg, TweenInfo.new(2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.05}):Play()
+		if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Steam", 0.5) end
+		task.wait(2)
+
+		local pathsLbl = UIHelpers.CreateLabel(bg, "CALLING UPON THE FOUNDER...", UDim2.new(1, 0, 1, 0), Enum.Font.Garamond, Color3.fromRGB(150, 200, 255), 24)
+		pathsLbl.TextTransparency = 1
+		TweenService:Create(pathsLbl, TweenInfo.new(1.5), {TextTransparency = 0}):Play()
+
+		task.wait(2)
+		TweenService:Create(pathsLbl, TweenInfo.new(1), {TextTransparency = 1}):Play()
+		task.wait(1.5)
+
+		pathsLbl.Text = "REWRITING ELDIAN BIOLOGY..."
+		pathsLbl.TextColor3 = UIHelpers.Colors.Gold
+		TweenService:Create(pathsLbl, TweenInfo.new(1.5), {TextTransparency = 0}):Play()
+
+		if VFXManager and type(VFXManager.ScreenShake) == "function" then VFXManager.ScreenShake(3, 0.6) end
+		if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("TitanRoar", 0.7) end
+		task.wait(2.5)
+
+		local flash = Instance.new("Frame", cinGui)
+		flash.Size = UDim2.new(1, 0, 1, 0)
+		flash.BackgroundColor3 = UIHelpers.Colors.Gold
+		flash.ZIndex = 10
+		TweenService:Create(flash, TweenInfo.new(3, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+		if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("HeavySlash", 0.8) end
+
+		pathsLbl.Text = "BLOODLINE TRANSCENDED"
+		pathsLbl.TextSize = 36
+		task.wait(3)
+
+		local fadeOut = TweenService:Create(bg, TweenInfo.new(1.5), {BackgroundTransparency = 1})
+		TweenService:Create(pathsLbl, TweenInfo.new(1.5), {TextTransparency = 1}):Play()
+		fadeOut:Play()
+		fadeOut.Completed:Wait()
+		cinGui:Destroy()
+
+		RInfoView.Visible = true
+		if selectedRitualName then
+			Network:WaitForChild("ForgeItem"):FireServer(selectedRitualName, "Standard")
+		end
+	end)
+
+	local RitualList = Instance.new("Frame", rSplitContainer)
+	RitualList.Size = UDim2.new(1, -10, 0, 180)
+	RitualList.BackgroundTransparency = 1
+	RitualList.LayoutOrder = 2
+	local rillLayout = Instance.new("UIListLayout", RitualList); rillLayout.Padding = UDim.new(0, 8)
+	rillLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RitualList.Size = UDim2.new(1, -10, 0, rillLayout.AbsoluteContentSize.Y) end)
+
+	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
+		if rec ~= "Fritz Clan Serum" and rec ~= "Ancestral Awakening Serum" then continue end
+
+		local resItem = recipeData.Result
+		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
+		local rarity = resData and resData.Rarity or "Mythical"
+		local rColor = CONFIG.RarityColors[rarity] or Color3.fromRGB(200,200,200)
+
+		local rBtn = Instance.new("TextButton", RitualList)
+		rBtn.Size = UDim2.new(1, 0, 0, 60)
+		rBtn.BackgroundTransparency = 1
+		rBtn.AutoButtonColor = false
+		rBtn.Text = ""
+
+		local rStrk = Instance.new("UIStroke", rBtn)
+		rStrk.Color = rColor
+		rStrk.Thickness = 2
+		rStrk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+		local bgGlow = Instance.new("Frame", rBtn)
+		bgGlow.Size = UDim2.new(1, 0, 1, 0)
+		bgGlow.BackgroundColor3 = rColor
+		bgGlow.BorderSizePixel = 0
+		bgGlow.ZIndex = 1
+		local grad = Instance.new("UIGradient", bgGlow); grad.Rotation = 90; grad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.8) }
+
+		local rTitleLbl = UIHelpers.CreateLabel(rBtn, string.upper(rec), UDim2.new(1, -15, 0, 20), Enum.Font.GothamBlack, rColor, 12)
+		rTitleLbl.Position = UDim2.new(0, 10, 0, 10); rTitleLbl.TextXAlignment = Enum.TextXAlignment.Left; rTitleLbl.ZIndex = 2
+
+		local rTagLbl = UIHelpers.CreateLabel(rBtn, "[ FORBIDDEN RITE ]", UDim2.new(1, -15, 0, 15), Enum.Font.GothamBold, Color3.fromRGB(200, 200, 200), 10)
+		rTagLbl.Position = UDim2.new(0, 10, 1, -22); rTagLbl.TextXAlignment = Enum.TextXAlignment.Left; rTagLbl.ZIndex = 2
+
+		rBtn.InputBegan:Connect(function() rTitleLbl.TextColor3 = UIHelpers.Colors.Gold; rTagLbl.TextColor3 = UIHelpers.Colors.Gold; rStrk.Color = UIHelpers.Colors.Gold end)
+		rBtn.InputEnded:Connect(function() rTitleLbl.TextColor3 = rColor; rTagLbl.TextColor3 = Color3.fromRGB(200, 200, 200); rStrk.Color = rColor end)
+
+		rBtn.MouseButton1Click:Connect(function()
+			selectedRitualName = rec 
+			rbpTitle.Text = string.upper(rec); rbpTitle.TextColor3 = rColor
+			rbpDesc.Text = "<font color='" .. ColorToHex(rColor) .. "'>[" .. rarity:upper() .. "]</font> " .. (resData and resData.Desc or "A forbidden rite."); rbpDesc.RichText = true
+			RReqTitle.Visible = true; RCraftBtn.Visible = true
+
+			for _, c in ipairs(RReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+
+			local function MakeReq(matName, amt, hasAmt)
+				local rf = Instance.new("Frame", RReqList)
+				rf.Size = UDim2.new(1, 0, 0, 25)
+				rf.BackgroundTransparency = 1
+				rf.ZIndex = 103
+
+				local reqBg = Instance.new("Frame", rf)
+				reqBg.Size = UDim2.new(1, 0, 1, 0)
+				reqBg.BackgroundColor3 = hasAmt and UIHelpers.Colors.BorderMuted or Color3.fromRGB(150, 40, 40)
+				reqBg.BackgroundTransparency = hasAmt and 0.5 or 0 
+				reqBg.BorderSizePixel = 0
+				local rGrad = Instance.new("UIGradient", reqBg); rGrad.Rotation = 90; rGrad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.7) }
+
+				local l = UIHelpers.CreateLabel(rf, amt .. "x " .. matName, UDim2.new(1, -10, 1, 0), Enum.Font.GothamBold, hasAmt and UIHelpers.Colors.TextWhite or Color3.fromRGB(255, 100, 100), 11)
+				l.Position = UDim2.new(0, 10, 0, 0); l.TextXAlignment = Enum.TextXAlignment.Left; l.ZIndex = 104
+			end
+
+			local hasAllMats = true
+			if ItemData.ForgeRecipes[rec] then
+				for mat, amt in pairs(ItemData.ForgeRecipes[rec].ReqItems) do 
+					local count = tonumber(player:GetAttribute(mat:gsub("[^%w]", "") .. "Count")) or 0
+					local hasEnough = count >= amt; if not hasEnough then hasAllMats = false end
+					MakeReq(mat, amt, hasEnough) 
+				end
+
+				if ItemData.ForgeRecipes[rec].SpecialType == "MythicalClanRequirement" then
+					local requiredCount = ItemData.ForgeRecipes[rec].MythicalClanCount or 2
+					local mythicalClans = {"ItemizedReissCount", "ItemizedAckermanCount"}
+					local foundCount = 0
+					for _, mClanAttr in ipairs(mythicalClans) do
+						local c = player:GetAttribute(mClanAttr) or 0
+						foundCount += c
+					end
+					local hasEnough = foundCount >= requiredCount
+					if not hasEnough then hasAllMats = false end
+					MakeReq("Any Mythical Clan", requiredCount, hasEnough)
+				end
+
+				local dCount = tonumber(player:GetAttribute("Dews")) or 0
+				local hasDews = dCount >= ItemData.ForgeRecipes[rec].DewCost; if not hasDews then hasAllMats = false end
+				MakeReq("Dews", ItemData.ForgeRecipes[rec].DewCost, hasDews)
+			end
+
+			if hasAllMats then
+				RCraftBtn.Active = true; RCraftBtn.Text = "COMMENCE RITUAL"; RCraftBtn.TextColor3 = rColor; RCraftStroke.Color = rColor
+			else
+				RCraftBtn.Active = false; RCraftBtn.Text = "INSUFFICIENT SACRIFICES"; RCraftBtn.TextColor3 = Color3.fromRGB(100, 100, 100); RCraftStroke.Color = Color3.fromRGB(50, 50, 60)
+			end
+		end)
+	end
+
+
+	-- ==========================================
 	-- 3. TITAN FUSION
 	-- ==========================================
 	local FusionTab = activeSubFrames["FUSION"]
 
-	local fTitle = UIHelpers.CreateLabel(FusionTab, "TITAN HYBRIDIZATION", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(170, 85, 255), 18)
+	local fSplitContainer = Instance.new("ScrollingFrame", FusionTab)
+	fSplitContainer.Size = UDim2.new(1, 0, 1, 0)
+	fSplitContainer.BackgroundTransparency = 1
+	fSplitContainer.ScrollBarThickness = 4
+	fSplitContainer.BorderSizePixel = 0
+
+	local fsfLayout = Instance.new("UIListLayout", fSplitContainer)
+	fsfLayout.FillDirection = Enum.FillDirection.Vertical
+	fsfLayout.Padding = UDim.new(0, 15)
+	fsfLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	fsfLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+		fSplitContainer.CanvasSize = UDim2.new(0, 0, 0, fsfLayout.AbsoluteContentSize.Y + 20) 
+	end)
+
+	local fLeftPanel = Instance.new("Frame", fSplitContainer)
+	fLeftPanel.Size = UDim2.new(1, -10, 0, 320)
+	fLeftPanel.BackgroundTransparency = 1
+	fLeftPanel.LayoutOrder = 1
+
+	local fTitle = UIHelpers.CreateLabel(fLeftPanel, "TITAN HYBRIDIZATION", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(170, 85, 255), 18)
 	fTitle.Position = UDim2.new(0, 0, 0, 0)
 
-	local fDesc = UIHelpers.CreateLabel(FusionTab, "Fuse two Pure Titans to create a Hybrid. Irreversible.", UDim2.new(1, -20, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12)
+	local fDesc = UIHelpers.CreateLabel(fLeftPanel, "Fuse two Pure Titans to create a Hybrid. Irreversible.", UDim2.new(1, -20, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12)
 	fDesc.Position = UDim2.new(0, 10, 0, 30)
 
-	local SlotContainer = Instance.new("Frame", FusionTab)
-	SlotContainer.Size = UDim2.new(1, 0, 0, 220)
-	SlotContainer.Position = UDim2.new(0.5, 0, 0.45, 0)
+	local SlotContainer = Instance.new("Frame", fLeftPanel)
+	SlotContainer.Size = UDim2.new(1, 0, 0, 200)
+	SlotContainer.Position = UDim2.new(0.5, 0, 0.5, -10)
 	SlotContainer.AnchorPoint = Vector2.new(0.5, 0.5)
 	SlotContainer.BackgroundTransparency = 1
 
 	local function CreateFusionSlot(pos, titleText, isResult)
 		local f, fStroke = CreateGrimPanel(SlotContainer)
-		f.Size = UDim2.new(0, 100, 0, 100)
+		f.Size = UDim2.new(0, 90, 0, 90)
 		f.Position = pos
 		f.AnchorPoint = Vector2.new(0.5, 0.5)
 		fStroke.Color = Color3.fromRGB(70, 70, 80)
 
-		local t = UIHelpers.CreateLabel(f, titleText, UDim2.new(1, -10, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 10)
+		local t = UIHelpers.CreateLabel(f, titleText, UDim2.new(1, -10, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 9)
 		t.Position = UDim2.new(0, 5, 0, 5)
 		t.TextScaled = true; t.ZIndex = 2
 
 		if isResult then
-			local qLbl = UIHelpers.CreateLabel(f, "?", UDim2.new(1, 0, 1, -25), Enum.Font.GothamBlack, Color3.fromRGB(80, 70, 90), 40)
+			local qLbl = UIHelpers.CreateLabel(f, "?", UDim2.new(1, 0, 1, -25), Enum.Font.GothamBlack, Color3.fromRGB(80, 70, 90), 36)
 			qLbl.Position = UDim2.new(0, 0, 0, 25); qLbl.ZIndex = 2
 			return f, t, qLbl, nil
 		end
 
-		local addBtn, addStroke = CreateSharpButton(f, "+", UDim2.new(0, 40, 0, 40), Enum.Font.GothamBlack, 20)
+		local addBtn, addStroke = CreateSharpButton(f, "+", UDim2.new(0, 35, 0, 35), Enum.Font.GothamBlack, 18)
 		addBtn.Position = UDim2.new(0.5, 0, 0.5, 10); addBtn.AnchorPoint = Vector2.new(0.5, 0.5); addBtn.ZIndex = 2
 
 		local overBtn = Instance.new("TextButton", f)
@@ -671,8 +957,78 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	local l1 = Instance.new("Frame", SlotContainer); l1.Size = UDim2.new(0, 80, 0, 4); l1.Position = UDim2.new(0.35, 0, 0.5, 0); l1.Rotation = 60; l1.AnchorPoint = Vector2.new(0.5, 0.5); l1.BackgroundColor3 = Color3.fromRGB(50, 40, 60); l1.BorderSizePixel = 0
 	local l2 = Instance.new("Frame", SlotContainer); l2.Size = UDim2.new(0, 80, 0, 4); l2.Position = UDim2.new(0.65, 0, 0.5, 0); l2.Rotation = -60; l2.AnchorPoint = Vector2.new(0.5, 0.5); l2.BackgroundColor3 = Color3.fromRGB(50, 40, 60); l2.BorderSizePixel = 0
 
-	local FuseBtn, FuseStroke = CreateSharpButton(FusionTab, "INITIATE FUSION (300K DEWS)", UDim2.new(0.8, 0, 0, 45), Enum.Font.GothamBlack, 14)
-	FuseBtn.Position = UDim2.new(0.5, 0, 1, -20); FuseBtn.AnchorPoint = Vector2.new(0.5, 1); FuseBtn.TextColor3 = Color3.fromRGB(170, 85, 255); FuseStroke.Color = Color3.fromRGB(170, 85, 255)
+	local FuseBtn, FuseStroke = CreateSharpButton(fLeftPanel, "INITIATE FUSION (300K DEWS)", UDim2.new(0.8, 0, 0, 45), Enum.Font.GothamBlack, 14)
+	FuseBtn.Position = UDim2.new(0.5, 0, 1, -10); FuseBtn.AnchorPoint = Vector2.new(0.5, 1); FuseBtn.TextColor3 = Color3.fromRGB(170, 85, 255); FuseStroke.Color = Color3.fromRGB(170, 85, 255)
+
+	local fRightPanel, _ = CreateGrimPanel(fSplitContainer)
+	fRightPanel.Size = UDim2.new(1, -10, 0, 300)
+	fRightPanel.LayoutOrder = 2
+
+	local regTitle = UIHelpers.CreateLabel(fRightPanel, "FUSION REGISTRY", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(170, 85, 255), 18)
+	regTitle.Position = UDim2.new(0, 0, 0, 10)
+
+	local regScroll = Instance.new("Frame", fRightPanel)
+	regScroll.Size = UDim2.new(1, -20, 1, -50)
+	regScroll.Position = UDim2.new(0, 10, 0, 40)
+	regScroll.BackgroundTransparency = 1
+
+	local rsLayout = Instance.new("UIListLayout", regScroll)
+	rsLayout.Padding = UDim.new(0, 10)
+	rsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+		regScroll.Size = UDim2.new(1, -20, 0, rsLayout.AbsoluteContentSize.Y)
+		fRightPanel.Size = UDim2.new(1, -10, 0, rsLayout.AbsoluteContentSize.Y + 60)
+	end)
+
+	local FusionRecipes = { 
+		["Female Titan"] = { ["Founding Titan"] = "Founding Female Titan" }, 
+		["Founding Titan"] = { ["Female Titan"] = "Founding Female Titan", ["Attack Titan"] = "Founding Attack Titan" }, 
+		["Attack Titan"] = { ["Armored Titan"] = "Armored Attack Titan", ["War Hammer Titan"] = "War Hammer Attack Titan", ["Founding Titan"] = "Founding Attack Titan" }, 
+		["Armored Titan"] = { ["Attack Titan"] = "Armored Attack Titan" }, 
+		["War Hammer Titan"] = { ["Attack Titan"] = "War Hammer Attack Titan" }, 
+		["Colossal Titan"] = { ["Jaw Titan"] = "Colossal Jaw Titan" }, 
+		["Jaw Titan"] = { ["Colossal Titan"] = "Colossal Jaw Titan" } 
+	}
+
+	local addedFusions = {}
+	for alpha, omegas in pairs(FusionRecipes) do
+		for omega, res in pairs(omegas) do
+			if not addedFusions[res] then
+				addedFusions[res] = { Alpha = alpha, Omega = omega }
+
+				local fCard, fStroke = CreateGrimPanel(regScroll)
+				fCard.Size = UDim2.new(1, 0, 0, 120)
+				fStroke.Color = Color3.fromRGB(170, 85, 255)
+
+				local resLbl = UIHelpers.CreateLabel(fCard, string.upper(res), UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, Color3.fromRGB(170, 85, 255), 14)
+				resLbl.Position = UDim2.new(0, 10, 0, 10); resLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+				local reqLbl = UIHelpers.CreateLabel(fCard, "Recipe: " .. alpha .. " + " .. omega, UDim2.new(1, -20, 0, 15), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 11)
+				reqLbl.Position = UDim2.new(0, 10, 0, 30); reqLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+				local tData = type(TitanData) == "table" and TitanData.Titans and TitanData.Titans[res]
+				if tData and tData.Stats then
+					local s = tData.Stats
+					local statStr = string.format("POW: %s | SPD: %s | HRD: %s | END: %s | PRE: %s | POT: %s", s.Power, s.Speed, s.Hardening, s.Endurance, s.Precision, s.Potential)
+					local statLbl = UIHelpers.CreateLabel(fCard, statStr, UDim2.new(1, -20, 0, 15), Enum.Font.GothamBold, UIHelpers.Colors.Gold, 10)
+					statLbl.Position = UDim2.new(0, 10, 0, 50); statLbl.TextXAlignment = Enum.TextXAlignment.Left
+				end
+
+				local uniqueSkills = {}
+				if hasSkillData and type(SkillData) == "table" then
+					local sPool = SkillData.Skills or SkillData
+					for sName, sData in pairs(sPool) do
+						if sData.Requirement and sData.Requirement ~= "AnyTitan" and sData.Requirement ~= "Transformed" and sData.Requirement ~= "Enemy" and sData.Requirement ~= "None" then
+							if string.find(res, sData.Requirement) then table.insert(uniqueSkills, sName) end
+						end
+					end
+				end
+				local skillsStr = #uniqueSkills > 0 and table.concat(uniqueSkills, ", ") or "Unknown Abilities"
+
+				local skLbl = UIHelpers.CreateLabel(fCard, "Inherits: " .. skillsStr, UDim2.new(1, -20, 0, 30), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 10)
+				skLbl.Position = UDim2.new(0, 10, 0, 70); skLbl.TextXAlignment = Enum.TextXAlignment.Left; skLbl.TextWrapped = true; skLbl.TextYAlignment = Enum.TextYAlignment.Top
+			end
+		end
+	end
 
 	local PopupOverlay = Instance.new("Frame", MainFrame)
 	PopupOverlay.Size = UDim2.new(1, 0, 1, 0); PopupOverlay.BackgroundColor3 = Color3.new(0,0,0); PopupOverlay.BackgroundTransparency = 0.6; PopupOverlay.ZIndex = 50; PopupOverlay.Visible = false; PopupOverlay.Active = true
