@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 local ItemData = {}
 
 ItemData.Equipment = {
@@ -57,6 +58,19 @@ ItemData.Consumables = {
 	["Titan Research Notes"] = { Rarity = "Rare", Cost = 5000, Action = "Consume", Buff = "XP", Duration = 900, Desc = "Doubles all XP gained from combat and training for 15 minutes." },
 	["Garrison Supply Crate"] = { Rarity = "Uncommon", Cost = 15000, Action = "Consume", Buff = "Dews", MinAmount = 5000, MaxAmount = 20000, Desc = "Instantly grants between 5,000 and 20,000 Dews when opened." },
 
+	-- [[ ITEMIZED CLANS ]]
+	["Itemized Yeager"] = { Rarity = "Legendary", Cost = 25000, Action = "EquipClan", ClanName = "Yeager", Desc = "An extracted blood vial of the Yeager lineage. Consume to inherit." },
+	["Itemized Tybur"] = { Rarity = "Legendary", Cost = 25000, Action = "EquipClan", ClanName = "Tybur", Desc = "An extracted blood vial of the Tybur lineage. Consume to inherit." },
+	["Itemized Ackerman"] = { Rarity = "Mythical", Cost = 25000, Action = "EquipClan", ClanName = "Ackerman", Desc = "An extracted blood vial of the Ackerman lineage. Consume to inherit." },
+	["Itemized Galliard"] = { Rarity = "Epic", Cost = 25000, Action = "EquipClan", ClanName = "Galliard", Desc = "An extracted blood vial of the Galliard lineage. Consume to inherit." },
+	["Itemized Braun"] = { Rarity = "Epic", Cost = 25000, Action = "EquipClan", ClanName = "Braun", Desc = "An extracted blood vial of the Braun lineage. Consume to inherit." },
+	["Itemized Arlert"] = { Rarity = "Epic", Cost = 25000, Action = "EquipClan", ClanName = "Arlert", Desc = "An extracted blood vial of the Arlert lineage. Consume to inherit." },
+	["Itemized Braus"] = { Rarity = "Rare", Cost = 25000, Action = "EquipClan", ClanName = "Braus", Desc = "An extracted blood vial of the Braus lineage. Consume to inherit." },
+	["Itemized Springer"] = { Rarity = "Rare", Cost = 25000, Action = "EquipClan", ClanName = "Springer", Desc = "An extracted blood vial of the Springer lineage. Consume to inherit." },
+	["Itemized Reiss"] = { Rarity = "Mythical", Cost = 25000, Action = "EquipClan", ClanName = "Reiss", Desc = "An extracted blood vial of the Reiss lineage. Consume to inherit." },
+	["Fritz Clan Serum"] = { Rarity = "Transcendent", Cost = 0, Action = "EquipClan", ClanName = "Fritz", Desc = "The absolute royal bloodline. Forged from the purest coordinate shards." },
+
+	-- [[ GAMEPASS GIFTS ]]
 	["Auto Train (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "AutoTrain", Desc = "Permanently unlocks Auto Train. Cannot be sold." },
 	["2x XP & Funds (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "DoubleXP", Desc = "Permanently unlocks 2x XP & Dews. Cannot be sold." },
 	["Titan Vault Expansion (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "TitanVault", Desc = "Unlocks Titan Vault slots 4-6. Cannot be sold." },
@@ -66,11 +80,6 @@ ItemData.Consumables = {
 	["2x Battle Speed (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "DoubleSpeed", Desc = "Permanently doubles the speed of combat turns. Cannot be sold." },
 	["Backpack Expansion (Gift)"] = { Rarity = "Transcendent", Cost = 0, IsGift = true, Action = "Consume", Buff = "Gamepass", Unlock = "BackpackExpansion", Desc = "Permanently adds +50 slots to your Max Inventory capacity. Cannot be sold." }
 }
-
-local TitanData = require(script.Parent:WaitForChild("TitanData"))
-for tName, tData in pairs(TitanData.Titans) do
-	ItemData.Consumables["Itemized " .. tName] = { Rarity = tData.Rarity, Cost = 25000, Action = "EquipTitan", TitanName = tName, Desc = "An extracted spine of the " .. tName .. ". Consume to equip it." }
-end
 
 ItemData.ForgeRecipes = {
 	["Garrison Standard Blades"] = { Result = "Garrison Standard Blades", ReqItems = {["Cadet Training Blade"] = 3}, DewCost = 1500 },
@@ -89,7 +98,10 @@ ItemData.ForgeRecipes = {
 
 	["Blade of the Frenzied"] = { Result = "Blade of the Frenzied", ReqItems = {["Iceburst Steel Blades"] = 1, ["Abyssal Blood"] = 3}, DewCost = 5000000 },
 	["Abyssal Thunder Spear"] = { Result = "Abyssal Thunder Spear", ReqItems = {["Thunder Spear"] = 5, ["Abyssal Blood"] = 3}, DewCost = 5000000 },
-	["Shroud of the Doomed"] = { Result = "Shroud of the Doomed", ReqItems = {["Commander's Bolo Tie"] = 5, ["Abyssal Blood"] = 3}, DewCost = 5000000 }
+	["Shroud of the Doomed"] = { Result = "Shroud of the Doomed", ReqItems = {["Commander's Bolo Tie"] = 5, ["Abyssal Blood"] = 3}, DewCost = 5000000 },
+
+	-- [[ THE FIX: Updated Fritz Forge Recipe to use Ymir's Clay Fragment ]]
+	["Fritz Clan Serum"] = { Result = "Fritz Clan Serum", ReqItems = {["Ymir's Clay Fragment"] = 1}, SpecialType = "MythicalClanRequirement", MythicalClanCount = 2, DewCost = 2500000 }
 }
 
 ItemData.Sets = {
