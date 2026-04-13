@@ -81,30 +81,26 @@ local function GetSpdScale(targetPart, isEndless, wave)
 	return base
 end
 
+-- [[ THE FIX: Removed Titan Punch & Kick from presets. They are now Base Moves handled independently! ]]
 local function GetTitanSkills(titanName)
-	if not titanName or titanName == "None" then 
-		return {"Titan Punch", "Titan Kick", "Block", "Cannibalize"} 
-	end
-
+	if not titanName or titanName == "None" then return {} end
 	local movesets = {
-		["Attack Titan"] = {"Titan Punch", "Berserk Rush", "Block", "Future Memories"},
-		["Jaw Titan"] = {"Frenzied Thrash", "Agile Leap", "Block", "Crushing Bite"},
-		["Cart Titan"] = {"Titan Bite", "Endurance Run", "Block", "Panzer Artillery"},
-		["Armored Titan"] = {"Hardened Punch", "Armored Tackle", "Block", "Shattering Charge"},
-		["Female Titan"] = {"Titan Kick", "Crystal Kick", "Nape Guard", "Attraction Scream"}, 
-		["War Hammer Titan"] = {"Hardened Punch", "Crossbow Construct", "Block", "War Hammer Spike"},
-		["Beast Titan"] = {"Crushed Boulders", "Pitching Ace", "Block", "Titan Roar"},
-		["Colossal Titan"] = {"Brutal Swipe", "Devastating Kick", "Block", "Colossal Steam"},
-		["Founding Titan"] = {"Titan Punch", "Titan Roar", "Block", "Coordinate Command"}, 
-
+		["Attack Titan"] = {"Berserk Rush", "Future Memories"},
+		["Jaw Titan"] = {"Frenzied Thrash", "Agile Leap", "Crushing Bite"},
+		["Cart Titan"] = {"Titan Bite", "Endurance Run", "Panzer Artillery"},
+		["Armored Titan"] = {"Hardened Punch", "Armored Tackle", "Shattering Charge"},
+		["Female Titan"] = {"Crystal Kick", "Nape Guard", "Attraction Scream"}, 
+		["War Hammer Titan"] = {"Hardened Punch", "Crossbow Construct", "War Hammer Spike"},
+		["Beast Titan"] = {"Crushed Boulders", "Pitching Ace", "Titan Roar"},
+		["Colossal Titan"] = {"Brutal Swipe", "Devastating Kick", "Colossal Steam"},
+		["Founding Titan"] = {"Titan Roar", "Coordinate Command"}, 
 		["Founding Female Titan"] = {"Crystal Kick", "Attraction Scream", "Nape Guard", "Coordinate Command"},
-		["Armored Attack Titan"] = {"Berserk Rush", "Armored Tackle", "Block", "Shattering Charge"},
-		["War Hammer Attack Titan"] = {"Berserk Rush", "Crossbow Construct", "Block", "War Hammer Spike"},
-		["Colossal Jaw Titan"] = {"Crushing Bite", "Devastating Kick", "Block", "Colossal Steam"},
-		["Founding Attack Titan"] = {"Berserk Rush", "Future Memories", "Block", "Coordinate Command"}
+		["Armored Attack Titan"] = {"Berserk Rush", "Armored Tackle", "Shattering Charge"},
+		["War Hammer Attack Titan"] = {"Berserk Rush", "Crossbow Construct", "War Hammer Spike"},
+		["Colossal Jaw Titan"] = {"Crushing Bite", "Devastating Kick", "Colossal Steam"},
+		["Founding Attack Titan"] = {"Berserk Rush", "Future Memories", "Coordinate Command"}
 	}
-
-	return movesets[titanName] or {"Titan Punch", "Titan Kick", "Block", "Cannibalize"}
+	return movesets[titanName] or {}
 end
 
 local function GetActualStyle(plr)
@@ -605,9 +601,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			LastSkill = "None", AIPoints = 0
 		}
 		battle.Player.Cooldowns = {}; battle.Player.Statuses = {} 
-		local titanRuneLvl = tonumber(player:GetAttribute("Rune_Titan")) or 0
-		local pMaxTitanEnergy = 100 + (titanRuneLvl * 25)
-		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(pMaxTitanEnergy, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
+		battle.Player.HP = battle.Player.MaxHP; battle.Player.Gas = battle.Player.MaxGas; battle.Player.TitanEnergy = math.min(battle.Player.MaxTitanEnergy or 100, (battle.Player.TitanEnergy or 0) + 30); battle.Player.LastSkill = "None"
 
 		if nextEnemyTemplate.IsMinigame then CombatUpdate:FireClient(player, "StartMinigame", {Battle = battle, LogMsg = flavorText .. "\n" .. killMsg, MinigameType = nextEnemyTemplate.IsMinigame})
 		else CombatUpdate:FireClient(player, "WaveComplete", {Battle = battle, LogMsg = flavorText .. "\n" .. killMsg, XP = xpGain, Dews = dewsGain, Items = droppedItems}) end
@@ -802,7 +796,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if skill then
 		local isTransformed = battle.Player.Statuses and battle.Player.Statuses["Transformed"]
 
-		-- [[ THE FIX: Updated Server Validation Logic ]]
+		-- [[ THE FIX: Updated Universal Titan Validation Logic ]]
 		if not isTransformed then
 			if skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "Transformed" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
 				local myClan = player:GetAttribute("Clan")
@@ -816,13 +810,19 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				end
 			end
 		else
+			local validTitanMoves = GetTitanSkills(player:GetAttribute("Titan"))
 			local isValidMove = false
+			for _, m in ipairs(validTitanMoves) do
+				if m == skillName then isValidMove = true; break end
+			end
 
-			if skill.Requirement == "Transformed" or skill.Requirement == "AnyTitan" or skill.Requirement == player:GetAttribute("Titan") then
+			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Cannibalize" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" or skillName == "Titan Punch" or skillName == "Titan Kick" then
 				isValidMove = true
 			end
 
-			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Cannibalize" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" then
+			local req = skill.Requirement
+			local myTitan = player:GetAttribute("Titan")
+			if req == "Transformed" or req == "AnyTitan" or req == myTitan or (myTitan and string.find(myTitan, req)) then
 				isValidMove = true
 			end
 
