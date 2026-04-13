@@ -1,5 +1,6 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- @ScriptType: Script
 -- Name: ForgeManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -33,7 +34,30 @@ Network:WaitForChild("ForgeItem").OnServerEvent:Connect(function(player, recipeN
 		local safeReq = reqItemName:gsub("[^%w]", "") .. "Count"
 		if (player:GetAttribute(safeReq) or 0) < reqAmt then canForge = false; break end
 	end
-	if not canForge then NotificationEvent:FireClient(player, "Missing required materials!", "Error"); return end
+
+	-- [[ THE FIX: Logic for Custom Mythical Forges ]]
+	local clansToConsume = {}
+	if recipe.SpecialType == "MythicalClanRequirement" then
+		-- Hardcoded check for the exact attributes of Itemized Mythicals
+		local mythicalClans = {"ItemizedReissCount", "ItemizedAckermanCount"}
+		local foundCount = 0
+
+		for _, mClanAttr in ipairs(mythicalClans) do
+			local count = player:GetAttribute(mClanAttr) or 0
+			if count > 0 then
+				for i = 1, count do
+					table.insert(clansToConsume, mClanAttr)
+					foundCount += 1
+					if foundCount >= recipe.MythicalClanCount then break end
+				end
+			end
+			if foundCount >= recipe.MythicalClanCount then break end
+		end
+
+		if foundCount < recipe.MythicalClanCount then canForge = false end
+	end
+
+	if not canForge then NotificationEvent:FireClient(player, "Missing required materials or Mythical lineages!", "Error"); return end
 
 	player.leaderstats.Dews.Value -= recipe.DewCost
 
@@ -50,6 +74,13 @@ Network:WaitForChild("ForgeItem").OnServerEvent:Connect(function(player, recipeN
 			elseif player:GetAttribute("EquippedAccessory") == reqItemName then
 				player:SetAttribute("EquippedAccessory", "None")
 			end
+		end
+	end
+
+	-- Burn the mythical clans if this was a clan forge
+	if #clansToConsume > 0 then
+		for _, attr in ipairs(clansToConsume) do
+			player:SetAttribute(attr, (player:GetAttribute(attr) or 1) - 1)
 		end
 	end
 
@@ -159,6 +190,31 @@ ItemizeTitan.OnServerEvent:Connect(function(player, slotId)
 			local safeItemName = ("Itemized " .. titanName):gsub("[^%w]", "") .. "Count"
 			player:SetAttribute(safeItemName, (player:GetAttribute(safeItemName) or 0) + 1)
 			NotificationEvent:FireClient(player, "Titan extracted to your inventory!", "Success")
+		end
+	else
+		NotificationEvent:FireClient(player, "Not enough Dews to itemize!", "Error")
+	end
+end)
+
+-- [[ THE FIX: Added Clan Itemization ]]
+local ItemizeClan = Network:FindFirstChild("ItemizeClan") or Instance.new("RemoteEvent", Network)
+ItemizeClan.Name = "ItemizeClan"
+ItemizeClan.OnServerEvent:Connect(function(player, slotId)
+	if not slotId then return end
+	local dews = player.leaderstats.Dews.Value
+	if dews >= 100000 then
+		local attrName = (slotId == "Equipped") and "Clan" or ("Clan_Slot" .. slotId)
+		local clanName = player:GetAttribute(attrName) or "None"
+		if clanName ~= "None" then
+			player.leaderstats.Dews.Value -= 100000
+			player:SetAttribute(attrName, "None")
+
+			-- Extracts only the base clan, so Awakened progress is lost when itemizing to prevent duping loops
+			local baseClan = string.gsub(clanName, "Awakened ", "")
+			local safeItemName = ("Itemized " .. baseClan):gsub("[^%w]", "") .. "Count"
+
+			player:SetAttribute(safeItemName, (player:GetAttribute(safeItemName) or 0) + 1)
+			NotificationEvent:FireClient(player, "Clan bloodline extracted to your inventory!", "Success")
 		end
 	else
 		NotificationEvent:FireClient(player, "Not enough Dews to itemize!", "Error")
