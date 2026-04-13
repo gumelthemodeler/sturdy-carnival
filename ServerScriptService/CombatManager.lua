@@ -1,5 +1,6 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- @ScriptType: Script
 -- Name: CombatManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -703,8 +704,9 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 	end
 end
 
-local function SafeTriggerPathsShop(ctx)
+local function SafeTriggerPathsShop(player, ctx)
 	if ctx and ctx.IsPaths then
+		player:SetAttribute("PathsFloor", 1) -- Reset progress on defeat or retreat
 		local pEvent = Network:FindFirstChild("PathsShopEvent")
 		if pEvent then pEvent:FireClient(player, "Open") end
 	end
@@ -760,7 +762,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			task.wait(turnDelay)
 			if battle.Player.HP < 1 then
 				CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
-				SafeTriggerPathsShop(battle.Context)
+				SafeTriggerPathsShop(player, battle.Context)
 				ActiveBattles[player.UserId] = nil
 			elseif battle.Enemy.HP < 1 then
 				ProcessEnemyDeath(player, battle)
@@ -773,7 +775,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 		if battle.Enemy.IsMinigame then
 			if actionData.Success then ProcessEnemyDeath(player, battle)
-			else CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); SafeTriggerPathsShop(battle.Context); ActiveBattles[player.UserId] = nil end
+			else CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); SafeTriggerPathsShop(player, battle.Context); ActiveBattles[player.UserId] = nil end
 		end
 		return
 	end
@@ -784,7 +786,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 	if skillName == "Retreat" or skillName == "Flee" then
 		CombatUpdate:FireClient(player, "Fled", {Battle = battle})
-		SafeTriggerPathsShop(battle.Context)
+		SafeTriggerPathsShop(player, battle.Context)
 		ActiveBattles[player.UserId] = nil
 		return
 	end
@@ -951,7 +953,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 		if battle.Enemy.IsBoss and not battle.Enemy.EnragedOnce then
 			local hpRatio = battle.Enemy.HP / battle.Enemy.MaxHP
-			if hpRatio <= 0.30 then
+			if hpRatio <= 0.30 and battle.Enemy.HP > 0 then
 				battle.Enemy.EnragedOnce = true
 				if not battle.Enemy.Statuses then battle.Enemy.Statuses = {} end
 				battle.Enemy.Statuses["Enraged"] = 999
@@ -1193,7 +1195,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 	if battle.Player.HP < 1 then
 		CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
-		SafeTriggerPathsShop(battle.Context)
+		SafeTriggerPathsShop(player, battle.Context)
 		ActiveBattles[player.UserId] = nil
 	elseif battle.Enemy.HP < 1 then
 		ProcessEnemyDeath(player, battle)
