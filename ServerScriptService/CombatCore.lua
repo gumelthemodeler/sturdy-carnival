@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 local CombatCore = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
@@ -109,20 +110,14 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
 	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
-	if attacker.IsPlayer and isAttackerTransformed then
-		atkStrength = math.max(1, tonumber(attacker.BaseStrength) or 10)
-	end
-	if defender.IsPlayer and isDefenderTransformed then
-		defArmor = math.max(1, tonumber(defender.BaseDefense) or 10)
-	end
-
+	-- [[ THE FIX: Isolated Titan Stats ]]
 	if attacker.IsPlayer and isAttackerTransformed and attacker.PlayerObj then
-		local titanPower = tonumber(attacker.PlayerObj:GetAttribute("Titan_Power_Val")) or 10
-		atkBuff = atkBuff * (4.0 + (titanPower / 15.0)) 
+		atkStrength = math.max(1, tonumber(attacker.PlayerObj:GetAttribute("Titan_Power_Val")) or 10)
+		atkBuff = atkBuff * 4.0 -- Baseline Titan Size Modifier
 	end
 	if defender.IsPlayer and isDefenderTransformed and defender.PlayerObj then
-		local titanHardening = tonumber(defender.PlayerObj:GetAttribute("Titan_Hardening_Val")) or 10
-		defBuff = defBuff * (4.0 + (titanHardening / 15.0)) 
+		defArmor = math.max(1, tonumber(defender.PlayerObj:GetAttribute("Titan_Hardening_Val")) or 10)
+		defBuff = defBuff * 4.0 -- Baseline Titan Size Modifier
 	end
 
 	if terrain == "Caverns" then
@@ -140,18 +135,21 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 			atkBuff = atkBuff * (1.0 + (momentum * aStats.MomentumDamagePerHit))
 		end
 
-		local setBonus = GetSetBonus(attacker.PlayerObj)
-		if setBonus then
-			if setBonus.DmgMult then atkBuff = atkBuff * setBonus.DmgMult end
-			if setBonus.IgnoreArmor then armorPen = armorPen + setBonus.IgnoreArmor end
+		-- Prevent Gear/Prestige stats from buffing Titan form
+		if not isAttackerTransformed then
+			local setBonus = GetSetBonus(attacker.PlayerObj)
+			if setBonus then
+				if setBonus.DmgMult then atkBuff = atkBuff * setBonus.DmgMult end
+				if setBonus.IgnoreArmor then armorPen = armorPen + setBonus.IgnoreArmor end
+			end
+
+			local expiry = tonumber(attacker.PlayerObj:GetAttribute("Buff_Damage_Expiry")) or 0
+			if expiry > os.time() then atkBuff = atkBuff * 1.5 end
+
+			local prestigeDmg = tonumber(attacker.PlayerObj:GetAttribute("Prestige_DmgMult")) or 0
+			atkBuff = atkBuff * (1.0 + prestigeDmg)
+			armorPen = armorPen + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_IgnoreArmor")) or 0)
 		end
-
-		local expiry = tonumber(attacker.PlayerObj:GetAttribute("Buff_Damage_Expiry")) or 0
-		if expiry > os.time() then atkBuff = atkBuff * 1.5 end
-
-		local prestigeDmg = tonumber(attacker.PlayerObj:GetAttribute("Prestige_DmgMult")) or 0
-		atkBuff = atkBuff * (1.0 + prestigeDmg)
-		armorPen = armorPen + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_IgnoreArmor")) or 0)
 	end
 
 	if defender.IsPlayer and defender.PlayerObj then
@@ -240,6 +238,12 @@ function CombatCore.TakeDamage(combatant, damage, attackerStyle)
 		local currentHP = tonumber(combatant.HP) or 0
 		if (currentHP - actualDmg) < 1 then
 			local resolveStat = tonumber(combatant.TotalResolve) or 10
+
+			-- [[ THE FIX: Titan Endurance Survival Override ]]
+			if combatant.IsPlayer and combatant.Statuses and combatant.Statuses["Transformed"] and combatant.PlayerObj then
+				resolveStat = tonumber(combatant.PlayerObj:GetAttribute("Titan_Endurance_Val")) or 10
+			end
+
 			local survivalChance = math.clamp(resolveStat * 0.7, 0, 45)
 			local maxSurvivals = 1
 
@@ -327,7 +331,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 			attacker.LastSkill = skillName
 			return fLogName .. " used <b>" .. skillName .. "</b>! <font color='#AA55FF'>[" .. string.gsub(skill.Effect:upper(), "_", " ") .. " ACTIVATED]</font>", false, "None"
 
-			-- [[ THE FIX: Ensure Recover ACTUALLY refuels the Gas attribute! ]]
 		elseif skill.Effect == "Rest" or skillName == "Recover" or skillName == "Regroup" then
 			local healAmount = (tonumber(attacker.MaxHP) or 100) * 0.30
 			attacker.HP = math.min(tonumber(attacker.MaxHP) or 100, (tonumber(attacker.HP) or 0) + healAmount); 
@@ -374,25 +377,26 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
 	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
-	local atkSpd = attacker.IsPlayer and isAttackerTransformed and (tonumber(attacker.BaseSpeed) or 10) or (tonumber(attacker.TotalSpeed) or 10)
-	local defSpd = defender.IsPlayer and isDefenderTransformed and (tonumber(defender.BaseSpeed) or 10) or (tonumber(defender.TotalSpeed) or 10)
-	local atkRes = attacker.IsPlayer and isAttackerTransformed and (tonumber(attacker.BaseResolve) or 10) or (tonumber(attacker.TotalResolve) or 10)
-	local defRes = defender.IsPlayer and isDefenderTransformed and (tonumber(defender.BaseResolve) or 10) or (tonumber(defender.TotalResolve) or 10)
+	local atkSpd = tonumber(attacker.TotalSpeed) or 10
+	local defSpd = tonumber(defender.TotalSpeed) or 10
+	local atkRes = tonumber(attacker.TotalResolve) or 10
+	local defRes = tonumber(defender.TotalResolve) or 10
+
+	-- [[ THE FIX: Isolated Titan Speed & Endurance ]]
+	if attacker.IsPlayer and isAttackerTransformed and attacker.PlayerObj then
+		atkSpd = (tonumber(attacker.PlayerObj:GetAttribute("Titan_Speed_Val")) or 10) * 3.0
+		atkRes = tonumber(attacker.PlayerObj:GetAttribute("Titan_Endurance_Val")) or 10
+	end
+	if defender.IsPlayer and isDefenderTransformed and defender.PlayerObj then
+		defSpd = (tonumber(defender.PlayerObj:GetAttribute("Titan_Speed_Val")) or 10) * 3.0
+		defRes = tonumber(defender.PlayerObj:GetAttribute("Titan_Endurance_Val")) or 10
+	end
 
 	local aStats = attacker.IsPlayer and ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed) or ClanData.GetClanStats()
 	local dStats = defender.IsPlayer and ClanData.GetClanStats(defender.Clan, string.find(tostring(defender.Clan or ""), "Awakened"), defender.Titan, isDefenderTransformed) or ClanData.GetClanStats()
 
 	atkSpd = atkSpd * aStats.SpdMult; atkRes = atkRes * aStats.ResolveMult
 	defSpd = defSpd * dStats.SpdMult; defRes = defRes * dStats.ResolveMult
-
-	if attacker.IsPlayer and isAttackerTransformed and attacker.PlayerObj then
-		local tSpd = tonumber(attacker.PlayerObj:GetAttribute("Titan_Speed_Val")) or 10
-		atkSpd = atkSpd * (3.0 + (tSpd / 20.0))
-	end
-	if defender.IsPlayer and isDefenderTransformed and defender.PlayerObj then
-		local tSpd = tonumber(defender.PlayerObj:GetAttribute("Titan_Speed_Val")) or 10
-		defSpd = defSpd * (3.0 + (tSpd / 20.0))
-	end
 
 	if weather == "Night" and not defender.IsPlayer and not isDefenderTransformed then
 		if not defender.Name:find("Titan") or defender.Name == "Field Titan" or defender.Name == "3-Meter Pure Titan" then
@@ -425,13 +429,19 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if defender.AwakenedStats and (tonumber(defender.AwakenedStats.DodgeBonus) or 0) > 0 then dodgeChance = dodgeChance + tonumber(defender.AwakenedStats.DodgeBonus) end
 
 		if defender.IsPlayer and defender.PlayerObj then
-			dodgeChance = dodgeChance + (tonumber(defender.PlayerObj:GetAttribute("Prestige_DodgeBonus")) or 0)
-			local accName = defender.PlayerObj:GetAttribute("EquippedAccessory")
-			local accData = accName and ItemData.Equipment[accName]
-			if accData and accData.NoDodge then dodgeChance = 0; isDodging = false end
+			-- [[ THE FIX: Titan Potential governs Titan Dodge ]]
+			if isDefenderTransformed then
+				local tPotential = tonumber(defender.PlayerObj:GetAttribute("Titan_Potential_Val")) or 10
+				dodgeChance = dodgeChance + (tPotential * 0.25)
+			else
+				dodgeChance = dodgeChance + (tonumber(defender.PlayerObj:GetAttribute("Prestige_DodgeBonus")) or 0)
+				local accName = defender.PlayerObj:GetAttribute("EquippedAccessory")
+				local accData = accName and ItemData.Equipment[accName]
+				if accData and accData.NoDodge then dodgeChance = 0; isDodging = false end
 
-			local setBonus = GetSetBonus(defender.PlayerObj)
-			if setBonus and setBonus.DodgeBonus then dodgeChance = dodgeChance + setBonus.DodgeBonus end
+				local setBonus = GetSetBonus(defender.PlayerObj)
+				if setBonus and setBonus.DodgeBonus then dodgeChance = dodgeChance + setBonus.DodgeBonus end
+			end
 		end
 
 		local titanNameCheck = ""
@@ -487,10 +497,16 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if attacker.AwakenedStats and (tonumber(attacker.AwakenedStats.CritBonus) or 0) > 0 then critChance = critChance + tonumber(attacker.AwakenedStats.CritBonus) end
 
 		if attacker.IsPlayer and attacker.PlayerObj then
-			critChance += aStats.CritBonus
-			critChance = critChance + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_CritBonus")) or 0)
-			local setBonus = GetSetBonus(attacker.PlayerObj)
-			if setBonus and setBonus.CritBonus then critChance = critChance + setBonus.CritBonus end
+			-- [[ THE FIX: Titan Precision governs Titan Crit ]]
+			if isAttackerTransformed then
+				local tPrecision = tonumber(attacker.PlayerObj:GetAttribute("Titan_Precision_Val")) or 10
+				critChance = critChance + (tPrecision * 0.25)
+			else
+				critChance += aStats.CritBonus
+				critChance = critChance + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_CritBonus")) or 0)
+				local setBonus = GetSetBonus(attacker.PlayerObj)
+				if setBonus and setBonus.CritBonus then critChance = critChance + setBonus.CritBonus end
+			end
 			critChance = math.clamp(critChance, 5, 75)
 		else critChance = math.clamp(critChance, 5, 25) end
 
