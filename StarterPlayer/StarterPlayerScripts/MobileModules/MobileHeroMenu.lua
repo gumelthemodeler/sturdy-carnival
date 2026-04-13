@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: MobileHeroMenu
 local MobileHeroMenu = {}
 local Players = game:GetService("Players"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local TweenService = game:GetService("TweenService"); local Network = ReplicatedStorage:WaitForChild("Network")
@@ -269,7 +270,8 @@ local function BuildAttributesTab(parentFrame)
 		local row = Instance.new("Frame", parent); row.Size = UDim2.new(1, 0, 0, 35); row.BackgroundTransparency = 1; row.LayoutOrder = layoutOrder
 		local statLabel = UIHelpers.CreateLabel(row, "", UDim2.new(0.4, 0, 1, 0), Enum.Font.GothamBold, isTitan and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(220, 220, 220), 12); statLabel.TextXAlignment = Enum.TextXAlignment.Left; statLabel.RichText = true; statLabel.TextScaled = true; Instance.new("UITextSizeConstraint", statLabel).MaxTextSize = 13
 		local btnContainer = Instance.new("Frame", row); btnContainer.Size = UDim2.new(0.58, 0, 1, 0); btnContainer.Position = UDim2.new(1, 0, 0, 0); btnContainer.AnchorPoint = Vector2.new(1, 0); btnContainer.BackgroundTransparency = 1; local blL = Instance.new("UIListLayout", btnContainer); blL.FillDirection = Enum.FillDirection.Horizontal; blL.HorizontalAlignment = Enum.HorizontalAlignment.Right; blL.VerticalAlignment = Enum.VerticalAlignment.Center; blL.Padding = UDim.new(0.04, 0)
-		local bAdd, addStroke = CreateSharpButton(btnContainer, "+", UDim2.new(0.35, 0, 0.85, 0), Enum.Font.GothamBlack, 12); local bMax, maxStroke = CreateSharpButton(btnContainer, "MAX", UDim2.new(0.55, 0, 0.85, 0), Enum.Font.GothamBlack, 12)
+		local bAdd, addStroke = CreateSharpButton(btnContainer, "+", UDim2.new(0.35, 0, 0.85, 0), Enum.Font.GothamBlack, 12)
+		local bMax, maxStroke = CreateSharpButton(btnContainer, "MAX", UDim2.new(0.55, 0, 0.85, 0), Enum.Font.GothamBlack, 12)
 
 		local isUpgrading = false
 		local function TryUpgrade(amt)
@@ -384,7 +386,6 @@ local function BuildSkillsTab(parentFrame)
 		end
 		table.sort(defaultMoves)
 
-		-- [[ THE FIX: Removed strict valid check. Loadout always displays whatever is equipped ]]
 		for i, lbl in ipairs(SkillSlotLabels) do 
 			local rawName = player:GetAttribute("EquippedSkill_" .. i)
 			local sData = tData[rawName]
@@ -588,12 +589,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		["Arlert"] = "+15% Resolve\n<font color='#FFD700'>[Colossal Titan Synergy]: +50% Max HP</font>",
 		["Tybur"] = "+20% Titan Power\n<font color='#FFD700'>[War Hammer Synergy]: +30% Dmg</font>", 
 		["Yeager"] = "+25% Titan Damage\n<font color='#FFD700'>[Attack Titan Synergy]: +30% Dmg</font>", 
-		["Reiss"] = "+50% Base Health", ["Ackerman"] = "+25% Weapon Damage, Immune to Memory Wipes", 
-		["Awakened Galliard"] = "+30% Speed, +15% Power\n<font color='#FFD700'>[Jaw Titan Synergy]: +25% Spd & Crit</font>",
-		["Awakened Braun"] = "+40% Defense\n<font color='#FFD700'>[Armored Titan Synergy]: +50% Armor</font>",
-		["Awakened Tybur"] = "+40% Titan Power\n<font color='#FFD700'>[War Hammer Synergy]: +30% Dmg</font>",
-		["Awakened Yeager"] = "+50% Titan Damage\n<font color='#FFD700'>[Attack Titan Synergy]: +30% Dmg</font>",
-		["Awakened Ackerman"] = "+50% Weapon Damage, Extreme Agility"
+		["Reiss"] = "+50% Base Health", ["Ackerman"] = "+25% Weapon Damage, Immune to Memory Wipes"
 	}
 
 	local function ResetAutoRollVisuals(gType)
@@ -641,7 +637,10 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local ListContainer = Instance.new("ScrollingFrame", Panel); ListContainer.Size = UDim2.new(1, -20, 0, 220); ListContainer.Position = UDim2.new(0, 10, 0, 40); ListContainer.BackgroundTransparency = 1; ListContainer.ScrollBarThickness = 4; ListContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y; ListContainer.BorderSizePixel = 0; local SList = Instance.new("UIListLayout", ListContainer); SList.Padding = UDim.new(0, 8)
 
 		if gType == "Titan" and type(TitanData) == "table" and TitanData.Titans then
-			local sortedTitans = {}; for tName, tData in pairs(TitanData.Titans) do table.insert(sortedTitans, tData) end
+			local sortedTitans = {}
+			for tName, tData in pairs(TitanData.Titans) do 
+				if tData.Rarity ~= "Transcendent" then table.insert(sortedTitans, tData) end 
+			end
 			table.sort(sortedTitans, function(a, b) return RarityOrder[a.Rarity] < RarityOrder[b.Rarity] end)
 			for _, drop in ipairs(sortedTitans) do
 				local cColor = RarityColors[drop.Rarity] or "#FFFFFF"; local rarityRGB = Color3.fromHex(cColor:gsub("#", ""))
@@ -658,19 +657,23 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 					local sVal = CreateSharpLabel(sBox, st.Val, UDim2.new(1, 0, 0.5, 0), Enum.Font.GothamBlack, GetRankColor(st.Val), 11); sVal.Position = UDim2.new(0, 0, 0.5, 0)
 				end
 			end
+			local noticeCard = Instance.new("Frame", ListContainer); noticeCard.Size = UDim2.new(1, -10, 0, 40); noticeCard.BackgroundTransparency = 1
+			local noticeLbl = UIHelpers.CreateLabel(noticeCard, "Fusion Variants listed in the Fusion section of the Supply/Forge menu!", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.Gold, 10); noticeLbl.TextWrapped = true
+
 		elseif type(TitanData) == "table" and TitanData.ClanWeights then
 			local sortedClans = {}; for cName, weight in pairs(TitanData.ClanWeights) do table.insert(sortedClans, {Name = cName, Weight = weight}) end
-			local awakenedClans = {"Awakened Galliard", "Awakened Braun", "Awakened Tybur", "Awakened Yeager", "Awakened Ackerman"}; for _, cName in ipairs(awakenedClans) do table.insert(sortedClans, {Name = cName, Weight = 0}) end
-			table.sort(sortedClans, function(a, b) if a.Weight == 0 and b.Weight ~= 0 then return true end; if b.Weight == 0 and a.Weight ~= 0 then return false end; return a.Weight < b.Weight end)
+			table.sort(sortedClans, function(a, b) return a.Weight < b.Weight end)
 			for _, drop in ipairs(sortedClans) do
 				local rarityTag = "Common"; if drop.Weight == 0 then rarityTag = "Transcendent" elseif drop.Weight <= 1.5 then rarityTag = "Mythical" elseif drop.Weight <= 4.0 then rarityTag = "Legendary" elseif drop.Weight <= 8.0 then rarityTag = "Epic" elseif drop.Weight <= 15.0 then rarityTag = "Rare" end
 				local cColor = RarityColors[rarityTag] or "#FFFFFF"; local rarityRGB = Color3.fromHex(cColor:gsub("#", "")); local buffText = ClanVisualBuffs[drop.Name] or "Unknown"
 				local card = Instance.new("Frame", ListContainer); card.Size = UDim2.new(1, -10, 0, 70); card.BackgroundColor3 = UIHelpers.Colors.Surface; card.BorderSizePixel = 1; card.BorderColor3 = rarityRGB
 				local bgGlow = Instance.new("Frame", card); bgGlow.Size = UDim2.new(1, 0, 0.5, 0); bgGlow.Position = UDim2.new(0, 0, 0.5, 0); bgGlow.BackgroundColor3 = rarityRGB; bgGlow.BackgroundTransparency = 0.92; bgGlow.BorderSizePixel = 0; bgGlow.ZIndex = 1
-				local pctStr = drop.Weight > 0 and (" (" .. string.format("%.1f", drop.Weight) .. "%)") or " (Awakened)"
+				local pctStr = drop.Weight > 0 and (" (" .. string.format("%.1f", drop.Weight) .. "%)") or " (Awakened Exclusive)"
 				local titleLbl = CreateSharpLabel(card, "<b><font color='" .. cColor .. "'>[" .. rarityTag .. "] " .. drop.Name .. "</font></b><font color='#888888'>" .. pctStr .. "</font>", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBold, Color3.fromRGB(230, 230, 230), 12); titleLbl.Position = UDim2.new(0, 10, 0, 10); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.RichText = true
 				local descLbl = CreateSharpLabel(card, buffText, UDim2.new(1, -20, 0, 30), Enum.Font.GothamMedium, Color3.fromRGB(150, 255, 150), 10); descLbl.Position = UDim2.new(0, 10, 0, 35); descLbl.TextXAlignment = Enum.TextXAlignment.Left; descLbl.RichText = true
 			end
+			local noticeCard = Instance.new("Frame", ListContainer); noticeCard.Size = UDim2.new(1, -10, 0, 40); noticeCard.BackgroundTransparency = 1
+			local noticeLbl = UIHelpers.CreateLabel(noticeCard, "Fusion Variants listed in the Fusion section of the Supply/Forge menu!", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.Gold, 10); noticeLbl.TextWrapped = true
 		end
 
 		local BottomArea = Instance.new("Frame", Panel); BottomArea.Size = UDim2.new(1, 0, 0, 240); BottomArea.Position = UDim2.new(0, 0, 0, 270); BottomArea.BackgroundTransparency = 1
@@ -936,7 +939,6 @@ function MobileHeroMenu.Initialize(parentFrame, tooltipMgr)
 
 	local pContent = Instance.new("Frame", parentFrame); pContent.Size = UDim2.new(1, 0, 1, -45); pContent.Position = UDim2.new(0, 0, 0, 45); pContent.BackgroundTransparency = 1
 
-	-- [[ THE FIX: RUNES Removed from nav, as it's now in the Paths Shop ]]
 	local subTabs = {"IDENTITY", "ATTRIBUTES", "SKILLS", "PRESTIGE", "INHERITANCE", "BOUNTIES"}
 	local activeSubFrames = {}; local subBtns = {}
 
