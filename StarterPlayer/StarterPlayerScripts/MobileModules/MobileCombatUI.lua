@@ -390,24 +390,24 @@ local function UpdateState(data)
 end
 
 local function GetTitanSkills(titanName)
-	if not titanName or titanName == "None" then return {"Titan Punch", "Titan Kick", "Block", "Cannibalize"} end
+	if not titanName or titanName == "None" then return {} end
 	local movesets = {
-		["Attack Titan"] = {"Titan Punch", "Berserk Rush", "Block", "Future Memories"},
-		["Jaw Titan"] = {"Frenzied Thrash", "Agile Leap", "Block", "Crushing Bite"},
-		["Cart Titan"] = {"Titan Bite", "Endurance Run", "Block", "Panzer Artillery"},
-		["Armored Titan"] = {"Hardened Punch", "Armored Tackle", "Block", "Shattering Charge"},
-		["Female Titan"] = {"Titan Kick", "Crystal Kick", "Nape Guard", "Attraction Scream"}, 
-		["War Hammer Titan"] = {"Hardened Punch", "Crossbow Construct", "Block", "War Hammer Spike"},
-		["Beast Titan"] = {"Crushed Boulders", "Pitching Ace", "Block", "Titan Roar"},
-		["Colossal Titan"] = {"Brutal Swipe", "Devastating Kick", "Block", "Colossal Steam"},
-		["Founding Titan"] = {"Titan Punch", "Titan Roar", "Block", "Coordinate Command"}, 
+		["Attack Titan"] = {"Berserk Rush", "Future Memories"},
+		["Jaw Titan"] = {"Frenzied Thrash", "Agile Leap", "Crushing Bite"},
+		["Cart Titan"] = {"Titan Bite", "Endurance Run", "Panzer Artillery"},
+		["Armored Titan"] = {"Hardened Punch", "Armored Tackle", "Shattering Charge"},
+		["Female Titan"] = {"Crystal Kick", "Nape Guard", "Attraction Scream"}, 
+		["War Hammer Titan"] = {"Hardened Punch", "Crossbow Construct", "War Hammer Spike"},
+		["Beast Titan"] = {"Crushed Boulders", "Pitching Ace", "Titan Roar"},
+		["Colossal Titan"] = {"Brutal Swipe", "Devastating Kick", "Colossal Steam"},
+		["Founding Titan"] = {"Titan Roar", "Coordinate Command"}, 
 		["Founding Female Titan"] = {"Crystal Kick", "Attraction Scream", "Nape Guard", "Coordinate Command"},
-		["Armored Attack Titan"] = {"Berserk Rush", "Armored Tackle", "Block", "Shattering Charge"},
-		["War Hammer Attack Titan"] = {"Berserk Rush", "Crossbow Construct", "Block", "War Hammer Spike"},
-		["Colossal Jaw Titan"] = {"Crushing Bite", "Devastating Kick", "Block", "Colossal Steam"},
-		["Founding Attack Titan"] = {"Berserk Rush", "Future Memories", "Block", "Coordinate Command"}
+		["Armored Attack Titan"] = {"Berserk Rush", "Armored Tackle", "Shattering Charge"},
+		["War Hammer Attack Titan"] = {"Berserk Rush", "Crossbow Construct", "War Hammer Spike"},
+		["Colossal Jaw Titan"] = {"Crushing Bite", "Devastating Kick", "Colossal Steam"},
+		["Founding Attack Titan"] = {"Berserk Rush", "Future Memories", "Coordinate Command"}
 	}
-	return movesets[titanName] or {"Titan Punch", "Titan Kick", "Block", "Cannibalize"}
+	return movesets[titanName] or {}
 end
 
 local function UpdateSkills()
@@ -423,13 +423,13 @@ local function UpdateSkills()
 	local enemyTelegraph = currentBattleState and currentBattleState.Enemy and currentBattleState.Enemy.Statuses and currentBattleState.Enemy.Statuses["Telegraphing"]
 
 	local isTransformed = pState and pState.Statuses and pState.Statuses["Transformed"]
+
 	local defaultClose = {"Basic Slash", "Heavy Slash", "None", "None"}
 	local defaultLong = {"Flare Gun", "Anti-Titan Rifle", "None", "None"}
 
 	if isTransformed then
-		local myTitan = player:GetAttribute("Titan")
-		defaultClose = GetTitanSkills(myTitan)
-		defaultLong = defaultClose
+		defaultClose = {"Titan Punch", "Titan Kick", "Block", "None"}
+		defaultLong = {"Titan Punch", "Titan Kick", "Block", "None"}
 	end
 
 	local fallbacks = (currentRange == "Close") and defaultClose or defaultLong
@@ -491,11 +491,27 @@ local function UpdateSkills()
 			btn.MouseButton1Click:Connect(function() if inputLocked then return end; if string.find(errorReason, "NO GAS") then if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("GasHiss", 1.0) end end end)
 		else
 			if isWrongRange then btn.TextColor3 = Color3.fromRGB(255, 170, 85) end
+
+			local isInstant = false
+			if InstantSkills[skillName] or skillName == "Flee" or skillName == "Retreat" or isClashable then
+				isInstant = true
+			end
+
+			if sData then
+				local e = sData.Effect
+				if e == "Block" or e == "Dodge" or e == "Rest" or e == "TitanRest" or e == "RestoreHeat" or e == "NapeGuard" or (e and string.find(e, "Buff_")) then
+					isInstant = true
+				end
+				if skillName == "Titan Roar" or skillName == "Coordinate Command" or skillName == "Attraction Scream" then
+					isInstant = true
+				end
+			end
+
 			btn.MouseButton1Click:Connect(function()
 				if inputLocked then return end
 				inputLocked = true; HideAlly()
 
-				if InstantSkills[skillName] or skillName == "Flee" or skillName == "Retreat" or isClashable then
+				if isInstant then
 					local wasPaths = (skillName == "Retreat" or skillName == "Flee") and currentBattleState and currentBattleState.Context and currentBattleState.Context.IsPaths
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
 					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
@@ -515,7 +531,13 @@ local function UpdateSkills()
 		end
 	end
 
-	-- [[ THE FIX: Updated Mobile UI Validation Logic ]]
+	local universalTitanMoves = {
+		["Eject"] = true, ["Titan Recover"] = true, ["Titan Rest"] = true, ["Cannibalize"] = true,
+		["Maneuver"] = true, ["Evasive Maneuver"] = true, ["Block"] = true, ["Close In"] = true,
+		["Fall Back"] = true, ["Advance"] = true, ["Charge"] = true, ["Transform"] = true,
+		["Titan Punch"] = true, ["Titan Kick"] = true
+	}
+
 	for i = 1, 4 do
 		local skillName = player:GetAttribute("EquippedSkill_" .. i)
 		local isValid = false
@@ -524,7 +546,8 @@ local function UpdateSkills()
 			if sData then
 				local req = sData.Requirement
 				if isTransformed then
-					if req == "Transformed" or req == "AnyTitan" or req == player:GetAttribute("Titan") then
+					local myTitan = player:GetAttribute("Titan")
+					if req == "Transformed" or req == "AnyTitan" or req == myTitan or (myTitan and string.find(myTitan, req)) or universalTitanMoves[skillName] then
 						isValid = true
 					end
 				else
@@ -549,16 +572,26 @@ local function UpdateSkills()
 		CreateSkillButton(skillName)
 	end
 
-	local myClan = player:GetAttribute("Clan")
-	if myClan and myClan ~= "None" and not isTransformed then
-		local clanSkills = {}
-		for sName, sData in pairs(SkillData.Skills) do
-			if sData.Type == "Style" and sData.Requirement and not string.find(sData.Requirement, "ODM") then
-				if string.find(myClan, sData.Requirement) then table.insert(clanSkills, {Name = sName, Data = sData}) end
+	if isTransformed then
+		local myTitan = player:GetAttribute("Titan")
+		if myTitan and myTitan ~= "None" then
+			local titanSkills = GetTitanSkills(myTitan)
+			for _, tSkill in ipairs(titanSkills) do
+				CreateSkillButton(tSkill, "[" .. string.upper(myTitan) .. "] " .. string.upper(tSkill), "#FFD700")
 			end
 		end
-		table.sort(clanSkills, function(a, b) return (a.Data.Order or 99) < (b.Data.Order or 99) end)
-		for _, cSkill in ipairs(clanSkills) do CreateSkillButton(cSkill.Name, "[" .. string.upper(myClan) .. "] " .. string.upper(cSkill.Name), "#CC44FF") end
+	else
+		local myClan = player:GetAttribute("Clan")
+		if myClan and myClan ~= "None" then
+			local clanSkills = {}
+			for sName, sData in pairs(SkillData.Skills) do
+				if sData.Type == "Style" and sData.Requirement and not string.find(sData.Requirement, "ODM") then
+					if string.find(myClan, sData.Requirement) then table.insert(clanSkills, {Name = sName, Data = sData}) end
+				end
+			end
+			table.sort(clanSkills, function(a, b) return (a.Data.Order or 99) < (b.Data.Order or 99) end)
+			for _, cSkill in ipairs(clanSkills) do CreateSkillButton(cSkill.Name, "[" .. string.upper(myClan) .. "] " .. string.upper(cSkill.Name), "#CC44FF") end
+		end
 	end
 
 	CreateSkillButton("Maneuver", "MANEUVER", "#55AAFF")
