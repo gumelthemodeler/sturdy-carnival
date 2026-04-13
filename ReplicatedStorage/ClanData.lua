@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 local ClanData = {
 	Clans = {
 		["Yeager"] = {
@@ -11,13 +12,11 @@ local ClanData = {
 			TitanSynergies = { ["War Hammer"] = { DmgMult = 0.30 } }
 		},
 		["Ackerman"] = {
-			-- [[ THE FIX: Massive buffs to compensate for no Titan shifting ]]
 			BaseDmgMult = 1.50, AwakenedDmgMult = 3.00,
 			BaseSpdMult = 1.50, AwakenedSpdMult = 2.00,
 			BaseSurvivals = 1, AwakenedSurvivals = 3,
 			SurvivalChance = 100,
 
-			-- Custom CombatCore Mechanics
 			NapeCritMultiplier = 3.0, 
 			MomentumDamagePerHit = 0.05, 
 			MaxMomentumStacks = 20,
@@ -43,7 +42,20 @@ local ClanData = {
 			DodgeBonus = 15
 		},
 		["Reiss"] = {
-			BaseHpMult = 1.50, AwakenedHpMult = 2.0
+			BaseHpMult = 1.50, AwakenedHpMult = 2.00,
+			BaseResolveMult = 1.25, AwakenedResolveMult = 1.50,
+			BaseSurvivals = 1, AwakenedSurvivals = 2,
+			SurvivalChance = 75,
+			TitanSynergies = { ["Founding Titan"] = { HpMult = 0.50, DmgMult = 0.25, ArmorMult = 0.25 } }
+		},
+		["Fritz"] = {
+			BaseHpMult = 2.00, AwakenedHpMult = 3.00,
+			BaseDmgMult = 1.50, AwakenedDmgMult = 2.00,
+			BaseArmorMult = 1.50, AwakenedArmorMult = 2.00,
+			BaseSpdMult = 1.25, AwakenedSpdMult = 1.50,
+			BaseSurvivals = 2, AwakenedSurvivals = 4,
+			SurvivalChance = 100,
+			TitanSynergies = { ["Founding Titan"] = { DmgMult = 0.50, HpMult = 0.50, ArmorMult = 0.50 } }
 		}
 	}
 }
