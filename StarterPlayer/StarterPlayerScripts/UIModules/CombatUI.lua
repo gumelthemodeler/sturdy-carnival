@@ -1,6 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- Name: CombatUI
 local CombatUI = {}
 
 local Players = game:GetService("Players")
@@ -12,11 +11,13 @@ local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
+local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData")) -- [[ THE FIX: Safely required at the top! ]]
 local CombatBuilder = require(SharedUI:WaitForChild("CombatBuilder"))
 local VFXManager = require(script.Parent.Parent:WaitForChild("VFXManager"))
 
 local player = Players.LocalPlayer
 local GUI = nil 
+local MasterGuiRef = nil -- [[ THE FIX: Used to detach Doomsday Leaderboard from Combat Window ]]
 
 local currentBattleState = nil
 local pendingSkillName = nil
@@ -34,6 +35,88 @@ local InstantSkills = {
 	["Retreat"] = true, ["Transform"] = true, ["Eject"] = true, ["Titan Recover"] = true,
 	["Charge"] = true, ["Advance"] = true
 }
+
+local doomsdayBoard = nil
+local inDoomsdayLoop = false
+local ddScroll = nil
+
+local function AbbreviateNumber(n)
+	local Suffixes = {"", "K", "M", "B", "T", "Qa"}
+	if not n then return "0" end; n = tonumber(n) or 0
+	if n < 1000 then return tostring(math.floor(n)) end
+	local suffixIndex = math.floor(math.log10(n) / 3); local value = n / (10 ^ (suffixIndex * 3))
+	local str = string.format("%.1f", value); str = str:gsub("%.0$", "")
+	return str .. (Suffixes[suffixIndex + 1] or "")
+end
+
+local function BuildDoomsdayBoard()
+	if doomsdayBoard then return end
+	doomsdayBoard = Instance.new("Frame", MasterGuiRef)
+	doomsdayBoard.Size = UDim2.new(0, 200, 0, 150)
+	doomsdayBoard.Position = UDim2.new(1, -20, 0, 20)
+	doomsdayBoard.AnchorPoint = Vector2.new(1, 0)
+	doomsdayBoard.BackgroundTransparency = 1 
+	doomsdayBoard.Visible = false
+	doomsdayBoard.ZIndex = 50 
+
+	ddScroll = Instance.new("Frame", doomsdayBoard)
+	ddScroll.Size = UDim2.new(1, 0, 1, 0)
+	ddScroll.BackgroundTransparency = 1
+
+	local layout = Instance.new("UIListLayout", ddScroll)
+	layout.Padding = UDim.new(0, 5)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	layout.VerticalAlignment = Enum.VerticalAlignment.Top
+end
+
+local function UpdateDoomsdayBoard(data)
+	if not data or not ddScroll then return end
+
+	for _, c in ipairs(ddScroll:GetChildren()) do
+		if c:IsA("TextLabel") then c:Destroy() end
+	end
+
+	local titleLbl = Instance.new("TextLabel", ddScroll)
+	titleLbl.Size = UDim2.new(0, 200, 0, 20); titleLbl.BackgroundTransparency = 1
+	titleLbl.Font = Enum.Font.GothamBlack; titleLbl.TextSize = 14; titleLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+	titleLbl.TextXAlignment = Enum.TextXAlignment.Right; titleLbl.Text = "TOP CONTRIBUTORS"
+	local ts1 = Instance.new("UIStroke", titleLbl); ts1.Thickness = 2
+
+	local myRank = nil
+	local myDamage = 0
+
+	for i, pData in ipairs(data.Leaderboard or {}) do
+		if pData.Name == player.Name then
+			myRank = i
+			myDamage = pData.Damage
+		end
+
+		if i <= 3 then
+			local cColor = (i==1) and Color3.fromRGB(255,215,0) or ((i==2) and Color3.fromRGB(200,200,200) or Color3.fromRGB(180,120,60))
+			if pData.Name == player.Name then cColor = Color3.fromRGB(100, 255, 100) end
+
+			local entryLbl = Instance.new("TextLabel", ddScroll)
+			entryLbl.Size = UDim2.new(0, 200, 0, 16); entryLbl.BackgroundTransparency = 1
+			entryLbl.Font = Enum.Font.GothamBold; entryLbl.TextSize = 12; entryLbl.TextColor3 = cColor
+			entryLbl.TextXAlignment = Enum.TextXAlignment.Right
+			entryLbl.Text = "#" .. i .. " " .. pData.Name .. " - " .. AbbreviateNumber(pData.Damage)
+			local ts = Instance.new("UIStroke", entryLbl); ts.Thickness = 2
+		end
+	end
+
+	local sepLbl = Instance.new("TextLabel", ddScroll)
+	sepLbl.Size = UDim2.new(0, 200, 0, 10); sepLbl.BackgroundTransparency = 1
+	sepLbl.Font = Enum.Font.GothamMedium; sepLbl.TextSize = 12; sepLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
+	sepLbl.TextXAlignment = Enum.TextXAlignment.Right; sepLbl.Text = "..."
+	local ts2 = Instance.new("UIStroke", sepLbl); ts2.Thickness = 2
+
+	local meLbl = Instance.new("TextLabel", ddScroll)
+	meLbl.Size = UDim2.new(0, 200, 0, 16); meLbl.BackgroundTransparency = 1
+	meLbl.Font = Enum.Font.GothamBlack; meLbl.TextSize = 12; meLbl.TextColor3 = Color3.fromRGB(100, 255, 100)
+	meLbl.TextXAlignment = Enum.TextXAlignment.Right
+	meLbl.Text = (myRank and "#" .. myRank or "UNRANKED") .. " YOU - " .. AbbreviateNumber(myDamage)
+	local ts3 = Instance.new("UIStroke", meLbl); ts3.Thickness = 2
+end
 
 local function CreateMinimalButton(parent, text, size, baseColorHex)
 	local btn = Instance.new("TextButton", parent)
@@ -194,6 +277,9 @@ end
 
 local function ShowPvPUI(p1Name, p2Name, p1Id, p2Id, turnEndTime, p1Hp, p1Max, p2Hp, p2Max)
 	pendingSkillName = nil; inputLocked = false; HideAlly()
+	if doomsdayBoard then doomsdayBoard.Visible = false end
+	inDoomsdayLoop = false
+
 	if GUI.ExecuteOverlay then GUI.ExecuteOverlay.Visible = false end
 	if GUI.CombatBackdrop then GUI.CombatBackdrop.BackgroundColor3 = Color3.new(0, 0, 0); GUI.CombatBackdrop.Visible = true; TweenService:Create(GUI.CombatBackdrop, TweenInfo.new(0.4), {BackgroundTransparency = 0.4}):Play() end
 	if GUI.CombatWindow then GUI.CombatWindow.Visible = true; if GUI.WindowScale then TweenService:Create(GUI.WindowScale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end end
@@ -220,9 +306,9 @@ local function ShowPvPUI(p1Name, p2Name, p1Id, p2Id, turnEndTime, p1Hp, p1Max, p
 	local enHp, enMax = amIPlayer1 and p2Hp or p1Hp, amIPlayer1 and p2Max or p1Max
 
 	GUI.pHPText.Text = "HP " .. math.floor(myHp) .. "/" .. math.floor(myMax)
-	GUI.pHPBar.Size = UDim2.new(myMax > 0 and (myHp / myMax) or 0, 0, 1, 0)
+	GUI.pHPBar.Size = UDim2.new(myMax > 0 and math.clamp(myHp / myMax, 0, 1) or 0, 0, 1, 0)
 	GUI.eHPText.Text = "HP " .. math.floor(enHp) .. "/" .. math.floor(enMax)
-	GUI.eHPBar.Size = UDim2.new(enMax > 0 and (enHp / enMax) or 0, 0, 1, 0)
+	GUI.eHPBar.Size = UDim2.new(enMax > 0 and math.clamp(enHp / enMax, 0, 1) or 0, 0, 1, 0)
 
 	UpdatePvPSkills()
 end
@@ -234,15 +320,15 @@ local function UpdatePvPState(data)
 
 	myHp = math.max(0, myHp); enHp = math.max(0, enHp)
 	GUI.pHPText.Text = "HP " .. math.floor(myHp) .. "/" .. math.floor(myMax)
-	TweenService:Create(GUI.pHPBar, tInfo, {Size = UDim2.new(myMax > 0 and (myHp / myMax) or 0, 0, 1, 0)}):Play()
+	TweenService:Create(GUI.pHPBar, tInfo, {Size = UDim2.new(myMax > 0 and math.clamp(myHp / myMax, 0, 1) or 0, 0, 1, 0)}):Play()
 
 	GUI.eHPText.Text = "HP " .. math.floor(enHp) .. "/" .. math.floor(enMax)
-	TweenService:Create(GUI.eHPBar, tInfo, {Size = UDim2.new(enMax > 0 and (enHp / enMax) or 0, 0, 1, 0)}):Play()
+	TweenService:Create(GUI.eHPBar, tInfo, {Size = UDim2.new(enMax > 0 and math.clamp(enHp / enMax, 0, 1) or 0, 0, 1, 0)}):Play()
 
 	local myGas, myMaxGas = amIPlayer1 and data.P1_Gas or data.P2_Gas, amIPlayer1 and data.P1_MaxGas or data.P2_MaxGas
 	if myGas then
 		GUI.pGasText.Text = "GAS " .. math.floor(myGas) .. "/" .. math.floor(myMaxGas)
-		TweenService:Create(GUI.pGasBar, tInfo, {Size = UDim2.new(myMaxGas > 0 and (myGas / myMaxGas) or 0, 0, 1, 0)}):Play()
+		TweenService:Create(GUI.pGasBar, tInfo, {Size = UDim2.new(myMaxGas > 0 and math.clamp(myGas / myMaxGas, 0, 1) or 0, 0, 1, 0)}):Play()
 	end
 
 	if VFXManager and type(VFXManager.ScreenShake) == "function" and data.ShakeType ~= "None" then
@@ -268,6 +354,9 @@ local function CloseUI(forcePathsOpen)
 	inputLocked = true
 	HideAlly()
 
+	if doomsdayBoard then doomsdayBoard.Visible = false end
+	inDoomsdayLoop = false
+
 	if GUI.ExecuteOverlay then GUI.ExecuteOverlay.Visible = false end
 
 	if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then 
@@ -286,13 +375,13 @@ local function CloseUI(forcePathsOpen)
 
 	if GUI.CombatWindow then GUI.CombatWindow.Visible = false end
 
-	local MusicManager = require(script.Parent.Parent:WaitForChild("MusicManager"))
-	if MusicManager then MusicManager.SetCategory("Lobby") end
+	local hasMusic, MusicManager = pcall(function() return require(script.Parent.Parent:WaitForChild("MusicManager")) end)
+	if hasMusic and MusicManager then MusicManager.SetCategory("Lobby") end
 
 	if forcePathsOpen then
 		task.delay(0.2, function()
 			local pathsModule = script.Parent:FindFirstChild("PathsShopUI")
-			if pathsModule then
+			if pathsModule and pathsModule:IsA("ModuleScript") then
 				require(pathsModule).OpenShop()
 			end
 		end)
@@ -311,21 +400,48 @@ local function UpdateState(data)
 		elseif ctx.IsEndless then modeStr = "ENDLESS FRONTIER | WAVE " .. (ctx.CurrentWave or 1)
 		elseif ctx.IsNightmare then modeStr = "NIGHTMARE HUNT"
 		elseif ctx.IsWorldBoss then modeStr = "WORLD BOSS RAID" end
+
+		if battle.Enemy.IsDoomsdayBoss then modeStr = "DOOMSDAY BOUNTY: THE PRIMORDIAL THREAT" end
+
 		GUI.MissionInfoLbl.Text = modeStr .. "  [" .. (ctx.Range and ctx.Range:upper() or "CLOSE") .. " RANGE]"
+	end
+
+	if battle.Enemy.IsDoomsdayBoss then
+		BuildDoomsdayBoard()
+		doomsdayBoard.Visible = true
+		if not inDoomsdayLoop then
+			inDoomsdayLoop = true
+			task.spawn(function()
+				while inDoomsdayLoop do
+					local dData = Network:WaitForChild("GetDoomsdayData"):InvokeServer()
+					UpdateDoomsdayBoard(dData)
+
+					if dData and dData.MaxHP and dData.BossHP then
+						GUI.eHPText.Text = "GLOBAL HP: " .. AbbreviateNumber(dData.BossHP)
+						TweenService:Create(GUI.eHPBar, tInfo, {Size = UDim2.new(dData.MaxHP > 0 and math.clamp(dData.BossHP / dData.MaxHP, 0, 1) or 0, 0, 1, 0)}):Play()
+					end
+
+					task.wait(3)
+				end
+			end)
+		end
+	else
+		if doomsdayBoard then doomsdayBoard.Visible = false end
+		inDoomsdayLoop = false
 	end
 
 	if battle.Player then
 		local safeHP = math.max(0, battle.Player.HP or 0); local maxHP = battle.Player.MaxHP or 100
 		GUI.pHPText.Text = "HP " .. math.floor(safeHP) .. "/" .. math.floor(maxHP)
-		TweenService:Create(GUI.pHPBar, tInfo, {Size = UDim2.new(maxHP > 0 and (safeHP / maxHP) or 0, 0, 1, 0)}):Play()
+		TweenService:Create(GUI.pHPBar, tInfo, {Size = UDim2.new(maxHP > 0 and math.clamp(safeHP / maxHP, 0, 1) or 0, 0, 1, 0)}):Play()
 
 		local gas = battle.Player.Gas or 0; local maxGas = battle.Player.MaxGas or 50
 		GUI.pGasText.Text = "GAS " .. math.floor(gas) .. "/" .. math.floor(maxGas)
-		TweenService:Create(GUI.pGasBar, tInfo, {Size = UDim2.new(maxGas > 0 and (gas / maxGas) or 0, 0, 1, 0)}):Play()
+		TweenService:Create(GUI.pGasBar, tInfo, {Size = UDim2.new(maxGas > 0 and math.clamp(gas / maxGas, 0, 1) or 0, 0, 1, 0)}):Play()
 
 		local heat = battle.Player.TitanEnergy or 0; local maxHeat = battle.Player.MaxTitanEnergy or 100
 		GUI.pHeatText.Text = "HEAT " .. math.floor(heat) .. "/" .. math.floor(maxHeat)
-		TweenService:Create(GUI.pHeatBar, tInfo, {Size = UDim2.new(maxHeat > 0 and (heat / maxHeat) or 0, 0, 1, 0)}):Play()
+		TweenService:Create(GUI.pHeatBar, tInfo, {Size = UDim2.new(maxHeat > 0 and math.clamp(heat / maxHeat, 0, 1) or 0, 0, 1, 0)}):Play()
 
 		local hpRatio = safeHP / maxHP
 		if VFXManager and type(VFXManager.ToggleHeartbeat) == "function" then
@@ -335,9 +451,8 @@ local function UpdateState(data)
 
 	if battle.Enemy then 
 		GUI.eNameLbl.Text = (battle.Enemy.Name or "UNKNOWN"):upper() 
-		local EnemyDataModule = require(ReplicatedStorage:WaitForChild("EnemyData"))
-		if EnemyDataModule and EnemyDataModule.BossIcons and EnemyDataModule.BossIcons[battle.Enemy.Name] then
-			GUI.eAvatar.Image = EnemyDataModule.BossIcons[battle.Enemy.Name]
+		if EnemyData and EnemyData.BossIcons and EnemyData.BossIcons[battle.Enemy.Name] then
+			GUI.eAvatar.Image = EnemyData.BossIcons[battle.Enemy.Name]
 		else
 			GUI.eAvatar.Image = "rbxassetid://90132878979603"
 		end
@@ -347,18 +462,23 @@ local function UpdateState(data)
 			GUI.eGateContainer.Visible = false
 		else
 			GUI.eHPText.Parent.Visible = true
-			local safeHP = math.max(0, battle.Enemy.HP or 0); local maxHP = battle.Enemy.MaxHP or 100
-			GUI.eHPText.Text = "HP " .. math.floor(safeHP) .. "/" .. math.floor(maxHP)
-			TweenService:Create(GUI.eHPBar, tInfo, {Size = UDim2.new(maxHP > 0 and (safeHP / maxHP) or 0, 0, 1, 0)}):Play()
+
+			if not battle.Enemy.IsDoomsdayBoss then
+				local safeHP = math.max(0, battle.Enemy.HP or 0); local maxHP = battle.Enemy.MaxHP or 100
+				GUI.eHPText.Text = "HP " .. math.floor(safeHP) .. "/" .. math.floor(maxHP)
+				TweenService:Create(GUI.eHPBar, tInfo, {Size = UDim2.new(maxHP > 0 and math.clamp(safeHP / maxHP, 0, 1) or 0, 0, 1, 0)}):Play()
+			end
 
 			local maxGate = battle.Enemy.MaxGateHP or 0
 			local safeGate = math.max(0, battle.Enemy.GateHP or 0)
+			if safeGate > maxGate then maxGate = safeGate end 
 
 			if maxGate > 0 and safeGate > 0 then
 				GUI.eGateContainer.Visible = true
 				local gateLabel = (battle.Enemy.GateType == "Steam") and "STEAM " or "ARMOR "
 				GUI.eGateText.Text = gateLabel .. math.floor(safeGate) .. "/" .. math.floor(maxGate)
-				TweenService:Create(GUI.eGateBar, tInfo, {Size = UDim2.new(safeGate / maxGate, 0, 1, 0)}):Play()
+				local fillRatio = math.clamp(safeGate / maxGate, 0, 1)
+				TweenService:Create(GUI.eGateBar, tInfo, {Size = UDim2.new(fillRatio, 0, 1, 0)}):Play()
 				GUI.eHPText.Visible = false 
 			else
 				GUI.eGateContainer.Visible = false
@@ -382,7 +502,6 @@ local function UpdateState(data)
 	RenderStatuses(GUI.EnemyStatusBox, battle.Enemy)
 end
 
--- [[ THE FIX: Titan Punch and Kick are removed from presets and given to EVERYONE implicitly below ]]
 local function GetTitanSkills(titanName)
 	if not titanName or titanName == "None" then return {} end
 	local movesets = {
@@ -421,7 +540,6 @@ local function UpdateSkills()
 	local defaultClose = {"Basic Slash", "Heavy Slash", "None", "None"}
 	local defaultLong = {"Flare Gun", "Anti-Titan Rifle", "None", "None"}
 
-	-- [[ THE FIX: Titan Punch and Titan Kick are set as the un-overwritable base fallbacks! ]]
 	if isTransformed then
 		defaultClose = {"Titan Punch", "Titan Kick", "Block", "None"}
 		defaultLong = {"Titan Punch", "Titan Kick", "Block", "None"}
@@ -534,7 +652,7 @@ local function UpdateSkills()
 					if wasPaths then
 						task.delay(1.5, function()
 							local pathsModule = script.Parent:FindFirstChild("PathsShopUI")
-							if pathsModule then require(pathsModule).OpenShop() end
+							if pathsModule and pathsModule:IsA("ModuleScript") then require(pathsModule).OpenShop() end
 						end)
 					end
 				else
@@ -588,7 +706,6 @@ local function UpdateSkills()
 		CreateSkillButton(skillName)
 	end
 
-	-- [[ THE FIX: Specific Titan Moves are dynamically loaded as EXTRA skills below the hotbar! ]]
 	if isTransformed then
 		local myTitan = player:GetAttribute("Titan")
 		if myTitan and myTitan ~= "None" then
@@ -688,6 +805,7 @@ end
 -- INITIALIZATION
 -- ==========================================
 function CombatUI.Initialize(masterScreenGui)
+	MasterGuiRef = masterScreenGui
 	GUI = CombatBuilder.Build(masterScreenGui, player)
 
 	GUI.ClickOverlay.MouseButton1Click:Connect(function()
@@ -807,9 +925,8 @@ function CombatUI.Initialize(masterScreenGui)
 						GUI.SpeakerLbl.Text = line.Speaker or "Unknown"
 						GUI.SpeakerLbl.TextColor3 = (line.Speaker == "System") and UIHelpers.Colors.TextMuted or UIHelpers.Colors.Gold
 
-						local EnemyDataModule = require(ReplicatedStorage:WaitForChild("EnemyData"))
-						if EnemyDataModule and EnemyDataModule.BossIcons and EnemyDataModule.BossIcons[line.Speaker] then
-							if GUI.eAvatar then GUI.eAvatar.Image = EnemyDataModule.BossIcons[line.Speaker] end
+						if EnemyData and EnemyData.BossIcons and EnemyData.BossIcons[line.Speaker] then
+							if GUI.eAvatar then GUI.eAvatar.Image = EnemyData.BossIcons[line.Speaker] end
 						else
 							if GUI.eAvatar then GUI.eAvatar.Image = "rbxassetid://90132878979603" end
 						end
@@ -927,9 +1044,8 @@ function CombatUI.Initialize(masterScreenGui)
 						if data.AllyUserId then
 							GUI.AllyAvatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. data.AllyUserId .. "&w=150&h=150"
 						else
-							local EnemyDataModule = require(ReplicatedStorage:WaitForChild("EnemyData"))
-							if EnemyDataModule and EnemyDataModule.BossIcons and EnemyDataModule.BossIcons[data.AllyIntervention] then
-								GUI.AllyAvatar.Image = EnemyDataModule.BossIcons[data.AllyIntervention]
+							if EnemyData and EnemyData.BossIcons and EnemyData.BossIcons[data.AllyIntervention] then
+								GUI.AllyAvatar.Image = EnemyData.BossIcons[data.AllyIntervention]
 							else
 								GUI.AllyAvatar.Image = "rbxassetid://90132878979603"
 							end
