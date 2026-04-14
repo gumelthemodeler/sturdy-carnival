@@ -1,6 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
 local CombatCore = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
@@ -110,14 +109,13 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	local isAttackerTransformed = attacker.Statuses and (tonumber(attacker.Statuses.Transformed) or 0) > 0
 	local isDefenderTransformed = defender.Statuses and (tonumber(defender.Statuses.Transformed) or 0) > 0
 
-	-- [[ THE FIX: Isolated Titan Stats ]]
 	if attacker.IsPlayer and isAttackerTransformed and attacker.PlayerObj then
 		atkStrength = math.max(1, tonumber(attacker.PlayerObj:GetAttribute("Titan_Power_Val")) or 10)
-		atkBuff = atkBuff * 4.0 -- Baseline Titan Size Modifier
+		atkBuff = atkBuff * 4.0 
 	end
 	if defender.IsPlayer and isDefenderTransformed and defender.PlayerObj then
 		defArmor = math.max(1, tonumber(defender.PlayerObj:GetAttribute("Titan_Hardening_Val")) or 10)
-		defBuff = defBuff * 4.0 -- Baseline Titan Size Modifier
+		defBuff = defBuff * 4.0 
 	end
 
 	if terrain == "Caverns" then
@@ -135,7 +133,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 			atkBuff = atkBuff * (1.0 + (momentum * aStats.MomentumDamagePerHit))
 		end
 
-		-- Prevent Gear/Consumable stats from buffing Titan form
 		if not isAttackerTransformed then
 			local setBonus = GetSetBonus(attacker.PlayerObj)
 			if setBonus then
@@ -147,7 +144,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 			if expiry > os.time() then atkBuff = atkBuff * 1.5 end
 		end
 
-		-- Apply Prestige Buffs globally to BOTH Human and Titan forms
 		local prestigeDmg = tonumber(attacker.PlayerObj:GetAttribute("Prestige_DmgMult")) or 0
 		atkBuff = atkBuff * (1.0 + prestigeDmg)
 		armorPen = armorPen + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_IgnoreArmor")) or 0)
@@ -240,7 +236,6 @@ function CombatCore.TakeDamage(combatant, damage, attackerStyle)
 		if (currentHP - actualDmg) < 1 then
 			local resolveStat = tonumber(combatant.TotalResolve) or 10
 
-			-- [[ THE FIX: Titan Endurance Survival Override ]]
 			if combatant.IsPlayer and combatant.Statuses and combatant.Statuses["Transformed"] and combatant.PlayerObj then
 				resolveStat = tonumber(combatant.PlayerObj:GetAttribute("Titan_Endurance_Val")) or 10
 			end
@@ -383,7 +378,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 	local atkRes = tonumber(attacker.TotalResolve) or 10
 	local defRes = tonumber(defender.TotalResolve) or 10
 
-	-- [[ THE FIX: Isolated Titan Speed & Endurance ]]
 	if attacker.IsPlayer and isAttackerTransformed and attacker.PlayerObj then
 		atkSpd = (tonumber(attacker.PlayerObj:GetAttribute("Titan_Speed_Val")) or 10) * 3.0
 		atkRes = tonumber(attacker.PlayerObj:GetAttribute("Titan_Endurance_Val")) or 10
@@ -430,7 +424,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if defender.AwakenedStats and (tonumber(defender.AwakenedStats.DodgeBonus) or 0) > 0 then dodgeChance = dodgeChance + tonumber(defender.AwakenedStats.DodgeBonus) end
 
 		if defender.IsPlayer and defender.PlayerObj then
-			-- [[ THE FIX: Titan Potential governs Titan Dodge ]]
 			if isDefenderTransformed then
 				local tPotential = tonumber(defender.PlayerObj:GetAttribute("Titan_Potential_Val")) or 10
 				dodgeChance = dodgeChance + (tPotential * 0.25)
@@ -498,7 +491,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if attacker.AwakenedStats and (tonumber(attacker.AwakenedStats.CritBonus) or 0) > 0 then critChance = critChance + tonumber(attacker.AwakenedStats.CritBonus) end
 
 		if attacker.IsPlayer and attacker.PlayerObj then
-			-- [[ THE FIX: Titan Precision governs Titan Crit ]]
 			if isAttackerTransformed then
 				local tPrecision = tonumber(attacker.PlayerObj:GetAttribute("Titan_Precision_Val")) or 10
 				critChance = critChance + (tPrecision * 0.25)
@@ -516,6 +508,19 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 		local baseDmg = CombatCore.CalculateDamage(attacker, defender, dmgMultValue, targetLimb, battleContext)
 		local survivalTriggered, hitGate, gateBroken, hpDmg, gateName = CombatCore.TakeDamage(defender, baseDmg, attacker.Style)
+
+		-- [[ THE FIX: Bulletproof pcall around Doomsday Hook ]]
+		if defender.IsDoomsdayBoss and attacker.IsPlayer and attacker.PlayerObj then
+			if hpDmg > 0 then
+				local success, err = pcall(function()
+					local DoomsdayManager = require(game:GetService("ServerScriptService"):WaitForChild("DoomsdayManager"))
+					DoomsdayManager.RegisterDamage(attacker.PlayerObj, hpDmg)
+				end)
+				if not success then
+					warn("[DOOMSDAY ERROR]: Failed to log damage! Ensure DoomsdayManager is a ModuleScript. Error: " .. tostring(err))
+				end
+			end
+		end
 
 		local isArmored = defender.GateType == "Reinforced Skin" and (tonumber(defender.GateHP) or 0) > 0
 
