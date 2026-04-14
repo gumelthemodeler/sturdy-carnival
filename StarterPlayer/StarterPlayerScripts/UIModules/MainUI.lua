@@ -1,7 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- Name: MainUI
--- @ScriptType: ModuleScript
 local MainUI = {}
 
 local Players = game:GetService("Players")
@@ -31,7 +29,9 @@ local CONFIG = {
 		{Id = "EXPEDITIONS", Title = "COMBAT DEPLOYMENT", Icon = "rbxassetid://115407261158495"},  
 		{Id = "SQUADS", Title = "STRIKE SQUADS COMMAND", Icon = "rbxassetid://111674249930782"}, 
 		{Id = "SUPPLY_FORGE", Title = "MARKET & FORGERY", Icon = "rbxassetid://108619507999123"},
-		{Id = "REGIMENTS", Title = "REGIMENT HEADQUARTERS", Icon = "rbxassetid://74069077964164"} 
+		{Id = "REGIMENTS", Title = "REGIMENT HEADQUARTERS", Icon = "rbxassetid://74069077964164"},
+		-- [[ ADDED BESTIARY TO DOCK ]]
+		{Id = "BESTIARY", Title = "ABYSSAL BESTIARY", Icon = "rbxassetid://115407261158495"} 
 	},
 	Currencies = {
 		{Id = "XP", Title = "XP", Color = "#55FF55"},
@@ -141,7 +141,6 @@ local function BuildMasterWindow()
 	statLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	statLayout.Padding = UDim.new(0, 8)
 
-	-- Generate Currency Boxes
 	local function CreateTopBox(title, hexColor)
 		local box = Instance.new("Frame", StatsContainer)
 		box.Size = UDim2.new(0, 130, 0, 36)
@@ -192,7 +191,8 @@ local function BuildMasterWindow()
 	ContentArea.Position = UDim2.new(0, 0, 0, 60)
 	ContentArea.BackgroundTransparency = 1
 
-	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS"}
+	-- [[ ADDED BESTIARY TO TAB RENDER LIST ]]
+	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS", "BESTIARY"}
 
 	if isAdmin then 
 		table.insert(tabs, "ADMIN") 
@@ -207,9 +207,6 @@ local function BuildMasterWindow()
 		TabContainers[tabName] = tabFrame
 	end
 
-	-- ==========================================
-	-- HOME TAB INJECTION
-	-- ==========================================
 	local function BuildHomeTab()
 		local hTab = TabContainers["HOME"]
 
@@ -253,7 +250,6 @@ local function BuildMasterWindow()
 		clTitle.Position = UDim2.new(0, 10, 0, 10)
 		clTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-		-- [[ THE FIX: Updated Changelog Text ]]
 		local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.6.0 - Ymir's Favored Update</b>\n\n• Strike Squad 9-Slot Vaults & Global Champion Buffs.\n• Secure Player Trading System.\n• Titan Fusion & Combat Overhauls.\n\n<b>ACTIVE CODES:</b>\n[CAMPAIGN!]\n[NIGHTMAREMODE]\n[SQUADS]", UDim2.new(1, -20, 1, -50), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 14)
 		clText.Position = UDim2.new(0, 10, 0, 45)
 		clText.TextXAlignment = Enum.TextXAlignment.Left
@@ -293,7 +289,6 @@ local function BuildMasterWindow()
 		local lbBtns = {}
 		local currentLbTab = "PRESTIGE"
 
-		-- [[ THE FIX: Extracted and Auto-Updating Leaderboards ]]
 		local function FetchLeaderboard(typeKey)
 			currentLbTab = typeKey
 			for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
@@ -312,7 +307,7 @@ local function BuildMasterWindow()
 					data = Network:WaitForChild("GetLeaderboardData"):InvokeServer(rawKey)
 				end
 
-				if data and currentLbTab == typeKey then -- Ensure they haven't rapidly switched tabs
+				if data and currentLbTab == typeKey then
 					for i, entry in ipairs(data) do
 						local card = Instance.new("Frame", LbScroll)
 						card.Size = UDim2.new(1, -10, 0, 40)
@@ -350,7 +345,6 @@ local function BuildMasterWindow()
 
 		FetchLeaderboard("PRESTIGE")
 
-		-- Auto-Refresh Loop
 		task.spawn(function()
 			while task.wait(60) do
 				if MasterWindow and MasterWindow.Visible and CurrentOpenTab == "HOME" then
@@ -361,12 +355,15 @@ local function BuildMasterWindow()
 	end
 	BuildHomeTab()
 
-	-- [[ LAUNCH EXTERNAL TAB MODULES ]]
+	-- [[ LAUNCH EXTERNAL TAB MODULES, INCLUDING THE BESTIARY ]]
 	task.spawn(function() local HeroMod = require(script.Parent:WaitForChild("HeroMenu")); if HeroMod.Initialize then HeroMod.Initialize(TabContainers["PROFILE"]) end end)
 	task.spawn(function() local ExpMod = require(script.Parent:WaitForChild("ExpeditionsTab")); if ExpMod.Initialize then ExpMod.Initialize(TabContainers["EXPEDITIONS"]) end end)
 	task.spawn(function() local SquadsMod = require(script.Parent:WaitForChild("SquadsTab")); if SquadsMod.Initialize then SquadsMod.Initialize(TabContainers["SQUADS"]) end end)
 	task.spawn(function() local SFMod = require(script.Parent:WaitForChild("SupplyForgeTab")); if SFMod.Initialize then SFMod.Initialize(TabContainers["SUPPLY_FORGE"]) end end)
 	task.spawn(function() local RegMod = require(script.Parent:WaitForChild("RegimentsTab")); if RegMod.Initialize then RegMod.Initialize(TabContainers["REGIMENTS"]) end end)
+
+	-- Here is the hook executing the Bestiary right into the Tab container
+	task.spawn(function() local BestiaryMod = require(script.Parent:WaitForChild("BestiaryUI")); if BestiaryMod.Initialize then BestiaryMod.Initialize(TabContainers["BESTIARY"]) end end)
 
 	if isAdmin then
 		task.spawn(function()
@@ -411,15 +408,16 @@ local function BuildBottomBar()
 	layout.VerticalAlignment = Enum.VerticalAlignment.Center
 	layout.Padding = UDim.new(0, 20)
 
+	-- Adjusted dock size to accommodate the Bestiary icon
 	if isAdmin then
-		Dock.Size = UDim2.new(0, 540, 0, 70) 
+		Dock.Size = UDim2.new(0, 610, 0, 70) 
 		local adminExists = false
 		for _, tab in ipairs(CONFIG.DockTabs) do if tab.Id == "ADMIN" then adminExists = true break end end
 		if not adminExists then
 			table.insert(CONFIG.DockTabs, {Id = "ADMIN", Title = "DEVELOPER PANEL", Icon = "rbxassetid://100709766417970"})
 		end
 	else
-		Dock.Size = UDim2.new(0, 460, 0, 70) 
+		Dock.Size = UDim2.new(0, 530, 0, 70) 
 	end
 
 	for _, btnData in ipairs(CONFIG.DockTabs) do
