@@ -1,6 +1,5 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
--- @ScriptType: Script
 -- Name: CombatManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -82,7 +81,6 @@ local function GetSpdScale(targetPart, isEndless, wave)
 	return base
 end
 
--- [[ THE FIX: Removed Titan Punch & Kick from presets. They are now Base Moves handled independently! ]]
 local function GetTitanSkills(titanName)
 	if not titanName or titanName == "None" then return {} end
 	local movesets = {
@@ -163,6 +161,13 @@ local function StartBattle(player, encounterType, requestedPartId)
 		local flavorText = waveData.Flavor
 		if not flavorText or flavorText == "" then flavorText = "Prepare to engage " .. (eTemplate.Name or "the enemy") .. "!" end
 		logFlavor = "<font color='#FFD700'>[Mission: " .. (activeMissionData.Name or "Unknown") .. "]</font>\n" .. flavorText
+
+	elseif encounterType == "EngageDoomsday" then
+		isWorldBoss = true
+		eTemplate = EnemyData.WorldBosses["Doomsday Titan"]
+		if not eTemplate then return end
+		logFlavor = "<font color='#FF3333'>[GLOBAL BOUNTY: THE PRIMORDIAL THREAT]</font>\nYou drop directly into the Doomsday frontline!"
+		targetPart = 1 
 
 	elseif encounterType == "EngageWorldBoss" then
 		isWorldBoss = true
@@ -304,13 +309,13 @@ local function StartBattle(player, encounterType, requestedPartId)
 	local eSpd = math.floor((eTemplate.Speed or 10) * spdMult)
 	local enemyAwakenedStats = nil
 
-	local isDynamicBoss = (encounterType == "EngageWorldBoss" or encounterType == "EngageNightmare" or encounterType == "EngageRaid")
+	local isDynamicBoss = (encounterType == "EngageWorldBoss" or encounterType == "EngageNightmare" or encounterType == "EngageRaid" or encounterType == "EngageDoomsday")
 	if isDynamicBoss then
 		local groupMult = 1
 		local partyStrSum = pTotalStr * (awakenedStats.DmgMult or 1.0)
 		local partyHpSum = pMaxHP
 
-		if encounterType == "EngageWorldBoss" then 
+		if encounterType == "EngageWorldBoss" or encounterType == "EngageDoomsday" then 
 			groupMult = math.clamp(#Players:GetPlayers(), 1, 15)
 			partyStrSum = partyStrSum * groupMult
 			partyHpSum = partyHpSum * groupMult
@@ -336,6 +341,8 @@ local function StartBattle(player, encounterType, requestedPartId)
 			baseDifficulty = 3.5; expectedTurnsToKill = 20; expectedHitsToDie = 4
 		elseif encounterType == "EngageRaid" then 
 			baseDifficulty = 2.0; expectedTurnsToKill = 25; expectedHitsToDie = 5 
+		elseif encounterType == "EngageDoomsday" then
+			baseDifficulty = 15.0; expectedTurnsToKill = 9999; expectedHitsToDie = 3
 		end
 
 		local estimatedPartyDps = partyStrSum * 4
@@ -343,6 +350,10 @@ local function StartBattle(player, encounterType, requestedPartId)
 		eStr = math.floor((partyHpSum / expectedHitsToDie) / 2 * baseDifficulty)
 		eDef = math.floor(partyStrSum * 0.8) 
 		eSpd = math.floor(pTotalSpd * 1.1) 
+
+		if encounterType == "EngageDoomsday" then
+			eHP = 500000000 
+		end
 
 		if eGateType == "Steam" then eGateHP = eTemplate.GateHP 
 		elseif eGateType then
@@ -391,11 +402,34 @@ local function StartBattle(player, encounterType, requestedPartId)
 			MomentumStacks = 0,
 			Statuses = {}, Cooldowns = {}, LastSkill = "None", AwakenedStats = awakenedStats 
 		},
-		Enemy = { IsMinigame = eTemplate.IsMinigame, IsPlayer = false, Name = eTemplate.Name, IsHuman = isPaths and false or (eTemplate.IsHuman or false), IsNightmare = isNightmare, IsBoss = eTemplate.IsBoss or false, HP = eHP, MaxHP = eHP, GateType = eGateType, GateHP = eGateHP, MaxGateHP = eGateHP, TotalStrength = eStr, TotalDefense = eDef, TotalSpeed = eSpd, Statuses = {}, Cooldowns = initCooldowns, Skills = eSkills, Drops = { XP = math.floor((eTemplate.Drops and eTemplate.Drops.XP or 15) * dropMult), Dews = math.floor((eTemplate.Drops and eTemplate.Drops.Dews or 10) * dropMult), ItemChance = eTemplate.Drops and eTemplate.Drops.ItemChance or {} }, AwakenedStats = enemyAwakenedStats, LastSkill = "None", AIPoints = 0 }
+		Enemy = { IsMinigame = eTemplate.IsMinigame, IsPlayer = false, Name = eTemplate.Name, IsHuman = isPaths and false or (eTemplate.IsHuman or false), IsNightmare = isNightmare, IsBoss = eTemplate.IsBoss or false, IsDoomsdayBoss = (encounterType == "EngageDoomsday"), HP = eHP, MaxHP = eHP, GateType = eGateType, GateHP = eGateHP, MaxGateHP = eGateHP, TotalStrength = eStr, TotalDefense = eDef, TotalSpeed = eSpd, Statuses = {}, Cooldowns = initCooldowns, Skills = eSkills, Drops = { XP = math.floor((eTemplate.Drops and eTemplate.Drops.XP or 15) * dropMult), Dews = math.floor((eTemplate.Drops and eTemplate.Drops.Dews or 10) * dropMult), ItemChance = eTemplate.Drops and eTemplate.Drops.ItemChance or {} }, AwakenedStats = enemyAwakenedStats, LastSkill = "None", AIPoints = 0 }
 	}
 
 	if eTemplate.IsMinigame then CombatUpdate:FireClient(player, "StartMinigame", { Battle = ActiveBattles[player.UserId], LogMsg = logFlavor, MinigameType = eTemplate.IsMinigame })
 	else CombatUpdate:FireClient(player, "Start", { Battle = ActiveBattles[player.UserId], LogMsg = logFlavor }) end
+
+	-- [[ THE FIX: Auto-Eject monitor so players don't swing at a dead global boss ]]
+	if encounterType == "EngageDoomsday" then
+		task.spawn(function()
+			local success, DoomsdayManager = pcall(function() return require(game:GetService("ServerScriptService"):WaitForChild("DoomsdayManager")) end)
+			if not success or type(DoomsdayManager.GetServerData) ~= "function" then return end
+
+			while ActiveBattles[player.UserId] and ActiveBattles[player.UserId].Enemy.IsDoomsdayBoss do
+				local ddData = DoomsdayManager.GetServerData()
+				if not ddData.IsActive or ddData.BossHP <= 0 then
+					local b = ActiveBattles[player.UserId]
+					if ddData.BossHP <= 0 then
+						CombatUpdate:FireClient(player, "Victory", {Battle = b, LogMsg = "<font color='#55FF55'>The Doomsday Titan has fallen globally!</font>", XP = 50000, Dews = 500000, Items = {}})
+					else
+						CombatUpdate:FireClient(player, "Fled", {Battle = b, LogMsg = "<font color='#AAAAAA'>The Doomsday Titan vanished into the steam...</font>"})
+					end
+					ActiveBattles[player.UserId] = nil
+					break
+				end
+				task.wait(3)
+			end
+		end)
+	end
 end
 
 local function ProcessEnemyDeath(player, battle, dialogueRewards)
@@ -706,14 +740,14 @@ end
 
 local function SafeTriggerPathsShop(player, ctx)
 	if ctx and ctx.IsPaths then
-		player:SetAttribute("PathsFloor", 1) -- Reset progress on defeat or retreat
+		player:SetAttribute("PathsFloor", 1) 
 		local pEvent = Network:FindFirstChild("PathsShopEvent")
 		if pEvent then pEvent:FireClient(player, "Open") end
 	end
 end
 
 CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
-	if actionType == "EngageStory" or actionType == "EngageWorldBoss" or actionType == "EngageNightmare" or actionType == "EngageRaid" or actionType == "EngageEndless" or actionType == "EngagePaths" then 
+	if actionType == "EngageStory" or actionType == "EngageWorldBoss" or actionType == "EngageNightmare" or actionType == "EngageRaid" or actionType == "EngageEndless" or actionType == "EngagePaths" or actionType == "EngageDoomsday" then 
 		local pId = actionData and (actionData.PartId or actionData.BossId) or nil; StartBattle(player, actionType, pId); return 
 	end
 
@@ -798,7 +832,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if skill then
 		local isTransformed = battle.Player.Statuses and battle.Player.Statuses["Transformed"]
 
-		-- [[ THE FIX: Updated Universal Titan Validation Logic ]]
 		if not isTransformed then
 			if skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "Transformed" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
 				local myClan = player:GetAttribute("Clan")
@@ -989,6 +1022,34 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = targetName .. " took damage from status effects!" .. dotLog, DidHit = false, ShakeType = "None"})
 			task.wait(0.2)
 			if combatant.HP < 1 then continue end 
+		end
+
+		if combatant.IsDoomsdayBoss then
+			battle.Context.DoomsdayTurn = (battle.Context.DoomsdayTurn or 0) + 1
+			local turn = battle.Context.DoomsdayTurn
+			local msg = "<font color='#FF5555'>The Doomsday Titan continues its apocalyptic march... DEAL AS MUCH DAMAGE AS POSSIBLE!</font>"
+
+			if turn % 8 == 0 then
+				combatant.GateType = "Steam"
+				combatant.MaxGateHP = 5
+				combatant.GateHP = 5
+				msg = "<font color='#FFAA00'><b>[PHASE SHIFT: STEAM]</b> The Doomsday Titan vents Colossal Steam to repel your attacks!</font>"
+			elseif turn % 8 == 4 then
+				combatant.GateType = "Reinforced Skin"
+				local newGate = math.floor(battle.Player.TotalStrength * 12) 
+				combatant.MaxGateHP = newGate
+				combatant.GateHP = newGate
+				msg = "<font color='#AAAAAA'><b>[PHASE SHIFT: ARMOR]</b> The Doomsday Titan hardens its skeletal structure! Break it!</font>"
+			elseif turn % 8 == 1 and turn > 1 then
+				combatant.GateType = nil
+				combatant.MaxGateHP = 0
+				combatant.GateHP = 0
+				msg = "<font color='#55FF55'><b>[PHASE SHIFT: EXPOSED]</b> The Doomsday Titan's defenses drop! Unleash everything!</font>"
+			end
+
+			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = msg, DidHit = false, ShakeType = "Light"})
+			task.wait(turnDelay)
+			continue 
 		end
 
 		if combatant.Statuses and (combatant.Statuses["Blinded"] or combatant.Statuses["TrueBlind"] or combatant.Statuses["Stun"]) then
