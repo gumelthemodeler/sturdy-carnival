@@ -1,6 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
 -- Name: MobileHeroMenu
 local MobileHeroMenu = {}
 local Players = game:GetService("Players"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local TweenService = game:GetService("TweenService"); local Network = ReplicatedStorage:WaitForChild("Network")
@@ -150,7 +149,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	RefreshProfile = function()
 		local tName = player:GetAttribute("Titan") or "None"; local cName = player:GetAttribute("Clan") or "None"; local regName = player:GetAttribute("Regiment") or "Cadet Corps"
 		local hasRegData, regDataModule = pcall(function() return require(game.ReplicatedStorage:WaitForChild("RegimentData")) end); if hasRegData and regDataModule and regDataModule.Regiments[regName] then regIcon.Image = regDataModule.Regiments[regName].Icon else regIcon.Image = "" end
-		if cName == "Ackerman" or cName == "Awakened Ackerman" then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end; clanLabel.Text = "Clan: <font color='#55FF55'>" .. cName .. "</font>"; regimentLabel.Text = "Regiment: <font color='"..(REG_COLORS[regName] or TEXT_COLORS.DefaultGreen).."'>" .. regName .. "</font>"
+		if cName == "Ackerman" or cName == "Awakened Ackerman" or string.find(cName, "Abyssal") then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end; clanLabel.Text = "Clan: <font color='#55FF55'>" .. cName .. "</font>"; regimentLabel.Text = "Regiment: <font color='"..(REG_COLORS[regName] or TEXT_COLORS.DefaultGreen).."'>" .. regName .. "</font>"
 		local wpnName = player:GetAttribute("EquippedWeapon") or "None"; local accName = player:GetAttribute("EquippedAccessory") or "None"; local pTitle = player:GetAttribute("EquippedTitle") or "Cadet"; local pAura = player:GetAttribute("EquippedAura") or "None"
 		local resolvedTitleData = nil; if type(CosmeticData) == "table" and CosmeticData.Titles then resolvedTitleData = CosmeticData.Titles[pTitle]; if not resolvedTitleData then for k, v in pairs(CosmeticData.Titles) do if v.Name == pTitle then resolvedTitleData = v break end end end end; if resolvedTitleData then AvatarTitle.Text = string.upper(resolvedTitleData.Name); AvatarTitle.TextColor3 = Color3.fromHex((resolvedTitleData.Color or "#FFFFFF"):gsub("#", "")) end
 		local resolvedAuraData = nil; if type(CosmeticData) == "table" and CosmeticData.Auras then resolvedAuraData = CosmeticData.Auras[pAura]; if not resolvedAuraData then for k, v in pairs(CosmeticData.Auras) do if v.Name == pAura then resolvedAuraData = v break end end end end; if UIAuraManager and type(UIAuraManager.ApplyAura) == "function" and resolvedAuraData then UIAuraManager.ApplyAura(AvatarAuraGlow, resolvedAuraData, AvatarBox) end
@@ -565,7 +564,7 @@ local function BuildPrestigeTab(parentFrame)
 end
 
 -- ==========================================
--- 5. INHERITANCE TAB
+-- 5. INHERITANCE TAB (ABYSSAL ALTAR INTEGRATION)
 -- ==========================================
 local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local MainScroll = Instance.new("ScrollingFrame", parentFrame); MainScroll.Size = UDim2.new(1, 0, 1, 0); MainScroll.BackgroundTransparency = 1; MainScroll.Visible = true; MainScroll.ScrollBarThickness = 0; MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -673,7 +672,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				local descLbl = CreateSharpLabel(card, buffText, UDim2.new(1, -20, 0, 30), Enum.Font.GothamMedium, Color3.fromRGB(150, 255, 150), 10); descLbl.Position = UDim2.new(0, 10, 0, 35); descLbl.TextXAlignment = Enum.TextXAlignment.Left; descLbl.RichText = true
 			end
 			local noticeCard = Instance.new("Frame", ListContainer); noticeCard.Size = UDim2.new(1, -10, 0, 40); noticeCard.BackgroundTransparency = 1
-			local noticeLbl = UIHelpers.CreateLabel(noticeCard, "Fusion Variants listed in the Fusion section of the Supply/Forge menu!", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.Gold, 10); noticeLbl.TextWrapped = true
+			local noticeLbl = UIHelpers.CreateLabel(noticeCard, "Abyssal Variants require an Awakened sacrifice at the Altar.", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, Color3.fromRGB(255, 100, 100), 10); noticeLbl.TextWrapped = true
 		end
 
 		local BottomArea = Instance.new("Frame", Panel); BottomArea.Size = UDim2.new(1, 0, 0, 240); BottomArea.Position = UDim2.new(0, 0, 0, 270); BottomArea.BackgroundTransparency = 1
@@ -721,8 +720,19 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		local labelPrefix = (gType == "Titan") and "Serum" or "Vial"
 		local RollBtn, rStroke = CreateSharpButton(RollActions, "ROLL (1x " .. labelPrefix .. ")", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
-		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "PREMIUM ROLL", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
-		if gType == "Titan" then PremiumRollBtn.Text = "PREMIUM (1x Syringe)" else PremiumRollBtn.Visible = false; raLayout.CellSize = UDim2.new(0.48, 0, 0, 64) end
+
+		-- [[ THE FIX: ABYSSAL ALTAR INTEGRATION ON MOBILE ]]
+		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
+		if gType == "Titan" then 
+			PremiumRollBtn.Text = "PREMIUM (1x Syringe)" 
+		else 
+			PremiumRollBtn.Visible = true
+			PremiumRollBtn.Text = "ABYSSAL ALTAR\n(Transcend)"
+			PremiumRollBtn.BackgroundColor3 = Color3.fromRGB(40, 15, 15)
+			PremiumRollBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+			pStroke.Color = Color3.fromRGB(200, 50, 50)
+		end
+
 		local AutoRollBtn, aStroke = CreateSharpButton(RollActions, "ROLL TILL LEGENDARY+", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
 
 		local attrReq = (gType == "Titan") and "StandardTitanSerumCount" or "ClanBloodVialCount"
@@ -754,12 +764,20 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		PremiumRollBtn.Activated:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
-			if IsHighTier(gType) then
-				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
-					if confirmed then DoRoll(true) end
-				end)
+			if gType == "Titan" then
+				if IsHighTier(gType) then
+					PromptConfirmation("You currently have a Legendary+ Titan. Are you sure you want to spin it away?", function(confirmed)
+						if confirmed then DoRoll(true) end
+					end)
+				else
+					DoRoll(true)
+				end
 			else
-				DoRoll(true)
+				PromptConfirmation("Sacrifice your Awakened lineage, 5,000,000 Dews, and 1 Abyssal Blood to transcend to an Abyssal Clan?", function(confirmed)
+					if confirmed then
+						Network:WaitForChild("AbyssalRoll"):FireServer()
+					end
+				end)
 			end
 		end)
 
@@ -820,7 +838,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 						if isTitanType then
 							local tData = type(TitanData) == "table" and TitanData.Titans and TitanData.Titans[storedName]; if tData then rarity = tData.Rarity end
 						else
-							if string.find(storedName, "Awakened") then rarity = "Transcendent"
+							if string.find(storedName, "Abyssal") or string.find(storedName, "Awakened") then rarity = "Transcendent"
 							else
 								local weight = type(TitanData) == "table" and TitanData.ClanWeights and TitanData.ClanWeights[storedName] or 40
 								if weight <= 1.5 then rarity = "Mythical" elseif weight <= 4.0 then rarity = "Legendary" elseif weight <= 8.0 then rarity = "Epic" elseif weight <= 15.0 then rarity = "Rare" end
@@ -838,7 +856,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		tPity.Text = "PITY: " .. (player:GetAttribute("TitanPity") or 0) .. " / 100"
 		cPity.Text = "PITY: " .. (player:GetAttribute("ClanPity") or 0) .. " / 100"
 		tRoll.Text = "ROLL (x" .. (player:GetAttribute("StandardTitanSerumCount") or 0) .. ")"
-		if tPrem.Visible then tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" end
+		if tPrem.Visible and tPrem.Text:find("PREMIUM") then tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" end
 		cRoll.Text = "ROLL (x" .. (player:GetAttribute("ClanBloodVialCount") or 0) .. ")"
 	end
 	player.AttributeChanged:Connect(UpdateUI); UpdateUI()
