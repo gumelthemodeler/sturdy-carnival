@@ -6,7 +6,7 @@ local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local GameData = require(ReplicatedStorage:WaitForChild("GameData")) 
-local TitanData = require(ReplicatedStorage:WaitForChild("TitanData")) -- Required just in case
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData")) 
 local GameDataStore = DataStoreService:GetDataStore("AoT_Data_V5") 
 
 local Network = ReplicatedStorage:WaitForChild("Network")
@@ -15,7 +15,46 @@ local BuyAction = Network:FindFirstChild("ShopAction") or Instance.new("RemoteEv
 BuyAction.Name = "ShopAction"
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
--- [[ THE FIX: Local Inventory Counter to bypass the GameData global error ]]
+-- [[ THE NEW HOOK: Transcendent / Abyssal Altar Roll ]]
+local AbyssalRollEvent = Network:FindFirstChild("AbyssalRoll") or Instance.new("RemoteEvent", Network)
+AbyssalRollEvent.Name = "AbyssalRoll"
+
+AbyssalRollEvent.OnServerEvent:Connect(function(player)
+	local currentClan = player:GetAttribute("Clan") or "None"
+	if not string.find(currentClan, "Awakened") then
+		NotificationEvent:FireClient(player, "You must be Awakened to step into the Abyss.", "Error")
+		return
+	end
+
+	local ls = player:FindFirstChild("leaderstats")
+	local dews = ls and ls:FindFirstChild("Dews")
+	local abyssalBlood = player:GetAttribute("AbyssalBloodCount") or 0
+
+	if dews and dews.Value >= 5000000 and abyssalBlood >= 1 then
+		dews.Value -= 5000000
+		player:SetAttribute("AbyssalBloodCount", abyssalBlood - 1)
+
+		local baseClan = string.gsub(currentClan, "Awakened ", "")
+		player:SetAttribute("Clan", "Abyssal " .. baseClan)
+
+		NotificationEvent:FireClient(player, "Your bloodline has transcended.", "Success")
+
+		task.spawn(function()
+			pcall(function()
+				local d = { 
+					Prestige = ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0, 
+					Dews = dews.Value, 
+					Elo = ls:FindFirstChild("Elo") and ls.Elo.Value or 1000 
+				}
+				for k, v in pairs(player:GetAttributes()) do if k ~= "DataLoaded" then d[k] = v end end
+				GameDataStore:SetAsync(player.UserId, d)
+			end)
+		end)
+	else
+		NotificationEvent:FireClient(player, "Insufficient tribute for the Altar.", "Error")
+	end
+end)
+
 local MAX_INVENTORY_CAPACITY = 50
 local function GetUniqueSlotCount(plr)
 	local count = 0
@@ -49,7 +88,6 @@ local RarePathsItems = {
 local itemPool = {}
 
 for name, data in pairs(ItemData.Equipment or {}) do 
-	-- [[ THE FIX: Prevent Cursed and Transcendent items from ever entering the shop pool ]]
 	if not data.IsGift and not data.Cursed and data.Rarity ~= "Transcendent" then 
 		table.insert(itemPool, {Name = name, Data = data}) 
 	end
@@ -63,7 +101,7 @@ for name, data in pairs(ItemData.Consumables or {}) do
 		or string.find(lowerName, "itemized") 
 		or name == "Ymir's Clay Fragment"
 		or name == "Titan Hardening Extract"
-		or data.Rarity == "Transcendent" -- Ensure Transcendent consumables stay out too
+		or data.Rarity == "Transcendent"
 
 	if not data.IsGift and not isBannedFromShop then table.insert(itemPool, {Name = name, Data = data}) end
 end
@@ -152,7 +190,6 @@ BuyAction.OnServerEvent:Connect(function(player, actionType, itemName)
 		targetPurchase = actionType
 	end
 
-	-- PREMIUM ROUTING
 	if actionType == "PromptPremium" then
 		local targetName = itemName
 		local targetId = nil
@@ -188,7 +225,6 @@ BuyAction.OnServerEvent:Connect(function(player, actionType, itemName)
 		end
 		return
 
-			-- GIFT ROUTING
 	elseif actionType == "PromptGift" then
 		local targetName = itemName
 		local targetId = nil
@@ -260,7 +296,6 @@ BuyAction.OnServerEvent:Connect(function(player, actionType, itemName)
 		return
 	end
 
-	-- Base Shop Routing
 	local timeCycle = math.floor(os.time() / 600)
 	local savedCycle = player:GetAttribute("ShopSeedTime")
 
@@ -286,7 +321,6 @@ BuyAction.OnServerEvent:Connect(function(player, actionType, itemName)
 		local attrName = targetItem.Name:gsub("[^%w]", "") .. "Count"
 		local currentCount = player:GetAttribute(attrName) or 0
 
-		-- Validating Inventory using the local counter
 		if currentCount == 0 then
 			local maxInv = player:GetAttribute("HasBackpackExpansion") and 100 or MAX_INVENTORY_CAPACITY
 			if GetUniqueSlotCount(player) >= maxInv then
@@ -339,7 +373,6 @@ VIPFreeReroll.OnServerEvent:Connect(function(player, isDews)
 	end
 end)
 
--- Handle DevProducts (Rerolls, Dews, Items, Gifts)
 MarketplaceService.ProcessReceipt = function(receiptInfo)
 	local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
 	if not player then return Enum.ProductPurchaseDecision.NotProcessedYet end
@@ -396,7 +429,6 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 	return Enum.ProductPurchaseDecision.NotProcessedYet
 end
 
--- Handle Gamepasses (VIP, EXP Boosts, etc.) applied instantly
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, wasPurchased)
 	if wasPurchased then
 		if ItemData.Gamepasses then
