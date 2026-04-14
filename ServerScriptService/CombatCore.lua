@@ -135,7 +135,7 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 			atkBuff = atkBuff * (1.0 + (momentum * aStats.MomentumDamagePerHit))
 		end
 
-		-- Prevent Gear/Prestige stats from buffing Titan form
+		-- Prevent Gear/Consumable stats from buffing Titan form
 		if not isAttackerTransformed then
 			local setBonus = GetSetBonus(attacker.PlayerObj)
 			if setBonus then
@@ -145,11 +145,12 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 
 			local expiry = tonumber(attacker.PlayerObj:GetAttribute("Buff_Damage_Expiry")) or 0
 			if expiry > os.time() then atkBuff = atkBuff * 1.5 end
-
-			local prestigeDmg = tonumber(attacker.PlayerObj:GetAttribute("Prestige_DmgMult")) or 0
-			atkBuff = atkBuff * (1.0 + prestigeDmg)
-			armorPen = armorPen + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_IgnoreArmor")) or 0)
 		end
+
+		-- Apply Prestige Buffs globally to BOTH Human and Titan forms
+		local prestigeDmg = tonumber(attacker.PlayerObj:GetAttribute("Prestige_DmgMult")) or 0
+		atkBuff = atkBuff * (1.0 + prestigeDmg)
+		armorPen = armorPen + (tonumber(attacker.PlayerObj:GetAttribute("Prestige_IgnoreArmor")) or 0)
 	end
 
 	if defender.IsPlayer and defender.PlayerObj then
