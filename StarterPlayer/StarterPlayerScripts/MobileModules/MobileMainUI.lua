@@ -10,7 +10,15 @@ local MasterGui, MasterWindow, WindowScale, WindowTitle, CurrentOpenTab; local T
 
 local CONFIG = {
 	Icons = { Background = "rbxassetid://125800917140688", GameLogo = "rbxassetid://129999765135567", RegimentDefault = "rbxassetid://74069077964164" },
-	DockTabs = { {Id = "HOME", Icon = "rbxassetid://129528574378357"}, {Id = "PROFILE", Icon = "rbxassetid://106161709171988"}, {Id = "EXPEDITIONS", Icon = "rbxassetid://115407261158495"}, {Id = "SQUADS", Icon = "rbxassetid://111674249930782"}, {Id = "SUPPLY_FORGE", Icon = "rbxassetid://108619507999123"}, {Id = "REGIMENTS", Icon = "rbxassetid://74069077964164"} },
+	DockTabs = { 
+		{Id = "HOME", Icon = "rbxassetid://129528574378357"}, 
+		{Id = "PROFILE", Icon = "rbxassetid://106161709171988"}, 
+		{Id = "EXPEDITIONS", Icon = "rbxassetid://115407261158495"}, 
+		{Id = "SQUADS", Icon = "rbxassetid://111674249930782"}, 
+		{Id = "SUPPLY_FORGE", Icon = "rbxassetid://108619507999123"}, 
+		{Id = "REGIMENTS", Icon = "rbxassetid://74069077964164"},
+		{Id = "BESTIARY", Icon = "rbxassetid://115407261158495"}
+	},
 	Currencies = { {Id = "XP", Prefix = "XP:", Color = "#55FF55"}, {Id = "TitanXP", Prefix = "T-XP:", Color = "#FF5555"}, {Id = "Dews", Prefix = "DEWS:", Color = "#FF88FF"}, {Id = "Prestige", Prefix = "PR:", Color = "#FFD700"}, {Id = "Elo", Prefix = "ELO:", Color = "#55AAFF"} }
 }
 
@@ -55,7 +63,8 @@ local function BuildMasterWindow()
 
 	local ContentArea = Instance.new("Frame", MasterWindow); ContentArea.Size = UDim2.new(1, 0, 1, -92); ContentArea.Position = UDim2.new(0, 0, 0, 42); ContentArea.BackgroundTransparency = 1
 
-	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS"}; if isAdmin then table.insert(tabs, "ADMIN") end
+	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS", "BESTIARY"}
+	if isAdmin then table.insert(tabs, "ADMIN") end
 	for _, tabName in ipairs(tabs) do local tabFrame = Instance.new("Frame", ContentArea); tabFrame.Name = tabName; tabFrame.Size = UDim2.new(1, 0, 1, 0); tabFrame.BackgroundTransparency = 1; tabFrame.Visible = false; TabContainers[tabName] = tabFrame end
 
 	local hTab = TabContainers["HOME"]
@@ -104,16 +113,39 @@ local function BuildMasterWindow()
 	task.spawn(function() while task.wait(60) do if MasterWindow and MasterWindow.Visible and CurrentOpenTab == "HOME" then FetchLeaderboard(currentLbTab) end end end)
 
 	local function SafeLoad(mobileName, pcName, tabKey)
-		task.spawn(function() local mod; if MobileModules:FindFirstChild(mobileName) then mod = require(MobileModules[mobileName]) else mod = require(UIModules:WaitForChild(pcName)) end; if mod and mod.Initialize then mod.Initialize(TabContainers[tabKey]) end end)
+		task.spawn(function() 
+			local mod
+			if MobileModules:FindFirstChild(mobileName) then 
+				mod = require(MobileModules[mobileName]) 
+			else 
+				mod = require(UIModules:WaitForChild(pcName)) 
+			end
+			if mod and mod.Initialize then mod.Initialize(TabContainers[tabKey]) end 
+		end)
 	end
-	SafeLoad("MobileHeroMenu", "HeroMenu", "PROFILE"); SafeLoad("MobileExpeditionsTab", "ExpeditionsTab", "EXPEDITIONS"); SafeLoad("MobileSupplyForgeTab", "SupplyForgeTab", "SUPPLY_FORGE"); SafeLoad("MobileSquadsTab", "SquadsTab", "SQUADS"); SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
+
+	SafeLoad("MobileHeroMenu", "HeroMenu", "PROFILE")
+	SafeLoad("MobileExpeditionsTab", "ExpeditionsTab", "EXPEDITIONS")
+	SafeLoad("MobileSupplyForgeTab", "SupplyForgeTab", "SUPPLY_FORGE")
+	SafeLoad("MobileSquadsTab", "SquadsTab", "SQUADS")
+	SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
+	SafeLoad("MobileBestiaryUI", "BestiaryUI", "BESTIARY")
+
 	if isAdmin then task.spawn(function() local AdminMod = require(MobileModules:WaitForChild("MobileAdminTab")); if AdminMod.Initialize then AdminMod.Initialize(TabContainers["ADMIN"]) end end) end
 end
 
 local function OpenMasterTab(tabName, displayTitle)
 	if CurrentOpenTab == tabName and MasterWindow.Visible then CurrentOpenTab = nil; local t = TweenService:Create(WindowScale, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Scale = 0}); t:Play(); t.Completed:Wait(); MasterWindow.Visible = false; return end
 	for name, frame in pairs(TabContainers) do frame.Visible = (name == tabName) end
-	CurrentOpenTab = tabName; local titles = { HOME = "COMMAND CENTER", PROFILE = "OPERATIVE", EXPEDITIONS = "COMBAT", SQUADS = "STRIKE SQUADS COMMAND", SUPPLY_FORGE = "MARKET & FORGE", REGIMENTS = "REGIMENTS", ADMIN = "DEBUG" }; if WindowTitle then WindowTitle.Text = titles[tabName] or tabName end
+	CurrentOpenTab = tabName
+
+	local titles = { 
+		HOME = "COMMAND CENTER", PROFILE = "OPERATIVE", EXPEDITIONS = "COMBAT", 
+		SQUADS = "STRIKE SQUADS COMMAND", SUPPLY_FORGE = "MARKET & FORGE", 
+		REGIMENTS = "REGIMENTS", BESTIARY = "ABYSSAL BESTIARY", ADMIN = "DEBUG" 
+	} 
+	if WindowTitle then WindowTitle.Text = titles[tabName] or tabName end
+
 	if not MasterWindow.Visible then MasterWindow.Visible = true; TweenService:Create(WindowScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end
 end
 
