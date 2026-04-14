@@ -1,6 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- Name: ExpeditionsTab
 local ExpeditionsTab = {}
 
 local Players = game:GetService("Players")
@@ -25,7 +24,7 @@ local CONFIG = {
 		Nightmare = "rbxassetid://90132878979603",
 		WorldBoss = "rbxassetid://129655150803684",
 		Endless = "rbxassetid://81075056647024",
-		Paths = "rbxassetid://90938848776194" 
+		Paths = "rbxassetid://90938848776194"
 	}
 }
 
@@ -34,6 +33,21 @@ local IsInParty = false
 local IsPartyLeader = false
 local PendingInvites = {}
 local isListening = false
+
+local function AbbreviateNumber(n)
+	local Suffixes = {"", "K", "M", "B", "T", "Qa"}
+	if not n then return "0" end; n = tonumber(n) or 0
+	if n < 1000 then return tostring(math.floor(n)) end
+	local suffixIndex = math.floor(math.log10(n) / 3); local value = n / (10 ^ (suffixIndex * 3))
+	local str = string.format("%.1f", value); str = str:gsub("%.0$", "")
+	return str .. (Suffixes[suffixIndex + 1] or "")
+end
+
+local function FormatTime(seconds)
+	local mins = math.floor(seconds / 60)
+	local secs = seconds % 60
+	return string.format("%02d:%02d", mins, secs)
+end
 
 local function CreateSharpButton(parent, text, size, font, textSize)
 	local btn = Instance.new("TextButton", parent); btn.Size = size; btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34); btn.BorderSizePixel = 0; btn.AutoButtonColor = false; btn.Font = font; btn.TextColor3 = Color3.fromRGB(245, 245, 245); btn.TextSize = textSize; btn.Text = text
@@ -63,13 +77,67 @@ function ExpeditionsTab.Initialize(parentFrame)
 	BackBtn.Position = UDim2.new(1, 0, 0.5, 0); BackBtn.AnchorPoint = Vector2.new(1, 0.5); BackBtn.Visible = false
 
 	local Pages = {}
-	local FetchLiveMatches 
+	local FetchLiveMatches
+	local FetchDoomsdayData 
+	local doomsdayLoopActive = false
+	local currentDoomsdayData = nil
 
 	local function ShowPage(pageName, titleText)
 		for name, frame in pairs(Pages) do frame.Visible = (name == pageName) end
 		Title.Text = titleText
 		BackBtn.Visible = (pageName ~= "Main")
 		if pageName == "PvP" and FetchLiveMatches then FetchLiveMatches() end
+
+		if pageName == "Doomsday" and FetchDoomsdayData then 
+			FetchDoomsdayData(false) 
+
+			-- [[ THE FIX: Smooth local UI timer ticking logic ]]
+			if not doomsdayLoopActive then
+				doomsdayLoopActive = true
+				task.spawn(function()
+					local syncTick = 0
+					while Pages["Doomsday"] and Pages["Doomsday"].Visible do
+						if currentDoomsdayData then
+							local passed = os.time() - currentDoomsdayData.LocalSyncTime
+
+							local ddHpLbl = Pages["Doomsday"]:FindFirstChild("DDContainer"):FindFirstChild("GlobalHpLbl")
+							local EngageBtn = Pages["Doomsday"]:FindFirstChild("DDContainer"):FindFirstChild("EngageBtn")
+
+							if currentDoomsdayData.IsActive then
+								if ddHpLbl then
+									ddHpLbl.Text = "GLOBAL HP: " .. AbbreviateNumber(currentDoomsdayData.BossHP)
+									ddHpLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+								end
+								if EngageBtn then
+									EngageBtn.Text = "DEPLOY TO FRONTLINE"
+									EngageBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+									EngageBtn:FindFirstChild("UIStroke").Color = Color3.fromRGB(200, 50, 50)
+								end
+							else
+								local displayTime = math.max(0, currentDoomsdayData.TimeUntilNext - passed)
+								if ddHpLbl then
+									ddHpLbl.Text = "STATUS: INACTIVE (APPEARS IN " .. FormatTime(displayTime) .. ")"
+									ddHpLbl.TextColor3 = UIHelpers.Colors.TextMuted
+								end
+								if EngageBtn then
+									EngageBtn.Text = "AWAITING APPEARANCE"
+									EngageBtn.TextColor3 = UIHelpers.Colors.TextMuted
+									EngageBtn:FindFirstChild("UIStroke").Color = UIHelpers.Colors.BorderMuted
+								end
+							end
+						end
+
+						task.wait(1)
+						syncTick += 1
+						if syncTick >= 5 then 
+							syncTick = 0
+							FetchDoomsdayData(true)
+						end
+					end
+					doomsdayLoopActive = false
+				end)
+			end
+		end
 	end
 
 	BackBtn.MouseButton1Click:Connect(function() ShowPage("Main", "COMBAT DEPLOYMENT") end)
@@ -96,11 +164,13 @@ function ExpeditionsTab.Initialize(parentFrame)
 		DeployOverlay.Visible = false; dStatus.TextColor3 = UIHelpers.Colors.Gold
 	end
 
-	local function CreateModeCard(parent, title, desc, imageId, layoutOrder, onClick)
+	local function CreateModeCard(parent, title, desc, imageId, layoutOrder, onClick, imageColor)
 		local cardBtn = Instance.new("TextButton", parent); cardBtn.LayoutOrder = layoutOrder; cardBtn.Text = ""; cardBtn.AutoButtonColor = false; cardBtn.ClipsDescendants = true
 		UIHelpers.ApplyGrimPanel(cardBtn, false)
 
 		local bg = Instance.new("ImageLabel", cardBtn); bg.Size = UDim2.new(1, 0, 1, 0); bg.BackgroundTransparency = 1; bg.Image = imageId; bg.ScaleType = Enum.ScaleType.Crop; bg.ZIndex = 1
+		if imageColor then bg.ImageColor3 = imageColor end
+
 		local gradFrame = Instance.new("Frame", cardBtn); gradFrame.Size = UDim2.new(1, 0, 1, 0); gradFrame.BackgroundColor3 = Color3.new(0,0,0); gradFrame.BorderSizePixel = 0; gradFrame.ZIndex = 2
 		local grad = Instance.new("UIGradient", gradFrame); grad.Rotation = 90; grad.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0.9), NumberSequenceKeypoint.new(0.5, 0.6), NumberSequenceKeypoint.new(1, 0.1)}
 
@@ -139,27 +209,25 @@ function ExpeditionsTab.Initialize(parentFrame)
 		end
 	end)
 
-	-- [[ THE FIX: The Paths Weekend Event (Sat, Sun, Mon) ]]
 	local wday = os.date("!*t").wday
-	local isPathsOpen = (wday == 7 or wday == 1 or wday == 2) -- 7 = Saturday, 1 = Sunday, 2 = Monday
+	local isPathsOpen = (wday == 7 or wday == 1 or wday == 2)
 	local pathsDesc = isPathsOpen and "Venture into the coordinate to farm Path Dust for Memory Runes." or "[EVENT CLOSED] Opens on Sat, Sun, and Mon."
 	local pathsCardLbl = CreateModeCard(GridContainer, "THE PATHS (EVENT)", pathsDesc, CONFIG.Decals.Paths, 2, function() 
 		if isPathsOpen then
 			InitiateDeployment("CombatAction", "EngagePaths")
 		else
-			if NotificationManager and type(NotificationManager.Show) == "function" then 
-				NotificationManager.Show("The Paths are currently closed. Returns Sat, Sun & Mon.", "Error") 
-			end
+			if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("The Paths are currently closed. Returns Sat, Sun & Mon.", "Error") end
 		end
 	end)
 	if not isPathsOpen then pathsCardLbl.TextColor3 = Color3.fromRGB(255, 100, 100) end
 
 	CreateModeCard(GridContainer, "ENDLESS FRONTIER", "Fight infinite waves to continually harvest Dews, XP, and materials.", CONFIG.Decals.Endless, 3, function() InitiateDeployment("CombatAction", "EngageEndless") end)
 	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 4, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
-	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared. Intercept immediately.", CONFIG.Decals.WorldBoss, 5, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
-	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain legendary Cursed Weapons.", CONFIG.Decals.Nightmare, 6, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
-	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 7, function() ShowPage("PvP", "PVP ARENA") end)
-	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources over long periods.", CONFIG.Decals.AFK, 8, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
+	CreateModeCard(GridContainer, "DOOMSDAY BOUNTIES", "Server-wide raid bosses. Fight for the top of the global leaderboard.", CONFIG.Decals.WorldBoss, 5, function() ShowPage("Doomsday", "DOOMSDAY BOUNTIES") end, Color3.fromRGB(255, 50, 50))
+	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared. Intercept immediately.", CONFIG.Decals.WorldBoss, 6, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
+	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain legendary Cursed Weapons.", CONFIG.Decals.Nightmare, 7, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
+	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 8, function() ShowPage("PvP", "PVP ARENA") end)
+	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources over long periods.", CONFIG.Decals.AFK, 9, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
 
 	local function CreateSubPage(name)
 		local page = Instance.new("Frame", MissionsPanel); page.Size = UDim2.new(1, 0, 0, 0); page.AutomaticSize = Enum.AutomaticSize.Y; page.BackgroundTransparency = 1; page.Visible = false; page.LayoutOrder = 2
@@ -169,6 +237,75 @@ function ExpeditionsTab.Initialize(parentFrame)
 
 	local AFKPage = Instance.new("Frame", MissionsPanel); AFKPage.Size = UDim2.new(1, 0, 0, 600); AFKPage.BackgroundTransparency = 1; AFKPage.Visible = false; AFKPage.LayoutOrder = 2
 	Pages["AFK"] = AFKPage; AFKTab.Initialize(AFKPage, InitiateDeployment)
+
+	local DoomsdayPage = Instance.new("Frame", MissionsPanel)
+	DoomsdayPage.Name = "Doomsday"
+	DoomsdayPage.Size = UDim2.new(1, 0, 1, -60); DoomsdayPage.Position = UDim2.new(0, 0, 0, 50); DoomsdayPage.BackgroundTransparency = 1; DoomsdayPage.Visible = false
+	Pages["Doomsday"] = DoomsdayPage
+
+	local DDContainer = Instance.new("Frame", DoomsdayPage)
+	DDContainer.Name = "DDContainer"
+	DDContainer.Size = UDim2.new(1, 0, 0, 200)
+	UIHelpers.ApplyGrimPanel(DDContainer, false)
+
+	local ddTitle = UIHelpers.CreateLabel(DDContainer, "THE PRIMORDIAL THREAT", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 22)
+	ddTitle.Position = UDim2.new(0, 0, 0, 15)
+
+	local ddHpLbl = UIHelpers.CreateLabel(DDContainer, "GLOBAL HP: FETCHING...", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBold, Color3.fromRGB(255, 100, 100), 16)
+	ddHpLbl.Name = "GlobalHpLbl"
+	ddHpLbl.Position = UDim2.new(0, 0, 0, 55)
+
+	local EngageBtn, _ = CreateSharpButton(DDContainer, "DEPLOY TO FRONTLINE", UDim2.new(0, 250, 0, 45), Enum.Font.GothamBlack, 16)
+	EngageBtn.Name = "EngageBtn"
+	EngageBtn.Position = UDim2.new(0.5, 0, 0, 100); EngageBtn.AnchorPoint = Vector2.new(0.5, 0)
+
+	EngageBtn.MouseButton1Click:Connect(function() 
+		if EngageBtn.Text == "DEPLOY TO FRONTLINE" then
+			InitiateDeployment("CombatAction", "EngageDoomsday") 
+		end
+	end)
+
+	local DDLeaderboardTitle = UIHelpers.CreateLabel(DoomsdayPage, "TOP DAMAGE CONTRIBUTORS", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 18)
+	DDLeaderboardTitle.Position = UDim2.new(0, 0, 0, 220); DDLeaderboardTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+	local DDRefreshBtn, _ = CreateSharpButton(DoomsdayPage, "REFRESH DATA", UDim2.new(0, 120, 0, 24), Enum.Font.GothamBold, 11)
+	DDRefreshBtn.Position = UDim2.new(1, 0, 0, 223); DDRefreshBtn.AnchorPoint = Vector2.new(1, 0)
+
+	local DDScroll = Instance.new("ScrollingFrame", DoomsdayPage)
+	DDScroll.Size = UDim2.new(1, 0, 1, -260); DDScroll.Position = UDim2.new(0, 0, 0, 260); DDScroll.BackgroundTransparency = 1; DDScroll.ScrollBarThickness = 6; DDScroll.BorderSizePixel = 0
+
+	local ddLayout = Instance.new("UIListLayout", DDScroll); ddLayout.Padding = UDim.new(0, 8); ddLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	ddLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() DDScroll.CanvasSize = UDim2.new(0, 0, 0, ddLayout.AbsoluteContentSize.Y + 20) end)
+
+	FetchDoomsdayData = function(isBackgroundSync)
+		task.spawn(function()
+			local data = Network:WaitForChild("GetDoomsdayData"):InvokeServer()
+			if data then
+				data.LocalSyncTime = os.time()
+				currentDoomsdayData = data
+
+				if not isBackgroundSync then
+					for _, c in ipairs(DDScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+					for i, pData in ipairs(data.Leaderboard or {}) do
+						local card = Instance.new("Frame", DDScroll)
+						card.Size = UDim2.new(1, -10, 0, 40); card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+						Instance.new("UIStroke", card).Color = UIHelpers.Colors.BorderMuted
+
+						local cColor = (i==1) and UIHelpers.Colors.Gold or ((i==2) and Color3.fromRGB(200, 200, 200) or UIHelpers.Colors.TextWhite)
+
+						local rLbl = UIHelpers.CreateLabel(card, "#" .. i, UDim2.new(0, 40, 1, 0), Enum.Font.GothamBlack, cColor, 16)
+						local nLbl = UIHelpers.CreateLabel(card, pData.Name, UDim2.new(0.5, 0, 1, 0), Enum.Font.GothamBold, cColor, 14)
+						nLbl.Position = UDim2.new(0, 50, 0, 0); nLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+						local dmgLbl = UIHelpers.CreateLabel(card, AbbreviateNumber(pData.Damage) .. " DMG", UDim2.new(0.4, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextMuted, 14)
+						dmgLbl.Position = UDim2.new(1, -10, 0, 0); dmgLbl.AnchorPoint = Vector2.new(1, 0); dmgLbl.TextXAlignment = Enum.TextXAlignment.Right
+					end
+				end
+			end
+		end)
+	end
+	DDRefreshBtn.MouseButton1Click:Connect(function() FetchDoomsdayData(false) end)
+
 
 	local NightmarePage = Instance.new("ScrollingFrame", MissionsPanel)
 	NightmarePage.Size = UDim2.new(1, 0, 1, -60); NightmarePage.Position = UDim2.new(0, 0, 0, 50); NightmarePage.BackgroundTransparency = 1; NightmarePage.ScrollBarThickness = 6; NightmarePage.BorderSizePixel = 0; NightmarePage.Visible = false
