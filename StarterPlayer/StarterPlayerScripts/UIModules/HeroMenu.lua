@@ -1,7 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
--- Name: HeroMenu
 local HeroMenu = {}
 
 local Players = game:GetService("Players")
@@ -331,7 +329,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		local maxVal = 100
 		if type(GameData) == "table" and type(GameData.GetStatCap) == "function" then maxVal = GameData.GetStatCap(p and p.Value or 0) else maxVal = 100 + ((p and p.Value or 0) * 10) end
 
-		local stats = isShowingTitanStats and { {Name = "POW", Val = player:GetAttribute("Titan_Power_Val") or 1}, {Name = "SPD", Val = player:GetAttribute("Titan_Speed_Val") or 1}, {Name = "HRD", Val = player:GetAttribute("Titan_Hardening_Val") or 1}, {Name = "END", Val = player:GetAttribute("Titan_Endurance_Val") or 1}, {Name = "STM", Val = player:GetAttribute("Titan_Precision_Val") or 1}, {Name = "POT", Val = player:GetAttribute("Titan_Potential_Val") or 1} } or { {Name = "HP", Val = player:GetAttribute("Health") or 1}, {Name = "STR", Val = player:GetAttribute("Strength") or 1}, {Name = "DEF", Val = player:GetAttribute("Defense") or 1}, {Name = "SPD", Val = player:GetAttribute("Speed") or 1}, {Name = "GAS", Val = player:GetAttribute("Gas") or 1}, {Name = "RES", Val = player:GetAttribute("Resolve") or 1} }
+		local stats = isShowingTitanStats and { {Name = "POW", Val = player:GetAttribute("Titan_Power_Val") or 1}, {Name = "SPD", Val = player:GetAttribute("Titan_Speed_Val") or 1}, {Name = "HRD", Val = player:GetAttribute("Titan_Hardening_Val") or 1}, {Name = "END", Val = player:GetAttribute("Titan_Endurance_Val") or 1}, {Name = "STM", Val = player:GetAttribute("Titan_Precision_Val") or 1}, {Name = "POT", Val = player:GetAttribute("Titan_Potential_Val") or 1} } or { {Name = "HP", Val = player:GetAttribute("Health") or 1}, {Name = "STR", Val = player:GetAttribute("Defense") or 1}, {Name = "DEF", Val = player:GetAttribute("Defense") or 1}, {Name = "SPD", Val = player:GetAttribute("Speed") or 1}, {Name = "GAS", Val = player:GetAttribute("Gas") or 1}, {Name = "RES", Val = player:GetAttribute("Resolve") or 1} }
 
 		local angles = {-90, -30, 30, 90, 150, 210}; local centerX, centerY = w/2, h/2; local maxRadius = math.min(w, h) * 0.35
 		for ring = 1, 3 do local r = maxRadius * (ring / 3) for i = 1, 6 do local nextI = i % 6 + 1; DrawLineScale(RadarContainer, centerX + r*math.cos(math.rad(angles[i])), centerY + r*math.sin(math.rad(angles[i])), centerX + r*math.cos(math.rad(angles[nextI])), centerY + r*math.sin(math.rad(angles[nextI])), Color3.fromRGB(60, 60, 70), 1, 1) end end
@@ -359,7 +357,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		local hasRegData, regDataModule = pcall(function() return require(game.ReplicatedStorage:WaitForChild("RegimentData")) end)
 		if hasRegData and regDataModule and regDataModule.Regiments[regName] then regIcon.Image = regDataModule.Regiments[regName].Icon else regIcon.Image = "" end
 
-		if cName == "Ackerman" or cName == "Awakened Ackerman" then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end
+		if cName == "Ackerman" or cName == "Awakened Ackerman" or string.find(cName, "Abyssal") then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end
 		clanLabel.Text = "Clan: <font color='#55FF55'>" .. cName .. "</font>"
 		regimentLabel.Text = "Regiment: <font color='"..(REG_COLORS[regName] or TEXT_COLORS.DefaultGreen).."'>" .. regName .. "</font>"
 
@@ -803,7 +801,6 @@ local function BuildSkillsTab(parentFrame)
 							local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); 
 							slotBtn.ZIndex = 11; 
 							slotBtn.MouseButton1Click:Connect(function() 
-								-- Fire server and set client immediately
 								Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName); 
 								player:SetAttribute("EquippedSkill_"..sIndex, sName)
 								ActionsOverlay.Visible = false; 
@@ -960,7 +957,7 @@ local function BuildPrestigeTab(parentFrame)
 end
 
 -- ==========================================
--- INHERITANCE TAB
+-- INHERITANCE TAB (NOW WITH ABYSSAL ALTAR)
 -- ==========================================
 local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local MainScroll = Instance.new("ScrollingFrame", parentFrame); MainScroll.Size = UDim2.new(1, 0, 1, 0); MainScroll.BackgroundTransparency = 1; MainScroll.Visible = true; MainScroll.ScrollBarThickness = 0; MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -1018,8 +1015,8 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		local textLabel = CreateSharpLabel(popup, message, UDim2.new(1, -20, 0.6, 0), Enum.Font.GothamBold, Color3.new(1, 1, 1), 14); textLabel.Position = UDim2.new(0, 10, 0, 10); textLabel.TextWrapped = true; textLabel.ZIndex = 102
 
-		local confirmBtn, cStroke = CreateSharpButton(popup, "SPIN IT", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); confirmBtn.Position = UDim2.new(0.05, 0, 1, -45); confirmBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40); confirmBtn.ZIndex = 102; cStroke.Color = Color3.fromRGB(255, 100, 100)
-		local cancelBtn, caStroke = CreateSharpButton(popup, "KEEP IT", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); cancelBtn.Position = UDim2.new(0.55, 0, 1, -45); cancelBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40); cancelBtn.ZIndex = 102; caStroke.Color = Color3.fromRGB(100, 255, 100)
+		local confirmBtn, cStroke = CreateSharpButton(popup, "YES", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); confirmBtn.Position = UDim2.new(0.05, 0, 1, -45); confirmBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40); confirmBtn.ZIndex = 102; cStroke.Color = Color3.fromRGB(255, 100, 100)
+		local cancelBtn, caStroke = CreateSharpButton(popup, "CANCEL", UDim2.new(0.4, 0, 0, 35), Enum.Font.GothamBlack, 12); cancelBtn.Position = UDim2.new(0.55, 0, 1, -45); cancelBtn.BackgroundColor3 = Color3.fromRGB(40, 150, 40); cancelBtn.ZIndex = 102; caStroke.Color = Color3.fromRGB(100, 255, 100)
 
 		confirmBtn.MouseButton1Click:Connect(function() overlay:Destroy(); callback(true) end)
 		cancelBtn.MouseButton1Click:Connect(function() overlay:Destroy(); callback(false) end)
@@ -1068,9 +1065,8 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				local titleLbl = CreateSharpLabel(card, "<b><font color='" .. cColor .. "'>[" .. rarityTag .. "] " .. drop.Name .. "</font></b><font color='#888888'>" .. pctStr .. "</font>", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBold, Color3.fromRGB(230, 230, 230), 15); titleLbl.Position = UDim2.new(0, 10, 0, 10); titleLbl.TextXAlignment = Enum.TextXAlignment.Left; titleLbl.RichText = true
 				local descLbl = CreateSharpLabel(card, buffText, UDim2.new(1, -20, 0, 30), Enum.Font.GothamMedium, Color3.fromRGB(150, 255, 150), 12); descLbl.Position = UDim2.new(0, 10, 0, 35); descLbl.TextXAlignment = Enum.TextXAlignment.Left; descLbl.RichText = true
 			end
-
 			local noticeCard = Instance.new("Frame", ListContainer); noticeCard.Size = UDim2.new(1, -10, 0, 40); noticeCard.BackgroundTransparency = 1
-			local noticeLbl = UIHelpers.CreateLabel(noticeCard, "Fusion Variants listed in the Fusion section of the Supply/Forge menu!", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.Gold, 12); noticeLbl.TextWrapped = true
+			local noticeLbl = UIHelpers.CreateLabel(noticeCard, "Abyssal Variants require an Awakened sacrifice at the Altar.", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, Color3.fromRGB(255, 100, 100), 12); noticeLbl.TextWrapped = true
 		end
 
 		local BottomArea = Instance.new("Frame", Panel); BottomArea.Size = UDim2.new(1, 0, 0, 210); BottomArea.Position = UDim2.new(0, 0, 0, 345); BottomArea.BackgroundTransparency = 1
@@ -1117,8 +1113,19 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		local labelPrefix = (gType == "Titan") and "Serum" or "Vial"
 		local RollBtn, rStroke = CreateSharpButton(RollActions, "ROLL (1x " .. labelPrefix .. ")\nOwned: 0", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
+
+		-- [[ THE FIX: ABYSSAL ALTAR INTEGRATION ]]
 		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
-		if gType == "Titan" then PremiumRollBtn.Text = "PREMIUM (1x Syringe)\nOwned: 0" else PremiumRollBtn.Visible = false end
+		if gType == "Titan" then 
+			PremiumRollBtn.Text = "PREMIUM (1x Syringe)\nOwned: 0" 
+		else 
+			PremiumRollBtn.Visible = true
+			PremiumRollBtn.Text = "ABYSSAL ALTAR\n(Transcend)"
+			PremiumRollBtn.BackgroundColor3 = Color3.fromRGB(40, 15, 15)
+			PremiumRollBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
+			pStroke.Color = Color3.fromRGB(200, 50, 50)
+		end
+
 		local AutoRollBtn, aStroke = CreateSharpButton(RollActions, "ROLL TILL LEGENDARY+", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
 
 		local attrReq = (gType == "Titan") and "StandardTitanSerumCount" or "ClanBloodVialCount"
@@ -1150,12 +1157,21 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		PremiumRollBtn.MouseButton1Click:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
-			if IsHighTier(gType) then
-				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
-					if confirmed then DoRoll(true) end
-				end)
+			if gType == "Titan" then
+				if IsHighTier(gType) then
+					PromptConfirmation("You currently have a Legendary+ Titan. Are you sure you want to spin it away?", function(confirmed)
+						if confirmed then DoRoll(true) end
+					end)
+				else
+					DoRoll(true)
+				end
 			else
-				DoRoll(true)
+				-- [[ THE FIX: Triggering Abyssal Roll prompt ]]
+				PromptConfirmation("Sacrifice your Awakened lineage, 5,000,000 Dews, and 1 Abyssal Blood to transcend to an Abyssal Clan?", function(confirmed)
+					if confirmed then
+						Network:WaitForChild("AbyssalRoll"):FireServer()
+					end
+				end)
 			end
 		end)
 
@@ -1216,7 +1232,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 						if isTitanType then
 							local tData = type(TitanData) == "table" and TitanData.Titans and TitanData.Titans[storedName]; if tData then rarity = tData.Rarity end
 						else
-							if string.find(storedName, "Awakened") then rarity = "Transcendent"
+							if string.find(storedName, "Abyssal") or string.find(storedName, "Awakened") then rarity = "Transcendent"
 							else
 								local weight = type(TitanData) == "table" and TitanData.ClanWeights and TitanData.ClanWeights[storedName] or 40
 								if weight <= 1.5 then rarity = "Mythical" elseif weight <= 4.0 then rarity = "Legendary" elseif weight <= 8.0 then rarity = "Epic" elseif weight <= 15.0 then rarity = "Rare" end
@@ -1234,7 +1250,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		tPity.Text = "PITY: " .. (player:GetAttribute("TitanPity") or 0) .. " / 100"
 		cPity.Text = "PITY: " .. (player:GetAttribute("ClanPity") or 0) .. " / 100"
 		tRoll.Text = "ROLL (x" .. (player:GetAttribute("StandardTitanSerumCount") or 0) .. ")"
-		if tPrem.Visible then tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" end
+		if tPrem.Visible and tPrem.Text:find("PREMIUM") then tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" end
 		cRoll.Text = "ROLL (x" .. (player:GetAttribute("ClanBloodVialCount") or 0) .. ")"
 	end
 	player.AttributeChanged:Connect(UpdateUI); UpdateUI()
