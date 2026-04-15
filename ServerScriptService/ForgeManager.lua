@@ -34,24 +34,31 @@ Network:WaitForChild("ForgeItem").OnServerEvent:Connect(function(player, recipeN
 		if (player:GetAttribute(safeReq) or 0) < reqAmt then canForge = false; break end
 	end
 
+	-- [[ THE FIX: Updated to burn Itemized Abyssal Variants instead of Vaulted Slots ]]
 	local clansToConsume = {}
 	if recipe.SpecialType == "AbyssalClanRequirement" then
-		local abyssalFound = 0
-		local slotsToCheck = {"Clan", "Clan_Slot1", "Clan_Slot2", "Clan_Slot3", "Clan_Slot4", "Clan_Slot5", "Clan_Slot6"}
+		local abyssalClans = {
+			"ItemizedAbyssalYeagerCount", "ItemizedAbyssalTyburCount", "ItemizedAbyssalAckermanCount", 
+			"ItemizedAbyssalGalliardCount", "ItemizedAbyssalBraunCount", "ItemizedAbyssalReissCount"
+		}
+		local foundCount = 0
 
-		for _, slot in ipairs(slotsToCheck) do
-			local clanVal = player:GetAttribute(slot)
-			if type(clanVal) == "string" and string.find(clanVal, "Abyssal") then
-				table.insert(clansToConsume, slot)
-				abyssalFound += 1
-				if abyssalFound >= recipe.AbyssalClanCount then break end
+		for _, mClanAttr in ipairs(abyssalClans) do
+			local count = player:GetAttribute(mClanAttr) or 0
+			if count > 0 then
+				for i = 1, count do
+					table.insert(clansToConsume, mClanAttr)
+					foundCount += 1
+					if foundCount >= recipe.AbyssalClanCount then break end
+				end
 			end
+			if foundCount >= recipe.AbyssalClanCount then break end
 		end
 
-		if abyssalFound < recipe.AbyssalClanCount then canForge = false end
+		if foundCount < recipe.AbyssalClanCount then canForge = false end
 	end
 
-	if not canForge then NotificationEvent:FireClient(player, "Missing required materials or Abyssal lineages!", "Error"); return end
+	if not canForge then NotificationEvent:FireClient(player, "Missing required materials or Itemized Abyssal lineages!", "Error"); return end
 
 	player.leaderstats.Dews.Value -= recipe.DewCost
 
@@ -72,7 +79,7 @@ Network:WaitForChild("ForgeItem").OnServerEvent:Connect(function(player, recipeN
 
 	if #clansToConsume > 0 then
 		for _, attr in ipairs(clansToConsume) do
-			player:SetAttribute(attr, "None")
+			player:SetAttribute(attr, (player:GetAttribute(attr) or 1) - 1)
 		end
 	end
 
@@ -129,18 +136,6 @@ Network:WaitForChild("AwakenAction").OnServerEvent:Connect(function(player, acti
 			player:SetAttribute("AncestralAwakeningSerumCount", count - 1); player:SetAttribute("Clan", "Awakened " .. currentClan)
 			NotificationEvent:FireClient(player, currentClan .. " Bloodline Awakened!", "Success")
 		elseif count >= 1 then NotificationEvent:FireClient(player, "Your bloodline is too weak to awaken.", "Error") end
-
-	elseif actionType == "Abyssal" then
-		local count = player:GetAttribute("AbyssalRitualChaliceCount") or 0
-		local currentClan = player:GetAttribute("Clan") or "None"
-		if count >= 1 and string.find(currentClan, "Awakened") then
-			player:SetAttribute("AbyssalRitualChaliceCount", count - 1)
-			player:SetAttribute("Clan", string.gsub(currentClan, "Awakened", "Abyssal"))
-			NotificationEvent:FireClient(player, "Your bloodline has transcended into the Abyss!", "Success")
-		elseif count >= 1 then 
-			NotificationEvent:FireClient(player, "Only an Awakened bloodline can perform the ritual.", "Error") 
-		end
-
 	elseif actionType == "Titan" then
 		local count = player:GetAttribute("YmirsClayFragmentCount") or 0
 		if count >= 1 and player:GetAttribute("Titan") == "Attack Titan" then
