@@ -11,13 +11,13 @@ local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
-local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData")) -- [[ THE FIX: Safely required at the top! ]]
+local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData")) 
 local CombatBuilder = require(SharedUI:WaitForChild("CombatBuilder"))
 local VFXManager = require(script.Parent.Parent:WaitForChild("VFXManager"))
 
 local player = Players.LocalPlayer
 local GUI = nil 
-local MasterGuiRef = nil -- [[ THE FIX: Used to detach Doomsday Leaderboard from Combat Window ]]
+local MasterGuiRef = nil 
 
 local currentBattleState = nil
 local pendingSkillName = nil
@@ -523,6 +523,46 @@ local function GetTitanSkills(titanName)
 	return movesets[titanName] or {}
 end
 
+local function IsSkillValid(skillName, isTransformedCheck)
+	local sData = SkillData.Skills[skillName]
+	if not sData then return false end
+
+	local req = tostring(sData.Requirement or "None")
+
+	if isTransformedCheck then
+		local myTitan = player:GetAttribute("Titan") or "None"
+		local universalTitanMoves = { ["Eject"]=true, ["Titan Recover"]=true, ["Titan Rest"]=true, ["Cannibalize"]=true, ["Maneuver"]=true, ["Evasive Maneuver"]=true, ["Block"]=true, ["Close In"]=true, ["Fall Back"]=true, ["Advance"]=true, ["Charge"]=true, ["Transform"]=true, ["Titan Punch"]=true, ["Titan Kick"]=true }
+
+		if req == "Transformed" or req == "AnyTitan" or req == myTitan or string.find(myTitan, req, 1, true) or universalTitanMoves[skillName] then
+			return true
+		end
+		return false
+	end
+
+	if req == "None" or req == "ODM" then return true end
+
+	local myClan = player:GetAttribute("Clan") or "None"
+	if myClan ~= "None" then
+		if string.find(myClan, req, 1, true) then return true end
+		if string.find(req, "Awakened", 1, true) then
+			local baseReq = string.gsub(req, "Awakened ", "")
+			if string.find(myClan, "Abyssal " .. baseReq, 1, true) then return true end
+		end
+	end
+
+	if type(ItemData) == "table" and ItemData.Equipment then
+		for iName, iData in pairs(ItemData.Equipment) do
+			if iData.Style == req then
+				local safeNameBase = iName:gsub("[^%w]", "")
+				local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or 0
+				if count > 0 then return true end
+			end
+		end
+	end
+
+	return false
+end
+
 local function UpdateSkills()
 	inputLocked = false
 	if GUI.ActionGrid then GUI.ActionGrid.Visible = true end
@@ -665,44 +705,11 @@ local function UpdateSkills()
 		end
 	end
 
-	local universalTitanMoves = {
-		["Eject"] = true, ["Titan Recover"] = true, ["Titan Rest"] = true, ["Cannibalize"] = true,
-		["Maneuver"] = true, ["Evasive Maneuver"] = true, ["Block"] = true, ["Close In"] = true,
-		["Fall Back"] = true, ["Advance"] = true, ["Charge"] = true, ["Transform"] = true,
-		["Titan Punch"] = true, ["Titan Kick"] = true
-	}
-
 	for i = 1, 4 do
 		local skillName = player:GetAttribute("EquippedSkill_" .. i)
-		local isValid = false
-		if skillName and skillName ~= "" and skillName ~= "None" then
-			local sData = SkillData.Skills[skillName]
-			if sData then
-				local req = sData.Requirement
-				if isTransformed then
-					local myTitan = player:GetAttribute("Titan")
-					if req == "Transformed" or req == "AnyTitan" or req == myTitan or (myTitan and string.find(myTitan, req)) or universalTitanMoves[skillName] then
-						isValid = true
-					end
-				else
-					if req == "None" or req == "ODM" then
-						isValid = true
-					else
-						local myClan = player:GetAttribute("Clan")
-						if myClan and string.find(myClan, req) then
-							isValid = true
-						else
-							local wpn = player:GetAttribute("EquippedWeapon")
-							if wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style == req then
-								isValid = true
-							end
-						end
-					end
-				end
-			end
+		if not skillName or skillName == "" or skillName == "None" or not IsSkillValid(skillName, isTransformed) then 
+			skillName = fallbacks[i] 
 		end
-
-		if not isValid then skillName = fallbacks[i] end
 		CreateSkillButton(skillName)
 	end
 
@@ -715,12 +722,20 @@ local function UpdateSkills()
 			end
 		end
 	else
-		local myClan = player:GetAttribute("Clan")
-		if myClan and myClan ~= "None" then
+		local myClan = player:GetAttribute("Clan") or "None"
+		if myClan ~= "None" then
 			local clanSkills = {}
 			for sName, sData in pairs(SkillData.Skills) do
 				if sData.Type == "Style" and sData.Requirement and not string.find(sData.Requirement, "ODM") then
-					if string.find(myClan, sData.Requirement) then table.insert(clanSkills, {Name = sName, Data = sData}) end
+					local req = tostring(sData.Requirement)
+					if string.find(myClan, req, 1, true) then 
+						table.insert(clanSkills, {Name = sName, Data = sData}) 
+					elseif string.find(req, "Awakened", 1, true) then
+						local baseReq = string.gsub(req, "Awakened ", "")
+						if string.find(myClan, "Abyssal " .. baseReq, 1, true) then
+							table.insert(clanSkills, {Name = sName, Data = sData}) 
+						end
+					end
 				end
 			end
 			table.sort(clanSkills, function(a, b) return (a.Data.Order or 99) < (b.Data.Order or 99) end)
@@ -740,10 +755,18 @@ local function UpdateSkills()
 	if currentRange == "Close" then CreateSkillButton("Fall Back", "FALL BACK", "#FFAA55")
 	else CreateSkillButton("Close In", isTransformed and "CHARGE" or "CLOSE IN", "#FFAA55") end
 
+	local myCurrentClan = player:GetAttribute("Clan") or "None"
+	local isAckerman = string.find(myCurrentClan, "Ackerman", 1, true) ~= nil
 	local hasTitan = player:GetAttribute("Titan") and player:GetAttribute("Titan") ~= "None"
-	if GUI.pHeatContainer then GUI.pHeatContainer.Visible = hasTitan end
-	if hasTitan and not isTransformed then CreateSkillButton("Transform", "TRANSFORM", "#FFD700")
-	elseif isTransformed then CreateSkillButton("Eject", "EJECT", "#FFD700") end
+	local canTransform = hasTitan and not isAckerman
+
+	if GUI.pHeatContainer then GUI.pHeatContainer.Visible = canTransform or isTransformed end
+
+	if canTransform and not isTransformed then 
+		CreateSkillButton("Transform", "TRANSFORM", "#FFD700")
+	elseif isTransformed then 
+		CreateSkillButton("Eject", "EJECT", "#FFD700") 
+	end
 
 	CreateSkillButton("Retreat", "FLEE", "#FF5555")
 end
