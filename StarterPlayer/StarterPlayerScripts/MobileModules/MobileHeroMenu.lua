@@ -149,7 +149,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	RefreshProfile = function()
 		local tName = player:GetAttribute("Titan") or "None"; local cName = player:GetAttribute("Clan") or "None"; local regName = player:GetAttribute("Regiment") or "Cadet Corps"
 		local hasRegData, regDataModule = pcall(function() return require(game.ReplicatedStorage:WaitForChild("RegimentData")) end); if hasRegData and regDataModule and regDataModule.Regiments[regName] then regIcon.Image = regDataModule.Regiments[regName].Icon else regIcon.Image = "" end
-		if cName == "Ackerman" or cName == "Awakened Ackerman" or string.find(cName, "Abyssal") then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end; clanLabel.Text = "Clan: <font color='#55FF55'>" .. cName .. "</font>"; regimentLabel.Text = "Regiment: <font color='"..(REG_COLORS[regName] or TEXT_COLORS.DefaultGreen).."'>" .. regName .. "</font>"
+		if cName == "Ackerman" or cName == "Awakened Ackerman" or string.find(cName, "Abyssal", 1, true) then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end; clanLabel.Text = "Clan: <font color='#55FF55'>" .. cName .. "</font>"; regimentLabel.Text = "Regiment: <font color='"..(REG_COLORS[regName] or TEXT_COLORS.DefaultGreen).."'>" .. regName .. "</font>"
 		local wpnName = player:GetAttribute("EquippedWeapon") or "None"; local accName = player:GetAttribute("EquippedAccessory") or "None"; local pTitle = player:GetAttribute("EquippedTitle") or "Cadet"; local pAura = player:GetAttribute("EquippedAura") or "None"
 		local resolvedTitleData = nil; if type(CosmeticData) == "table" and CosmeticData.Titles then resolvedTitleData = CosmeticData.Titles[pTitle]; if not resolvedTitleData then for k, v in pairs(CosmeticData.Titles) do if v.Name == pTitle then resolvedTitleData = v break end end end end; if resolvedTitleData then AvatarTitle.Text = string.upper(resolvedTitleData.Name); AvatarTitle.TextColor3 = Color3.fromHex((resolvedTitleData.Color or "#FFFFFF"):gsub("#", "")) end
 		local resolvedAuraData = nil; if type(CosmeticData) == "table" and CosmeticData.Auras then resolvedAuraData = CosmeticData.Auras[pAura]; if not resolvedAuraData then for k, v in pairs(CosmeticData.Auras) do if v.Name == pAura then resolvedAuraData = v break end end end end; if UIAuraManager and type(UIAuraManager.ApplyAura) == "function" and resolvedAuraData then UIAuraManager.ApplyAura(AvatarAuraGlow, resolvedAuraData, AvatarBox) end
@@ -322,7 +322,21 @@ local function BuildAttributesTab(parentFrame)
 
 		tBtn.Activated:Connect(TriggerTrain); missBtn.Activated:Connect(function() if isTitan and titanCombo > 0 then titanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if titanCombo == 0 then comboLbl.Visible = false end end) elseif not isTitan and humanCombo > 0 then humanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if humanCombo == 0 then comboLbl.Visible = false end end) end end)
 
-		if player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397 then local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11); autoBtn.Position = UDim2.new(1, -100, 0, 12); autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); autoBtn.ZIndex = 5; local isAutoTraining = false; autoBtn.Activated:Connect(function() isAutoTraining = not isAutoTraining; autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"; autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255); if isAutoTraining then task.spawn(function() while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end; task.wait(0.6) end end) end end) end
+		if player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397 then 
+			local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11)
+			autoBtn.Position = UDim2.new(1, -100, 0, 12); autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); autoBtn.ZIndex = 5
+
+			autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
+			player:GetAttributeChangedSignal("HasAutoTrain"):Connect(function()
+				autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
+			end)
+
+			local isAutoTraining = false
+			autoBtn.Activated:Connect(function() 
+				isAutoTraining = not isAutoTraining; autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"; autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255)
+				if isAutoTraining then task.spawn(function() while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end; task.wait(0.6) end end) end 
+			end) 
+		end
 		return box
 	end
 	local soldierBox = CreateTrainBox(false); local titanBox = CreateTrainBox(true)
@@ -367,7 +381,47 @@ local function BuildSkillsTab(parentFrame)
 	local sep = Instance.new("Frame", MainFrame); sep.Size = UDim2.new(0.95, 0, 0, 2); sep.BackgroundColor3 = Color3.fromRGB(70, 70, 80); sep.BorderSizePixel = 0; sep.LayoutOrder = 2
 	local LibHeader = CreateSharpLabel(MainFrame, "SKILL LIBRARY", UDim2.new(0.95, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(245, 245, 245), 18); LibHeader.LayoutOrder = 3; LibHeader.TextXAlignment = Enum.TextXAlignment.Left
 	local SkillLibraryContainer = Instance.new("Frame", MainFrame); SkillLibraryContainer.Size = UDim2.new(0.95, 0, 0, 0); SkillLibraryContainer.AutomaticSize = Enum.AutomaticSize.Y; SkillLibraryContainer.BackgroundTransparency = 1; SkillLibraryContainer.LayoutOrder = 4; local libLayout = Instance.new("UIListLayout", SkillLibraryContainer); libLayout.Padding = UDim.new(0, 15); libLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; libLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	
+	local function IsSkillValid(skillName, isTransformedCheck)
+		local sData = SkillData.Skills[skillName]
+		if not sData then return false end
 
+		local req = tostring(sData.Requirement or "None")
+
+		if isTransformedCheck then
+			local myTitan = player:GetAttribute("Titan") or "None"
+			local universalTitanMoves = { ["Eject"]=true, ["Titan Recover"]=true, ["Titan Rest"]=true, ["Cannibalize"]=true, ["Maneuver"]=true, ["Evasive Maneuver"]=true, ["Block"]=true, ["Close In"]=true, ["Fall Back"]=true, ["Advance"]=true, ["Charge"]=true, ["Transform"]=true, ["Titan Punch"]=true, ["Titan Kick"]=true }
+
+			if req == "Transformed" or req == "AnyTitan" or req == myTitan or string.find(myTitan, req, 1, true) or universalTitanMoves[skillName] then
+				return true
+			end
+			return false
+		end
+
+		if req == "None" or req == "ODM" then return true end
+
+		local myClan = player:GetAttribute("Clan") or "None"
+		if myClan ~= "None" then
+			if string.find(myClan, req, 1, true) then return true end
+			if string.find(req, "Awakened", 1, true) then
+				local baseReq = string.gsub(req, "Awakened ", "")
+				if string.find(myClan, "Abyssal " .. baseReq, 1, true) then return true end
+			end
+		end
+
+		if type(ItemData) == "table" and ItemData.Equipment then
+			for iName, iData in pairs(ItemData.Equipment) do
+				if iData.Style == req then
+					local safeNameBase = iName:gsub("[^%w]", "")
+					local wCount = tonumber(player:GetAttribute(safeNameBase .. "Count")) or 0
+					if wCount > 0 then return true end
+				end
+			end
+		end
+
+		return false
+	end
+	
 	local function RefreshSkills()
 		for _, c in ipairs(SkillLibraryContainer:GetChildren()) do if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end end
 		if not hasSkillData or type(SkillData) ~= "table" then return end
@@ -375,21 +429,52 @@ local function BuildSkillsTab(parentFrame)
 
 		for sName, sData in pairs(tData) do
 			if type(sData) == "table" and sData.Type == "Style" then
-				local reqGroup = allowedRequirements[sData.Requirement]; local hasWeapon = false; local isClanSkill = false
+				local req = tostring(sData.Requirement or "None")
+				local reqGroup = allowedRequirements[req]
+				local hasWeapon = false
+				local isClanSkill = false
+
 				if reqGroup then
-					if sData.Requirement == "ODM" then hasWeapon = true; table.insert(defaultMoves, sName)
-					else for iName, iData in pairs(type(ItemData) == "table" and ItemData.Equipment or {}) do if iData.Style == sData.Requirement then local safeNameBase = iName:gsub("[^%w]", ""); local wCount = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0; if wCount > 0 then hasWeapon = true; break end end end end
-				else local myClan = player:GetAttribute("Clan"); if myClan and string.find(myClan, sData.Requirement) then reqGroup = "CLAN LINEAGE"; hasWeapon = true; isClanSkill = true end end
-				if reqGroup then local cat = reqGroup .. " SKILLS"; if not categorizedSkills[cat] then categorizedSkills[cat] = { HasUnlocked = false, Skills = {} } end; if hasWeapon then categorizedSkills[cat].HasUnlocked = true end; table.insert(categorizedSkills[cat].Skills, {Name = sName, Data = sData, HasWep = hasWeapon}) end
+					if req == "ODM" then 
+						hasWeapon = true
+						table.insert(defaultMoves, sName)
+					else 
+						for iName, iData in pairs(type(ItemData) == "table" and ItemData.Equipment or {}) do 
+							if iData.Style == req then 
+								local safeNameBase = iName:gsub("[^%w]", "")
+								local wCount = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0
+								if wCount > 0 then hasWeapon = true; break end 
+							end 
+						end 
+					end
+				else 
+					local myClan = player:GetAttribute("Clan") or "None"
+					if myClan ~= "None" then
+						if string.find(myClan, req, 1, true) then 
+							hasWeapon = true 
+						elseif string.find(req, "Awakened", 1, true) then
+							local baseReq = string.gsub(req, "Awakened ", "")
+							if string.find(myClan, "Abyssal " .. baseReq, 1, true) then
+								hasWeapon = true
+							end
+						end
+						if hasWeapon then reqGroup = "CLAN LINEAGE"; isClanSkill = true end
+					end 
+				end
+
+				if reqGroup then 
+					local cat = reqGroup .. " SKILLS"
+					if not categorizedSkills[cat] then categorizedSkills[cat] = { HasUnlocked = false, Skills = {} } end
+					if hasWeapon then categorizedSkills[cat].HasUnlocked = true end
+					table.insert(categorizedSkills[cat].Skills, {Name = sName, Data = sData, HasWep = hasWeapon}) 
+				end
 			end
 		end
 		table.sort(defaultMoves)
 
 		for i, lbl in ipairs(SkillSlotLabels) do 
 			local rawName = player:GetAttribute("EquippedSkill_" .. i)
-			local sData = tData[rawName]
-
-			if not rawName or rawName == "" or rawName == "None" or not sData or sData.Type == "Basic" or sData.Type == "Titan" or sData.IsBasic or sData.IsTitan then 
+			if not rawName or rawName == "" or rawName == "None" or not IsSkillValid(rawName, false) then 
 				rawName = defaultMoves[i] or "EMPTY" 
 			end
 			lbl.Text = string.upper(rawName) 
@@ -488,7 +573,7 @@ local function BuildPrestigeTab(parentFrame)
 	UnlockBtn.Activated:Connect(function() if SelectedNodeId then Network:WaitForChild("UnlockPrestigeNode"):FireServer(SelectedNodeId) end end)
 
 	local function UpdateUI()
-		local pts = player:GetAttribute("PrestigePoints") or 0; if PointsLabel then PointsLabel.Text = "AVAILABLE POINTS: " .. pts end
+		local pts = player:GetAttribute("PrestigePoints") or 0
 		for id, gui in pairs(NodeGuis) do
 			local isOwned = player:GetAttribute("PrestigeNode_" .. id); local node = type(GameData) == "table" and GameData.PrestigeNodes and GameData.PrestigeNodes[id] or nil; if not node then continue end; local hasReq = node.Req == nil or player:GetAttribute("PrestigeNode_" .. node.Req)
 			if isOwned then gui.Btn.BorderColor3 = gui.BaseColor; gui.Btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); gui.Icon.TextColor3 = gui.BaseColor; gui.Glow.ImageColor3 = gui.BaseColor; gui.Glow.ImageTransparency = 0.4; if gui.Line then gui.Line.BackgroundColor3 = gui.BaseColor; gui.Line.ZIndex = 2 end
@@ -679,21 +764,21 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		local ResultLbl = CreateSharpLabel(BottomArea, "Current: None", UDim2.new(0.6, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16); ResultLbl.RichText = true; ResultLbl.TextXAlignment = Enum.TextXAlignment.Left; ResultLbl.Position = UDim2.new(0.05, 0, 0, 0)
 
-		if gType == "Titan" then
-			local ItemizeBtn, iStroke = CreateSharpButton(BottomArea, "ITEMIZE (100K)", UDim2.new(0.3, 0, 0, 24), Enum.Font.GothamBold, 10)
+		if gType == "Titan" or gType == "Clan" then
+			local ItemizeBtn, iStroke = CreateSharpButton(BottomArea, "ITEMIZE (100K)", UDim2.new(0.3, 0, 0, 24), Enum.Font.GothamBold, 11)
 			ItemizeBtn.Position = UDim2.new(0.95, 0, 0, 3)
 			ItemizeBtn.AnchorPoint = Vector2.new(1, 0)
 			ItemizeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 			iStroke.Color = Color3.fromRGB(150, 50, 50)
 
 			ItemizeBtn.Activated:Connect(function()
-				if isRolling.Titan or isAutoRolling.Titan then return end
-				local tName = player:GetAttribute("Titan")
+				if isRolling[gType] or isAutoRolling[gType] then return end
+				local tName = player:GetAttribute(gType)
 				if not tName or tName == "None" then
-					if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("No Titan equipped to itemize!", "Error") end
+					if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("No " .. gType .. " equipped to itemize!", "Error") end
 					return
 				end
-				Network:WaitForChild("ItemizeTitan"):FireServer("Equipped")
+				Network:WaitForChild("Itemize" .. gType):FireServer("Equipped")
 			end)
 		end
 
@@ -721,16 +806,12 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local labelPrefix = (gType == "Titan") and "Serum" or "Vial"
 		local RollBtn, rStroke = CreateSharpButton(RollActions, "ROLL (1x " .. labelPrefix .. ")", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
 
-		-- [[ THE FIX: ABYSSAL ALTAR INTEGRATION ON MOBILE ]]
-		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
+		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
 		if gType == "Titan" then 
-			PremiumRollBtn.Text = "PREMIUM (1x Syringe)" 
-		else 
 			PremiumRollBtn.Visible = true
-			PremiumRollBtn.Text = "ABYSSAL ALTAR\n(Transcend)"
-			PremiumRollBtn.BackgroundColor3 = Color3.fromRGB(40, 15, 15)
-			PremiumRollBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
-			pStroke.Color = Color3.fromRGB(200, 50, 50)
+			PremiumRollBtn.Text = "PREMIUM (1x Syringe)\nOwned: 0" 
+		else 
+			PremiumRollBtn.Visible = false
 		end
 
 		local AutoRollBtn, aStroke = CreateSharpButton(RollActions, "ROLL TILL LEGENDARY+", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
@@ -820,7 +901,6 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local cResult, cPity, cRoll, cPrem, cAuto, cStores = CreateGachaPanel("Clan", 2)
 
 	local function UpdateUI()
-		-- [[ THE FIX: Ignore dynamic UI updates while spinning so it doesn't flash the final result too early ]]
 		if not isRolling.Titan and not isAutoRolling.Titan then tResult.Text = "Current: " .. (player:GetAttribute("Titan") or "None") end
 		if not isRolling.Clan and not isAutoRolling.Clan then cResult.Text = "Current: " .. (player:GetAttribute("Clan") or "None") end
 
@@ -839,7 +919,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 						if isTitanType then
 							local tData = type(TitanData) == "table" and TitanData.Titans and TitanData.Titans[storedName]; if tData then rarity = tData.Rarity end
 						else
-							if string.find(storedName, "Abyssal") or string.find(storedName, "Awakened") then rarity = "Transcendent"
+							if string.find(storedName, "Abyssal", 1, true) or string.find(storedName, "Awakened", 1, true) then rarity = "Transcendent"
 							else
 								local weight = type(TitanData) == "table" and TitanData.ClanWeights and TitanData.ClanWeights[storedName] or 40
 								if weight <= 1.5 then rarity = "Mythical" elseif weight <= 4.0 then rarity = "Legendary" elseif weight <= 8.0 then rarity = "Epic" elseif weight <= 15.0 then rarity = "Rare" end
