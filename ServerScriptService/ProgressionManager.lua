@@ -8,8 +8,7 @@ local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 local CosmeticData = require(ReplicatedStorage:WaitForChild("CosmeticData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData")) 
--- [[ THE FIX: Required ItemData so we can dynamically check Gamepass IDs ]]
-local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
+local ItemData = require(ReplicatedStorage:WaitForChild("ItemData")) -- [[ THE FIX: Safely required ItemData here ]]
 local Network = ReplicatedStorage:WaitForChild("Network")
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
@@ -251,15 +250,17 @@ PrestigeAction.OnServerInvoke = function(player)
 	end
 end
 
--- [[ THE FIX: Updated Purchase Handler to verify ALL Gamepasses dynamically ]]
+-- [[ THE FIX: Validates all gamepasses upon any purchase successfully completing ]]
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
 	if not wasPurchased then return end
 
-	for _, passData in ipairs(ItemData.Gamepasses) do
-		if passData.ID == passId then
-			player:SetAttribute("Has" .. passData.Key, true)
-			NotificationEvent:FireClient(player, passData.Name .. " activated!", "Success")
-			break
+	if ItemData.Gamepasses then
+		for _, gp in ipairs(ItemData.Gamepasses) do
+			if gp.ID == passId then
+				player:SetAttribute("Has" .. gp.Key, true)
+				NotificationEvent:FireClient(player, gp.Name .. " activated!", "Success")
+				break
+			end
 		end
 	end
 end)
@@ -313,18 +314,22 @@ local function VerifyCoordinateTitle(player)
 	end
 end
 
--- [[ THE FIX: Verify all owned gamepasses when the player loads into the game ]]
+-- [[ THE FIX: Robust Check for Gamepasses when Player Joins ]]
 Players.PlayerAdded:Connect(function(player)
 	player:GetAttributeChangedSignal("Titan"):Connect(function()
 		VerifyCoordinateTitle(player)
 	end)
 
-	for _, pass in ipairs(ItemData.Gamepasses) do
-		local success, ownsPass = pcall(function()
-			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.ID)
-		end)
-		if success and ownsPass then
-			player:SetAttribute("Has" .. pass.Key, true)
+	if ItemData.Gamepasses then
+		for _, pass in ipairs(ItemData.Gamepasses) do
+			task.spawn(function()
+				local success, ownsPass = pcall(function()
+					return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.ID)
+				end)
+				if success and ownsPass then
+					player:SetAttribute("Has" .. pass.Key, true)
+				end
+			end)
 		end
 	end
 end)
@@ -366,7 +371,7 @@ UpgradeRuneEvent.OnServerEvent:Connect(function(player, runeId)
 	end
 end)
 
--- [[ RELICS SHOP: Path Dust Rare Materials & Consumables ]]
+-- [[ RELICS SHOP ]]
 local PathsShopBuy = Network:FindFirstChild("PathsShopBuy") or Instance.new("RemoteEvent", Network)
 PathsShopBuy.Name = "PathsShopBuy"
 
