@@ -5,14 +5,15 @@ local BestiaryUI = {}
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
+local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 
 local player = Players.LocalPlayer
 
--- Gritty Color Palette
 local C_VOID = Color3.fromRGB(12, 12, 15)
 local C_STEEL = Color3.fromRGB(80, 85, 90)
 local C_RUST = Color3.fromRGB(140, 50, 40)
 local C_TEXT_MUTED = Color3.fromRGB(180, 180, 180)
+local C_TEXT_BRIGHT = Color3.fromRGB(240, 240, 240)
 local C_GOLD = Color3.fromRGB(252, 228, 141)
 
 local function GenerateTactics(enemy)
@@ -41,7 +42,10 @@ local function ParseDrops(dropsTable)
 	end
 
 	if dropsTable.ItemChance then
-		for itemName, rate in pairs(dropsTable.ItemChance) do
+		for itemName, baseChance in pairs(dropsTable.ItemChance) do
+			local finalChance = math.clamp(baseChance, 0.01, 100)
+			local displayRate = math.floor(finalChance * 100) / 100
+
 			local color = C_TEXT_MUTED 
 			if itemName:find("Serum") or itemName:find("Syringe") then color = Color3.fromRGB(255, 85, 255)
 			elseif itemName:find("Fragment") or itemName:find("Crown") then color = C_GOLD
@@ -49,7 +53,7 @@ local function ParseDrops(dropsTable)
 			elseif itemName:find("Crystal") or itemName:find("Shard") then color = Color3.fromRGB(85, 255, 255)
 			elseif itemName:find("Steel") or itemName:find("Gear") then color = Color3.fromRGB(150, 150, 200) end
 
-			table.insert(parsed, {ItemName = itemName, Rate = tostring(rate), Color = color})
+			table.insert(parsed, {ItemName = itemName, Rate = tostring(displayRate), Color = color})
 		end
 	end
 
@@ -71,93 +75,124 @@ function BestiaryUI.Initialize(masterScreenGui)
 	ContentFrame.Size = UDim2.new(1, -40, 1, -40)
 	ContentFrame.Position = UDim2.new(0, 20, 0, 20)
 	ContentFrame.BackgroundColor3 = C_VOID
+	ContentFrame.BorderSizePixel = 0
 
 	local mainStroke = Instance.new("UIStroke", ContentFrame)
 	mainStroke.Color = C_RUST
 	mainStroke.Thickness = 2
 	mainStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	mainStroke.LineJoinMode = Enum.LineJoinMode.Miter
 
-	-- Left Panel: Enemy List
+	local innerStrokeFrame = Instance.new("Frame", ContentFrame)
+	innerStrokeFrame.Size = UDim2.new(1, -12, 1, -12)
+	innerStrokeFrame.Position = UDim2.new(0, 6, 0, 6)
+	innerStrokeFrame.BackgroundTransparency = 1
+
+	local innerStroke = Instance.new("UIStroke", innerStrokeFrame)
+	innerStroke.Color = Color3.fromRGB(30, 30, 35)
+	innerStroke.Thickness = 1
+	innerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	innerStroke.LineJoinMode = Enum.LineJoinMode.Miter
+
 	GUI.ListPanel = Instance.new("ScrollingFrame", ContentFrame)
-	GUI.ListPanel.Size = UDim2.new(0.35, 0, 1, 0)
-	GUI.ListPanel.Position = UDim2.new(0, 0, 0, 0)
+	GUI.ListPanel.Size = UDim2.new(0.35, -15, 1, -30)
+	GUI.ListPanel.Position = UDim2.new(0, 15, 0, 15)
 	GUI.ListPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
 	GUI.ListPanel.BorderSizePixel = 0
 	GUI.ListPanel.ScrollBarThickness = 4
+	GUI.ListPanel.ScrollBarImageColor3 = C_RUST
 
 	local lpStroke = Instance.new("UIStroke", GUI.ListPanel)
 	lpStroke.Color = C_STEEL
 	lpStroke.Thickness = 1
 	lpStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	lpStroke.LineJoinMode = Enum.LineJoinMode.Miter
 
 	local listLayout = Instance.new("UIListLayout", GUI.ListPanel)
 	listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	listLayout.Padding = UDim.new(0, 2)
+	listLayout.Padding = UDim.new(0, 0)
 	listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		GUI.ListPanel.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+		GUI.ListPanel.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y)
 	end)
 
-	-- Right Panel: Stats & Loot Display
 	GUI.DisplayPanel = Instance.new("Frame", ContentFrame)
-	GUI.DisplayPanel.Size = UDim2.new(0.65, 0, 1, 0)
-	GUI.DisplayPanel.Position = UDim2.new(0.35, 0, 0, 0)
+	GUI.DisplayPanel.Size = UDim2.new(0.65, -15, 1, -30)
+	GUI.DisplayPanel.Position = UDim2.new(0.35, 0, 0, 15)
 	GUI.DisplayPanel.BackgroundTransparency = 1
 
 	GUI.EnemyName = Instance.new("TextLabel", GUI.DisplayPanel)
-	GUI.EnemyName.Size = UDim2.new(1, -130, 0, 40)
-	GUI.EnemyName.Position = UDim2.new(0, 15, 0, 15)
+	GUI.EnemyName.Size = UDim2.new(1, -130, 0, 45)
+	GUI.EnemyName.Position = UDim2.new(0, 20, 0, 0)
 	GUI.EnemyName.BackgroundTransparency = 1
 	GUI.EnemyName.Text = "SELECT TARGET"
 	GUI.EnemyName.Font = Enum.Font.GothamBlack
-	GUI.EnemyName.TextColor3 = Color3.fromRGB(240, 240, 240)
-	GUI.EnemyName.TextSize = 24
+	GUI.EnemyName.TextColor3 = C_TEXT_BRIGHT
+	GUI.EnemyName.TextSize = 26
 	GUI.EnemyName.TextXAlignment = Enum.TextXAlignment.Left
 
+	local nameDivider = Instance.new("Frame", GUI.EnemyName)
+	nameDivider.Size = UDim2.new(1, 0, 0, 2)
+	nameDivider.Position = UDim2.new(0, 0, 1, -5)
+	nameDivider.BackgroundColor3 = C_RUST
+	nameDivider.BorderSizePixel = 0
+
 	GUI.WeaknessText = Instance.new("TextLabel", GUI.DisplayPanel)
-	GUI.WeaknessText.Size = UDim2.new(1, -130, 0, 40)
-	GUI.WeaknessText.Position = UDim2.new(0, 15, 0, 55)
+	GUI.WeaknessText.Size = UDim2.new(1, -130, 0, 50)
+	GUI.WeaknessText.Position = UDim2.new(0, 20, 0, 50)
 	GUI.WeaknessText.BackgroundTransparency = 1
 	GUI.WeaknessText.Text = "Awaiting cross-reference..."
 	GUI.WeaknessText.Font = Enum.Font.GothamMedium
 	GUI.WeaknessText.TextColor3 = C_TEXT_MUTED
-	GUI.WeaknessText.TextSize = 13
+	GUI.WeaknessText.TextSize = 14
 	GUI.WeaknessText.TextWrapped = true
 	GUI.WeaknessText.TextYAlignment = Enum.TextYAlignment.Top
 	GUI.WeaknessText.TextXAlignment = Enum.TextXAlignment.Left
 
-	-- Enemy Avatar Display
 	GUI.EnemyImage = Instance.new("ImageLabel", GUI.DisplayPanel)
-	GUI.EnemyImage.Size = UDim2.new(0, 90, 0, 90)
-	GUI.EnemyImage.Position = UDim2.new(1, -105, 0, 15)
+	GUI.EnemyImage.Size = UDim2.new(0, 95, 0, 95)
+	GUI.EnemyImage.Position = UDim2.new(1, -115, 0, 0)
 	GUI.EnemyImage.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
 	GUI.EnemyImage.ScaleType = Enum.ScaleType.Crop
 	GUI.EnemyImage.Image = EnemyData.BossIcons["System"] or ""
 
 	local imgStroke = Instance.new("UIStroke", GUI.EnemyImage)
 	imgStroke.Color = C_STEEL
-	imgStroke.Thickness = 1
+	imgStroke.Thickness = 2
 	imgStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	imgStroke.LineJoinMode = Enum.LineJoinMode.Miter
 
-	-- Loot Table Area
-	local LootHeader = Instance.new("TextLabel", GUI.DisplayPanel)
-	LootHeader.Size = UDim2.new(1, -30, 0, 25)
-	LootHeader.Position = UDim2.new(0, 15, 0, 120)
+	local LootHeaderFrame = Instance.new("Frame", GUI.DisplayPanel)
+	LootHeaderFrame.Size = UDim2.new(1, -40, 0, 30)
+	LootHeaderFrame.Position = UDim2.new(0, 20, 0, 120)
+	LootHeaderFrame.BackgroundColor3 = Color3.fromRGB(20, 15, 15)
+	LootHeaderFrame.BorderSizePixel = 0
+
+	local lootHeaderStroke = Instance.new("UIStroke", LootHeaderFrame)
+	lootHeaderStroke.Color = C_STEEL
+	lootHeaderStroke.Thickness = 1
+	lootHeaderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	lootHeaderStroke.LineJoinMode = Enum.LineJoinMode.Miter
+
+	local LootHeader = Instance.new("TextLabel", LootHeaderFrame)
+	LootHeader.Size = UDim2.new(1, -15, 1, 0)
+	LootHeader.Position = UDim2.new(0, 15, 0, 0)
 	LootHeader.BackgroundTransparency = 1
 	LootHeader.Text = "GLOBAL DROP RATES"
 	LootHeader.Font = Enum.Font.GothamBlack
 	LootHeader.TextColor3 = C_RUST
-	LootHeader.TextSize = 16
+	LootHeader.TextSize = 14
 	LootHeader.TextXAlignment = Enum.TextXAlignment.Left
 
 	GUI.LootScroll = Instance.new("ScrollingFrame", GUI.DisplayPanel)
-	GUI.LootScroll.Size = UDim2.new(1, -30, 1, -160)
-	GUI.LootScroll.Position = UDim2.new(0, 15, 0, 150)
+	GUI.LootScroll.Size = UDim2.new(1, -40, 1, -165)
+	GUI.LootScroll.Position = UDim2.new(0, 20, 0, 155)
 	GUI.LootScroll.BackgroundTransparency = 1
 	GUI.LootScroll.ScrollBarThickness = 4
+	GUI.LootScroll.ScrollBarImageColor3 = C_STEEL
 	GUI.LootScroll.BorderSizePixel = 0
 
 	local lootLayout = Instance.new("UIListLayout", GUI.LootScroll)
-	lootLayout.Padding = UDim.new(0, 6)
+	lootLayout.Padding = UDim.new(0, 4)
 	lootLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		GUI.LootScroll.CanvasSize = UDim2.new(0, 0, 0, lootLayout.AbsoluteContentSize.Y + 10)
 	end)
@@ -168,18 +203,33 @@ function BestiaryUI.Initialize(masterScreenGui)
 		local btn = Instance.new("TextButton")
 		btn.Name = "EnemyBtn_" .. enemyKey
 		btn.Size = UDim2.new(1, 0, 0, 35)
-		btn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+		btn.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 		btn.BorderSizePixel = 0
-		btn.Text = "      " .. string.upper(enemyTable.Name or enemyKey)
+		-- Pushed text to the right to make room for the newly added icon
+		btn.Text = "             " .. string.upper(enemyTable.Name or enemyKey)
 		btn.Font = Enum.Font.GothamBold
 		btn.TextColor3 = C_TEXT_MUTED
 		btn.TextSize = 12
 		btn.TextXAlignment = Enum.TextXAlignment.Left
 
 		local stroke = Instance.new("UIStroke", btn)
-		stroke.Color = C_STEEL
+		stroke.Color = Color3.fromRGB(35, 35, 40)
 		stroke.Thickness = 1
 		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.LineJoinMode = Enum.LineJoinMode.Miter
+
+		-- [[ NEW: Visual Boss Icon linked to the list panel item ]]
+		local icon = Instance.new("ImageLabel", btn)
+		icon.Size = UDim2.new(0, 25, 0, 25)
+		icon.Position = UDim2.new(0, 5, 0.5, -12.5)
+		icon.BackgroundTransparency = 1
+		icon.ScaleType = Enum.ScaleType.Crop
+		icon.Image = EnemyData.BossIcons[enemyKey] or EnemyData.BossIcons[enemyTable.Name] or EnemyData.BossIcons["System"] or ""
+
+		local iconStroke = Instance.new("UIStroke", icon)
+		iconStroke.Color = C_STEEL
+		iconStroke.Thickness = 1
+		iconStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 		btn.MouseButton1Click:Connect(function()
 			local formattedData = {
@@ -192,11 +242,11 @@ function BestiaryUI.Initialize(masterScreenGui)
 
 			for _, child in ipairs(GUI.ListPanel:GetChildren()) do
 				if child:IsA("TextButton") and string.find(child.Name, "EnemyBtn_") then
-					child.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+					child.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 					child.TextColor3 = C_TEXT_MUTED
 				end
 			end
-			btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+			btn.BackgroundColor3 = Color3.fromRGB(30, 25, 25)
 			btn.TextColor3 = C_GOLD
 		end)
 
@@ -209,19 +259,21 @@ function BestiaryUI.Initialize(masterScreenGui)
 		headerBtn.LayoutOrder = currentLayoutOrder
 		currentLayoutOrder = currentLayoutOrder + 1
 
-		headerBtn.Size = UDim2.new(1, 0, 0, 30)
-		headerBtn.BackgroundColor3 = Color3.fromRGB(25, 20, 20)
+		headerBtn.Size = UDim2.new(1, 0, 0, 35)
+		headerBtn.BackgroundColor3 = Color3.fromRGB(25, 18, 18)
 		headerBtn.BorderSizePixel = 0
-		headerBtn.Text = "  ▼  " .. title
+		headerBtn.Text = "  [ ▼ ]  " .. title
 		headerBtn.Font = Enum.Font.GothamBlack
 		headerBtn.TextColor3 = C_RUST
-		headerBtn.TextSize = 14
+		headerBtn.TextSize = 13
 		headerBtn.TextXAlignment = Enum.TextXAlignment.Left
 		headerBtn.AutoButtonColor = false
 
 		local s = Instance.new("UIStroke", headerBtn)
-		s.Color = Color3.fromRGB(60, 20, 20)
+		s.Color = Color3.fromRGB(60, 30, 30)
+		s.Thickness = 1
 		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		s.LineJoinMode = Enum.LineJoinMode.Miter
 
 		local isOpen = true
 		local itemBtns = {}
@@ -236,7 +288,7 @@ function BestiaryUI.Initialize(masterScreenGui)
 
 		headerBtn.MouseButton1Click:Connect(function()
 			isOpen = not isOpen
-			headerBtn.Text = (isOpen and "  ▼  " or "  ▶  ") .. title
+			headerBtn.Text = (isOpen and "  [ ▼ ]  " or "  [ ▶ ]  ") .. title
 			for _, b in ipairs(itemBtns) do
 				b.Visible = isOpen
 			end
@@ -252,7 +304,6 @@ function BestiaryUI.Initialize(masterScreenGui)
 		return arr
 	end
 
-	-- Extract Campaign Enemies chronologically
 	local CampaignArray = {}
 	local seenCampaign = {}
 	if EnemyData.Parts then
@@ -279,7 +330,6 @@ function BestiaryUI.Initialize(masterScreenGui)
 		end
 	end
 
-	-- [[ THE FIX: Aggregating EVERY enemy into Endless Expedition Array ]]
 	local EndlessArray = {}
 	local seenEndless = {}
 	local function InsertIntoEndless(key, data)
@@ -298,7 +348,6 @@ function BestiaryUI.Initialize(masterScreenGui)
 
 	table.sort(EndlessArray, function(a, b) return string.upper(a.Data.Name or a.Key) < string.upper(b.Data.Name or b.Key) end)
 
-	-- Structured UI rendering hierarchy
 	local displayCategories = {
 		{ Title = "ENDLESS EXPEDITION", Data = EndlessArray },
 		{ Title = "CAMPAIGN MISSIONS", Data = CampaignArray },
@@ -319,7 +368,7 @@ end
 
 function BestiaryUI.LoadEnemyData(GUI, formattedData)
 	GUI.EnemyName.Text = string.upper(formattedData.Name)
-	GUI.WeaknessText.Text = "TACTICAL REPORT: " .. formattedData.Tactics
+	GUI.WeaknessText.Text = "TACTICAL REPORT:\n" .. formattedData.Tactics
 
 	local fallbackIcon = EnemyData.BossIcons["System"] or ""
 	GUI.EnemyImage.Image = EnemyData.BossIcons[formattedData.Key] or EnemyData.BossIcons[formattedData.Name] or fallbackIcon
@@ -332,7 +381,7 @@ function BestiaryUI.LoadEnemyData(GUI, formattedData)
 		local dText = Instance.new("TextLabel", GUI.LootScroll)
 		dText.Size = UDim2.new(1, 0, 0, 30)
 		dText.BackgroundTransparency = 1
-		dText.Text = "No known drops recorded."
+		dText.Text = "No known remains recorded."
 		dText.Font = Enum.Font.GothamMedium
 		dText.TextColor3 = C_STEEL
 		dText.TextSize = 13
@@ -343,14 +392,15 @@ function BestiaryUI.LoadEnemyData(GUI, formattedData)
 	for _, drop in ipairs(formattedData.Drops) do
 		local dropFrame = Instance.new("Frame", GUI.LootScroll)
 		dropFrame.Size = UDim2.new(1, 0, 0, 35)
-		dropFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+		dropFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
 		dropFrame.BorderSizePixel = 0
 
 		local rarityColor = drop.Color or C_TEXT_MUTED
 		local dStroke = Instance.new("UIStroke", dropFrame)
-		dStroke.Color = Color3.new(rarityColor.R * 0.5, rarityColor.G * 0.5, rarityColor.B * 0.5)
+		dStroke.Color = Color3.new(rarityColor.R * 0.4, rarityColor.G * 0.4, rarityColor.B * 0.4)
 		dStroke.Thickness = 1
 		dStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		dStroke.LineJoinMode = Enum.LineJoinMode.Miter
 
 		local nameLbl = Instance.new("TextLabel", dropFrame)
 		nameLbl.Size = UDim2.new(0.7, 0, 1, 0)
@@ -368,8 +418,8 @@ function BestiaryUI.LoadEnemyData(GUI, formattedData)
 		rateLbl.BackgroundTransparency = 1
 		rateLbl.Text = drop.Rate .. "%"
 		rateLbl.Font = Enum.Font.GothamBlack
-		rateLbl.TextColor3 = C_TEXT_MUTED
-		rateLbl.TextSize = 13
+		rateLbl.TextColor3 = C_TEXT_BRIGHT
+		rateLbl.TextSize = 14
 		rateLbl.TextXAlignment = Enum.TextXAlignment.Right
 	end
 end
