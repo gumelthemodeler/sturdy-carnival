@@ -73,25 +73,41 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 		local count = player:GetAttribute(safeName) or 0
 		if count > 0 then
 			player:SetAttribute(safeName, count - 1)
+
 			if itemInfo.Action == "EquipTitan" then
-				-- [[ THE FIX: Prevent Ackermans from inheriting Titans via Serums/Spines ]]
 				local clan = player:GetAttribute("Clan") or "None"
 				if string.find(clan, "Ackerman") then
-					player:SetAttribute(safeName, count) -- Refund the item
+					player:SetAttribute(safeName, count) 
 					NotificationEvent:FireClient(player, "Ackermans cannot inherit Titans!", "Error")
 				else
 					player:SetAttribute("Titan", itemInfo.TitanName)
+					player:SetAttribute("AutoSpinning", false) 
 					NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.TitanName .. "!", "Success")
 				end
 
+			elseif itemInfo.Action == "EquipClan" then
+				player:SetAttribute("AutoSpinning", false) 
+				player:SetAttribute("Clan", itemInfo.ClanName)
+				NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.ClanName .. " lineage!", "Success")
+
 			elseif itemInfo.Action == "AwakenClan" then
 				local currentClan = player:GetAttribute("Clan") or "None"
-				if currentClan ~= "None" and not string.find(currentClan, "Awakened") then
+				if currentClan ~= "None" and not string.find(currentClan, "Awakened") and not string.find(currentClan, "Abyssal") then
 					player:SetAttribute("Clan", "Awakened " .. currentClan)
 					NotificationEvent:FireClient(player, "Your Clan bloodline has awakened to its true power!", "Success")
 				else
-					player:SetAttribute(safeName, count) -- Refund item
+					player:SetAttribute(safeName, count) 
 					NotificationEvent:FireClient(player, "You cannot awaken your current lineage.", "Error")
+				end
+
+			elseif itemInfo.Action == "AbyssalClan" then
+				local currentClan = player:GetAttribute("Clan") or "None"
+				if string.find(currentClan, "Awakened") then
+					player:SetAttribute("Clan", string.gsub(currentClan, "Awakened", "Abyssal"))
+					NotificationEvent:FireClient(player, "Your bloodline has transcended into the Abyss!", "Success")
+				else
+					player:SetAttribute(safeName, count) 
+					NotificationEvent:FireClient(player, "Only an Awakened bloodline can perform the ritual.", "Error")
 				end
 
 			elseif itemInfo.Action == "AwakenTitan" then
@@ -101,7 +117,7 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 					player:SetAttribute("PathsAwakened", "DMG: 50 | DODGE: 10 | MAX HP: 100") 
 					NotificationEvent:FireClient(player, "You have reached the Coordinate!", "Success")
 				else
-					player:SetAttribute(safeName, count) -- Refund item
+					player:SetAttribute(safeName, count) 
 					NotificationEvent:FireClient(player, "Only the Attack Titan can reach the Coordinate.", "Error")
 				end
 
@@ -115,6 +131,15 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 			else
 				local expiryAttr = "Buff_" .. itemInfo.Buff .. "_Expiry"
 				player:SetAttribute(expiryAttr, os.time() + (itemInfo.Duration or 900))
+
+				if itemInfo.Buff == "Luck" then
+					player:SetAttribute("LuckBoost", itemInfo.LuckBoost or 1.0)
+					NotificationEvent:FireClient(player, "Your luck has increased for " .. math.floor((itemInfo.Duration or 900)/60) .. " minutes!", "Success")
+				elseif itemInfo.Buff == "Damage" then
+					NotificationEvent:FireClient(player, "Damage boosted for " .. math.floor((itemInfo.Duration or 900)/60) .. " minutes!", "Success")
+				elseif itemInfo.Buff == "XP" then
+					NotificationEvent:FireClient(player, "XP boosted for " .. math.floor((itemInfo.Duration or 900)/60) .. " minutes!", "Success")
+				end
 			end
 		end
 	end
