@@ -17,7 +17,7 @@ local CONFIG = {
 		{Id = "SQUADS", Icon = "rbxassetid://111674249930782"}, 
 		{Id = "SUPPLY_FORGE", Icon = "rbxassetid://108619507999123"}, 
 		{Id = "REGIMENTS", Icon = "rbxassetid://74069077964164"},
-		{Id = "BESTIARY", Icon = "rbxassetid://115407261158495"}
+		{Id = "BESTIARY", Icon = "rbxassetid://119375458206372"}
 	},
 	Currencies = { {Id = "XP", Prefix = "XP:", Color = "#55FF55"}, {Id = "TitanXP", Prefix = "T-XP:", Color = "#FF5555"}, {Id = "Dews", Prefix = "DEWS:", Color = "#FF88FF"}, {Id = "Prestige", Prefix = "PR:", Color = "#FFD700"}, {Id = "Elo", Prefix = "ELO:", Color = "#55AAFF"} }
 }
