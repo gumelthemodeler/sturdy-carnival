@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 local HeroMenu = {}
 
 local Players = game:GetService("Players")
@@ -1214,6 +1215,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local cResult, cPity, cRoll, cPrem, cAuto, cStores = CreateGachaPanel("Clan", 2)
 
 	local function UpdateUI()
+		-- [[ THE FIX: We ONLY update the Current text automatically if a roll IS NOT happening. ]]
 		if not isRolling.Titan and not isAutoRolling.Titan then tResult.Text = "Current: " .. (player:GetAttribute("Titan") or "None") end
 		if not isRolling.Clan and not isAutoRolling.Clan then cResult.Text = "Current: " .. (player:GetAttribute("Clan") or "None") end
 
