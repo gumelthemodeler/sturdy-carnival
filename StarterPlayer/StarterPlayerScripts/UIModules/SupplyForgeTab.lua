@@ -1,8 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
 -- Name: SupplyForgeTab
--- @ScriptType: ModuleScript
 local SupplyForgeTab = {}
 
 local Players = game:GetService("Players")
@@ -17,6 +15,7 @@ local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local NotificationManager = require(SharedUI:WaitForChild("NotificationManager"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local TitanData = require(ReplicatedStorage:WaitForChild("TitanData")) 
+local ClanData = require(ReplicatedStorage:WaitForChild("ClanData"))
 local hasSkillData, SkillData = pcall(function() return require(ReplicatedStorage:WaitForChild("SkillData")) end)
 local VFXManager = require(script.Parent.Parent:WaitForChild("VFXManager"))
 
@@ -77,6 +76,42 @@ local function CreateSharpButton(parent, text, size, font, textSize)
 		end
 	end)
 	return btn, stroke
+end
+
+local function GetClanBuffStrings(clanKey, isAbyssal)
+	local buffs = {}
+	if not ClanData.Clans or not ClanData.Clans[clanKey] then return buffs end
+	local cData = ClanData.Clans[clanKey]
+
+	if clanKey == "Fritz" then
+		table.insert(buffs, "6.0x MAX HP | 5.0x DMG | 5.0x ARMOR | 3.5x SPEED")
+		table.insert(buffs, "8x Guaranteed Death Defiance")
+		table.insert(buffs, "Founding Titan Synergy: +0.50x DMG, HP, ARMOR")
+		return buffs
+	end
+
+	if isAbyssal then
+		local statLine = ""
+		if cData.AbyssalDmgMult then statLine = statLine .. cData.AbyssalDmgMult .. "x DMG | " end
+		if cData.AbyssalHpMult then statLine = statLine .. cData.AbyssalHpMult .. "x HP | " end
+		if cData.AbyssalArmorMult then statLine = statLine .. cData.AbyssalArmorMult .. "x ARMOR | " end
+		if cData.AbyssalSpdMult then statLine = statLine .. cData.AbyssalSpdMult .. "x SPD | " end
+		if statLine ~= "" then table.insert(buffs, statLine:sub(1, -3)) end
+
+		if cData.AbyssalSurvivals then
+			table.insert(buffs, cData.AbyssalSurvivals .. "x Death Defiance (" .. (cData.SurvivalChance or 100) .. "%)")
+		end
+		if cData.AbyssalNapeCritMultiplier then
+			table.insert(buffs, cData.AbyssalNapeCritMultiplier .. "x Nape Crit DMG")
+		end
+		if cData.AbyssalDodgeBonus then
+			table.insert(buffs, "+" .. cData.AbyssalDodgeBonus .. "% Dodge Chance")
+		end
+		if cData.AbyssalMomentumDamagePerHit then
+			table.insert(buffs, "+" .. (cData.AbyssalMomentumDamagePerHit*100) .. "% DMG per Momentum Stack")
+		end
+	end
+	return buffs
 end
 
 function SupplyForgeTab.Initialize(parentFrame)
@@ -607,7 +642,7 @@ function SupplyForgeTab.Initialize(parentFrame)
 	end)
 
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
-		if rec == "Fritz Clan Serum" or rec == "Ancestral Awakening Serum" then continue end
+		if rec == "Fritz Clan Serum" or rec == "Ancestral Awakening Serum" or rec == "Abyssal Ritual Chalice" then continue end
 
 		local resItem = recipeData.Result
 		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
@@ -700,20 +735,29 @@ function SupplyForgeTab.Initialize(parentFrame)
 	local RitualTab = activeSubFrames["BLOODLINE RITUAL"]
 	local selectedRitualName = nil 
 
-	local RitualList = Instance.new("ScrollingFrame", RitualTab)
-	RitualList.Size = UDim2.new(0.28, 0, 1, 0)
+	local rSplitContainer = Instance.new("Frame", RitualTab)
+	rSplitContainer.Size = UDim2.new(1, 0, 1, 0)
+	rSplitContainer.BackgroundTransparency = 1
+	local rscLayout = Instance.new("UIListLayout", rSplitContainer)
+	rscLayout.FillDirection = Enum.FillDirection.Horizontal
+	rscLayout.Padding = UDim.new(0, 10)
+
+	local rLeftPanel = Instance.new("Frame", rSplitContainer)
+	rLeftPanel.Size = UDim2.new(0.55, 0, 1, 0)
+	rLeftPanel.BackgroundTransparency = 1
+
+	local RitualList = Instance.new("ScrollingFrame", rLeftPanel)
+	RitualList.Size = UDim2.new(1, 0, 0.35, 0)
 	RitualList.BackgroundTransparency = 1
 	RitualList.ScrollBarThickness = 4
 	RitualList.BorderSizePixel = 0
-
 	local rillLayout = Instance.new("UIListLayout", RitualList)
 	rillLayout.Padding = UDim.new(0, 10)
 	rillLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RitualList.CanvasSize = UDim2.new(0, 0, 0, rillLayout.AbsoluteContentSize.Y + 20) end)
 
-	local RitualPanel = Instance.new("Frame", RitualTab)
-	RitualPanel.Size = UDim2.new(0.7, 0, 1, 0)
-	RitualPanel.Position = UDim2.new(1, 0, 0, 0)
-	RitualPanel.AnchorPoint = Vector2.new(1, 0)
+	local RitualPanel = Instance.new("Frame", rLeftPanel)
+	RitualPanel.Size = UDim2.new(1, 0, 0.65, -10)
+	RitualPanel.Position = UDim2.new(0, 0, 0.35, 10)
 	RitualPanel.BackgroundTransparency = 1 
 
 	local rBg = Instance.new("ImageLabel", RitualPanel)
@@ -721,7 +765,7 @@ function SupplyForgeTab.Initialize(parentFrame)
 	rBg.Position = UDim2.new(0.5, 0, 0.5, 0)
 	rBg.AnchorPoint = Vector2.new(0.5, 0.5)
 	rBg.BackgroundTransparency = 1
-	rBg.Image = "rbxassetid://13112895696" -- Magical/Runic circle placeholder
+	rBg.Image = "rbxassetid://13112895696" 
 	rBg.ImageColor3 = Color3.fromRGB(100, 150, 255)
 	rBg.ImageTransparency = 0.8
 	rBg.ZIndex = 0
@@ -733,14 +777,14 @@ function SupplyForgeTab.Initialize(parentFrame)
 	RInfoView.BackgroundTransparency = 1
 
 	local rbpTitle = UIHelpers.CreateLabel(RInfoView, "AWAITING TRIBUTE", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, Color3.fromRGB(150, 200, 255), 28)
-	rbpTitle.Position = UDim2.new(0, 0, 0, 40); rbpTitle.TextXAlignment = Enum.TextXAlignment.Center
+	rbpTitle.Position = UDim2.new(0, 0, 0, 20); rbpTitle.TextXAlignment = Enum.TextXAlignment.Center
 
 	local rbpDesc = UIHelpers.CreateLabel(RInfoView, "Select a rite from the tomes to rewrite your lineage.", UDim2.new(1, -100, 0, 60), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 14)
-	rbpDesc.Position = UDim2.new(0.5, 0, 0, 80); rbpDesc.AnchorPoint = Vector2.new(0.5, 0); rbpDesc.TextXAlignment = Enum.TextXAlignment.Center; rbpDesc.TextWrapped = true
+	rbpDesc.Position = UDim2.new(0.5, 0, 0, 60); rbpDesc.AnchorPoint = Vector2.new(0.5, 0); rbpDesc.TextXAlignment = Enum.TextXAlignment.Center; rbpDesc.TextWrapped = true
 
 	local RReqList = Instance.new("Frame", RInfoView)
-	RReqList.Size = UDim2.new(1, 0, 0, 200)
-	RReqList.Position = UDim2.new(0.5, 0, 0.5, -20)
+	RReqList.Size = UDim2.new(1, 0, 0, 140)
+	RReqList.Position = UDim2.new(0.5, 0, 0.45, 0)
 	RReqList.AnchorPoint = Vector2.new(0.5, 0.5)
 	RReqList.BackgroundTransparency = 1
 	local rreqLayout = Instance.new("UIListLayout", RReqList)
@@ -749,12 +793,11 @@ function SupplyForgeTab.Initialize(parentFrame)
 	rreqLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	rreqLayout.Padding = UDim.new(0, 15)
 
-	local RCraftBtn, RCraftStroke = CreateSharpButton(RInfoView, "COMMENCE RITUAL", UDim2.new(0.5, 0, 0, 50), Enum.Font.GothamBlack, 18)
-	RCraftBtn.Position = UDim2.new(0.5, 0, 1, -40); RCraftBtn.AnchorPoint = Vector2.new(0.5, 1); RCraftBtn.Visible = false
+	local RCraftBtn, RCraftStroke = CreateSharpButton(RInfoView, "COMMENCE RITUAL", UDim2.new(0.6, 0, 0, 50), Enum.Font.GothamBlack, 18)
+	RCraftBtn.Position = UDim2.new(0.5, 0, 1, -15); RCraftBtn.AnchorPoint = Vector2.new(0.5, 1); RCraftBtn.Visible = false
 	RCraftBtn.TextColor3 = Color3.fromRGB(150, 200, 255)
 	RCraftStroke.Color = Color3.fromRGB(150, 200, 255)
 
-	-- Pulse the button to make it feel dangerous/magical
 	TweenService:Create(RCraftStroke, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Transparency = 0.5}):Play()
 
 	local RMiniView = Instance.new("Frame", RitualPanel)
@@ -794,16 +837,16 @@ function SupplyForgeTab.Initialize(parentFrame)
 			if count < amt then hasMats = false; break end
 		end
 
-		if recipe.SpecialType == "MythicalClanRequirement" then
-			local requiredCount = recipe.MythicalClanCount or 2
-			local mythicalClans = {"ItemizedReissCount", "ItemizedAckermanCount"}
-			local foundCount = 0
-			for _, mClanAttr in ipairs(mythicalClans) do
-				local c = player:GetAttribute(mClanAttr) or 0
-				foundCount += c
+		if recipe.SpecialType == "AbyssalClanRequirement" then
+			local abyssalFound = 0
+			local slotsToCheck = {"Clan", "Clan_Slot1", "Clan_Slot2", "Clan_Slot3", "Clan_Slot4", "Clan_Slot5", "Clan_Slot6"}
+			for _, slot in ipairs(slotsToCheck) do
+				local clanVal = player:GetAttribute(slot)
+				if type(clanVal) == "string" and string.find(clanVal, "Abyssal") then
+					abyssalFound += 1
+				end
 			end
-			local hasEnough = foundCount >= requiredCount
-			if not hasEnough then hasMats = false end
+			if abyssalFound < (recipe.AbyssalClanCount or 2) then hasMats = false end
 		end
 
 		if not hasMats then
@@ -835,7 +878,7 @@ function SupplyForgeTab.Initialize(parentFrame)
 	end)
 
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
-		if rec ~= "Fritz Clan Serum" and rec ~= "Ancestral Awakening Serum" then continue end
+		if rec ~= "Fritz Clan Serum" and rec ~= "Ancestral Awakening Serum" and rec ~= "Abyssal Ritual Chalice" then continue end
 
 		local resItem = recipeData.Result
 		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
@@ -886,7 +929,7 @@ function SupplyForgeTab.Initialize(parentFrame)
 
 			local function MakeReq(matName, amt, hasAmt)
 				local rf, rfStrk = CreateGrimPanel(RReqList)
-				rf.Size = UDim2.new(0, 110, 0, 140)
+				rf.Size = UDim2.new(0, 110, 0, 120)
 				rf.ZIndex = 103
 
 				local color = hasAmt and Color3.fromRGB(150, 200, 255) or Color3.fromRGB(150, 40, 40)
@@ -903,8 +946,8 @@ function SupplyForgeTab.Initialize(parentFrame)
 				countLbl.Position = UDim2.new(0,0,0,10)
 				countLbl.ZIndex = 104
 
-				local nameLbl = UIHelpers.CreateLabel(rf, matName:upper(), UDim2.new(1,-10,0,60), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 12)
-				nameLbl.Position = UDim2.new(0,5,0,50)
+				local nameLbl = UIHelpers.CreateLabel(rf, matName:upper(), UDim2.new(1,-10,0,50), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 11)
+				nameLbl.Position = UDim2.new(0,5,0,45)
 				nameLbl.TextWrapped = true
 				nameLbl.ZIndex = 104
 
@@ -921,17 +964,21 @@ function SupplyForgeTab.Initialize(parentFrame)
 					MakeReq(mat, amt, hasEnough) 
 				end
 
-				if ItemData.ForgeRecipes[rec].SpecialType == "MythicalClanRequirement" then
-					local requiredCount = ItemData.ForgeRecipes[rec].MythicalClanCount or 2
-					local mythicalClans = {"ItemizedReissCount", "ItemizedAckermanCount"}
-					local foundCount = 0
-					for _, mClanAttr in ipairs(mythicalClans) do
-						local c = player:GetAttribute(mClanAttr) or 0
-						foundCount += c
+				if ItemData.ForgeRecipes[rec].SpecialType == "AbyssalClanRequirement" then
+					local requiredCount = ItemData.ForgeRecipes[rec].AbyssalClanCount or 2
+					local abyssalFound = 0
+					local slotsToCheck = {"Clan", "Clan_Slot1", "Clan_Slot2", "Clan_Slot3", "Clan_Slot4", "Clan_Slot5", "Clan_Slot6"}
+
+					for _, slot in ipairs(slotsToCheck) do
+						local clanVal = player:GetAttribute(slot)
+						if type(clanVal) == "string" and string.find(clanVal, "Abyssal") then
+							abyssalFound += 1
+						end
 					end
-					local hasEnough = foundCount >= requiredCount
+
+					local hasEnough = abyssalFound >= requiredCount
 					if not hasEnough then hasAllMats = false end
-					MakeReq("Any Mythical Clan", requiredCount, hasEnough)
+					MakeReq("Any Abyssal Lineage", requiredCount, hasEnough)
 				end
 
 				local dCount = tonumber(player:GetAttribute("Dews")) or 0
@@ -947,6 +994,61 @@ function SupplyForgeTab.Initialize(parentFrame)
 		end)
 	end
 
+	-- [[ THE FIX: NEW ABYSSAL ARCHIVES REGISTRY PANEL ]]
+	local rRightPanel, _ = CreateGrimPanel(rSplitContainer)
+	rRightPanel.Size = UDim2.new(0.45, -10, 1, -20)
+	rRightPanel.Position = UDim2.new(0, 0, 0, 10)
+
+	local rRegTitle = UIHelpers.CreateLabel(rRightPanel, "ABYSSAL & TRANSCENDENT ARCHIVES", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(150, 200, 255), 18)
+	rRegTitle.Position = UDim2.new(0, 0, 0, 10)
+
+	local rRegScroll = Instance.new("ScrollingFrame", rRightPanel)
+	rRegScroll.Size = UDim2.new(1, -20, 1, -50)
+	rRegScroll.Position = UDim2.new(0, 10, 0, 40)
+	rRegScroll.BackgroundTransparency = 1
+	rRegScroll.ScrollBarThickness = 4
+	rRegScroll.BorderSizePixel = 0
+
+	local rrsLayout = Instance.new("UIListLayout", rRegScroll)
+	rrsLayout.Padding = UDim.new(0, 10)
+	rrsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() rRegScroll.CanvasSize = UDim2.new(0,0,0, rrsLayout.AbsoluteContentSize.Y + 10) end)
+
+	if ClanData and ClanData.Clans then
+		local sortedClans = {"Yeager", "Tybur", "Ackerman", "Galliard", "Braun", "Reiss", "Fritz"}
+		for _, cName in ipairs(sortedClans) do
+			local cData = ClanData.Clans[cName]
+			if not cData then continue end
+
+			local buffs = GetClanBuffStrings(cName, true)
+			if #buffs > 0 then
+				local card, cStroke = CreateGrimPanel(rRegScroll)
+				card.AutomaticSize = Enum.AutomaticSize.Y
+				card.Size = UDim2.new(1, -10, 0, 0)
+				cStroke.Color = (cName == "Fritz") and UIHelpers.Colors.Gold or Color3.fromRGB(150, 200, 255)
+
+				local cPad = Instance.new("UIPadding", card)
+				cPad.PaddingTop = UDim.new(0, 10)
+				cPad.PaddingBottom = UDim.new(0, 10)
+				cPad.PaddingLeft = UDim.new(0, 15)
+				cPad.PaddingRight = UDim.new(0, 10)
+
+				local clayout = Instance.new("UIListLayout", card)
+				clayout.SortOrder = Enum.SortOrder.LayoutOrder
+				clayout.Padding = UDim.new(0, 5)
+
+				local title = UIHelpers.CreateLabel(card, (cName == "Fritz" and "FRITZ LINEAGE" or "ABYSSAL " .. string.upper(cName)), UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, (cName == "Fritz") and UIHelpers.Colors.Gold or Color3.fromRGB(150, 200, 255), 16)
+				title.LayoutOrder = 1
+				title.TextXAlignment = Enum.TextXAlignment.Left
+
+				for j, txt in ipairs(buffs) do
+					local bLbl = UIHelpers.CreateLabel(card, "• " .. txt, UDim2.new(1, 0, 0, 15), Enum.Font.GothamBold, Color3.fromRGB(200, 220, 255), 12)
+					bLbl.LayoutOrder = j + 1
+					bLbl.TextXAlignment = Enum.TextXAlignment.Left
+					bLbl.AutomaticSize = Enum.AutomaticSize.XY
+				end
+			end
+		end
+	end
 
 	-- ==========================================
 	-- 3. TITAN FUSION
@@ -1061,7 +1163,6 @@ function SupplyForgeTab.Initialize(parentFrame)
 	FuseBtn.TextColor3 = Color3.fromRGB(170, 85, 255)
 	FuseStroke.Color = Color3.fromRGB(170, 85, 255)
 
-	-- [[ THE FIX: DEDICATED FUSION REGISTRY SIDE-TAB ]]
 	local fRightPanel, _ = CreateGrimPanel(fSplitContainer)
 	fRightPanel.Size = UDim2.new(0.45, -10, 1, -20)
 	fRightPanel.Position = UDim2.new(0, 0, 0, 10)
