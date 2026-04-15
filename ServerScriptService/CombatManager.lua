@@ -8,7 +8,7 @@ local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local ClanData = require(ReplicatedStorage:WaitForChild("ClanData"))
 local CombatCore = require(script.Parent:WaitForChild("CombatCore"))
-local LootManager = require(script.Parent:WaitForChild("LootManager"))
+local LootManager = require(script.Parent:WaitForChild("LootManager")) 
 
 local Network = ReplicatedStorage:FindFirstChild("Network") or Instance.new("Folder", ReplicatedStorage)
 Network.Name = "Network"
@@ -21,7 +21,7 @@ end
 
 local CombatAction = GetRemote("CombatAction")
 local CombatUpdate = GetRemote("CombatUpdate")
-local PlayVFX = GetRemote("PlayVFX")
+local PlayVFX = GetRemote("PlayVFX") 
 
 local ActiveBattles = {}
 
@@ -408,7 +408,6 @@ local function StartBattle(player, encounterType, requestedPartId)
 	if eTemplate.IsMinigame then CombatUpdate:FireClient(player, "StartMinigame", { Battle = ActiveBattles[player.UserId], LogMsg = logFlavor, MinigameType = eTemplate.IsMinigame })
 	else CombatUpdate:FireClient(player, "Start", { Battle = ActiveBattles[player.UserId], LogMsg = logFlavor }) end
 
-	-- [[ THE FIX: Auto-Eject monitor so players don't swing at a dead global boss ]]
 	if encounterType == "EngageDoomsday" then
 		task.spawn(function()
 			local success, DoomsdayManager = pcall(function() return require(game:GetService("ServerScriptService"):WaitForChild("DoomsdayManager")) end)
@@ -834,15 +833,39 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 		if not isTransformed then
 			if skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "Transformed" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
-				local myClan = player:GetAttribute("Clan")
-				-- [[ THE FIX: Updated to natively allow Abyssal Clans to use Awakened moves! ]]
-				if not (myClan and (string.find(myClan, skill.Requirement) or (skill.Requirement == "Awakened" and string.find(myClan, "Abyssal")))) then
-					local wpn = player:GetAttribute("EquippedWeapon")
-					local wpnStyle = wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style or "None"
-					if wpnStyle ~= skill.Requirement then
-						CombatUpdate:FireClient(player, "Update", {Battle = battle})
-						return
+				local req = tostring(skill.Requirement)
+				local myClan = player:GetAttribute("Clan") or "None"
+				local isValid = false
+
+				if myClan ~= "None" then
+					if string.find(myClan, req, 1, true) then 
+						isValid = true 
+					elseif string.find(req, "Awakened", 1, true) then
+						local baseReq = string.gsub(req, "Awakened ", "")
+						if string.find(myClan, "Abyssal " .. baseReq, 1, true) then
+							isValid = true
+						end
 					end
+				end
+
+				if not isValid then
+					if type(ItemData) == "table" and ItemData.Equipment then
+						for iName, iData in pairs(ItemData.Equipment) do
+							if iData.Style == req then
+								local safeNameBase = iName:gsub("[^%w]", "")
+								local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0
+								if count > 0 then 
+									isValid = true
+									break 
+								end
+							end
+						end
+					end
+				end
+
+				if not isValid then
+					CombatUpdate:FireClient(player, "Update", {Battle = battle})
+					return
 				end
 			end
 		else
@@ -858,7 +881,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 			local req = skill.Requirement
 			local myTitan = player:GetAttribute("Titan")
-			if req == "Transformed" or req == "AnyTitan" or req == myTitan or (myTitan and string.find(myTitan, req)) then
+			if req == "Transformed" or req == "AnyTitan" or req == myTitan or (myTitan and string.find(myTitan, req, 1, true)) then
 				isValidMove = true
 			end
 
