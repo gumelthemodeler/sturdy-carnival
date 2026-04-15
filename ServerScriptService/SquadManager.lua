@@ -478,11 +478,18 @@ local function LoadPlayerSquad(player)
 		end
 
 		if sqData then
+			-- NEW LOGIC: Verify against fresh Datastore if the cache is missing the player
 			if not sqData.Members[tostring(player.UserId)] then
-				player:SetAttribute("SquadName", "None")
-				player:SetAttribute("SquadIsLeader", false)
-				player:SetAttribute("YmirFavored", false)
-				return
+				local success, freshData = pcall(function() return SquadStore:GetAsync(mySquad) end)
+				if success and freshData and freshData.Members[tostring(player.UserId)] then
+					sqData = freshData
+					ActiveSquads[mySquad] = sqData -- Update the stale cache
+				else
+					player:SetAttribute("SquadName", "None")
+					player:SetAttribute("SquadIsLeader", false)
+					player:SetAttribute("YmirFavored", false)
+					return
+				end
 			end
 
 			player:SetAttribute("SquadDesc", sqData.Desc)
