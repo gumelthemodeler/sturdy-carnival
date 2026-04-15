@@ -43,6 +43,16 @@ local ActiveCodes = {
 			["Spinal Fluid Syringe"] = 1
 		}
 	},
+	["1KMEMBERS"] = {
+		Items = {
+			["Standard Titan Serum"] = 15,
+		}
+	},
+	["BESTIARY"] = {
+		Items = {
+			["Clan Blood Vial"] = 15,
+		}
+	}
 
 }
 
