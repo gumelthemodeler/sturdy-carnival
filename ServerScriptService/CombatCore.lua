@@ -341,7 +341,8 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 		elseif skill.Effect == "Transform" then
 			local cName = attacker.Clan or "None"
-			if attacker.IsPlayer and (cName == "Ackerman" or cName == "Awakened Ackerman" or attacker.Titan == "None") then
+			-- [[ THE FIX: Updated to support Abyssal Ackerman as well! ]]
+			if attacker.IsPlayer and (string.find(cName, "Ackerman") or attacker.Titan == "None") then
 				return fLogName .. " attempted to use <b>" .. skillName .. "</b>, but their lineage prevents Titan transformation!", false, "None"
 			end
 			if not attacker.Statuses then attacker.Statuses = {} end
@@ -509,12 +510,12 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		local baseDmg = CombatCore.CalculateDamage(attacker, defender, dmgMultValue, targetLimb, battleContext)
 		local survivalTriggered, hitGate, gateBroken, hpDmg, gateName = CombatCore.TakeDamage(defender, baseDmg, attacker.Style)
 
-		-- [[ THE FIX: Bulletproof pcall around Doomsday Hook ]]
+		-- [[ THE FIX: Bulletproof pcall around Doomsday Hook & Send baseDmg! ]]
 		if defender.IsDoomsdayBoss and attacker.IsPlayer and attacker.PlayerObj then
-			if hpDmg > 0 then
+			if baseDmg > 0 then
 				local success, err = pcall(function()
 					local DoomsdayManager = require(game:GetService("ServerScriptService"):WaitForChild("DoomsdayManager"))
-					DoomsdayManager.RegisterDamage(attacker.PlayerObj, hpDmg)
+					DoomsdayManager.RegisterDamage(attacker.PlayerObj, baseDmg)
 				end)
 				if not success then
 					warn("[DOOMSDAY ERROR]: Failed to log damage! Ensure DoomsdayManager is a ModuleScript. Error: " .. tostring(err))
