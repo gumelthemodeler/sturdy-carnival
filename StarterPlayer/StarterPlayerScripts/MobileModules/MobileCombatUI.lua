@@ -1,6 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- Name: MobileCombatUI
 local MobileCombatUI = {}
 
 local Players = game:GetService("Players")
@@ -8,16 +7,17 @@ local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Network = ReplicatedStorage:WaitForChild("Network")
 
-local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
+local player = Players.LocalPlayer
+local playerScripts = player:WaitForChild("PlayerScripts")
+local SharedUI = playerScripts:WaitForChild("SharedUI")
 local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
-local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData")) 
-local MobileCombatBuilder = require(script.Parent:WaitForChild("MobileCombatBuilder"))
-local VFXManager = require(script.Parent.Parent:WaitForChild("VFXManager"))
+local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
+local MobileCombatBuilder = require(playerScripts:WaitForChild("MobileModules"):WaitForChild("MobileCombatBuilder"))
+local VFXManager = require(playerScripts:WaitForChild("VFXManager"))
 
-local player = Players.LocalPlayer
-local GUI = nil 
+local GUI = nil
 local MasterGuiRef = nil 
 
 local currentBattleState = nil
@@ -50,17 +50,11 @@ local function AbbreviateNumber(n)
 	return str .. (Suffixes[suffixIndex + 1] or "")
 end
 
--- [[ THE FIX: Commas formatter so players can see the exact HP tick down ]]
-local function FormatCommas(n)
-	local str = tostring(math.floor(tonumber(n) or 0))
-	return str:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
-end
-
 local function BuildDoomsdayBoard()
 	if doomsdayBoard then return end
 	doomsdayBoard = Instance.new("Frame", MasterGuiRef)
-	doomsdayBoard.Size = UDim2.new(0, 200, 0, 150)
-	doomsdayBoard.Position = UDim2.new(1, -20, 0, 20)
+	doomsdayBoard.Size = UDim2.new(0, 150, 0, 100)
+	doomsdayBoard.Position = UDim2.new(1, -10, 0, 10)
 	doomsdayBoard.AnchorPoint = Vector2.new(1, 0)
 	doomsdayBoard.BackgroundTransparency = 1 
 	doomsdayBoard.Visible = false
@@ -71,7 +65,7 @@ local function BuildDoomsdayBoard()
 	ddScroll.BackgroundTransparency = 1
 
 	local layout = Instance.new("UIListLayout", ddScroll)
-	layout.Padding = UDim.new(0, 5)
+	layout.Padding = UDim.new(0, 2)
 	layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 	layout.VerticalAlignment = Enum.VerticalAlignment.Top
 end
@@ -84,10 +78,10 @@ local function UpdateDoomsdayBoard(data)
 	end
 
 	local titleLbl = Instance.new("TextLabel", ddScroll)
-	titleLbl.Size = UDim2.new(0, 200, 0, 20); titleLbl.BackgroundTransparency = 1
-	titleLbl.Font = Enum.Font.GothamBlack; titleLbl.TextSize = 14; titleLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
+	titleLbl.Size = UDim2.new(0, 150, 0, 14); titleLbl.BackgroundTransparency = 1
+	titleLbl.Font = Enum.Font.GothamBlack; titleLbl.TextSize = 10; titleLbl.TextColor3 = Color3.fromRGB(255, 100, 100)
 	titleLbl.TextXAlignment = Enum.TextXAlignment.Right; titleLbl.Text = "TOP CONTRIBUTORS"
-	local ts1 = Instance.new("UIStroke", titleLbl); ts1.Thickness = 2
+	local ts1 = Instance.new("UIStroke", titleLbl); ts1.Thickness = 1
 
 	local myRank = nil
 	local myDamage = 0
@@ -103,27 +97,26 @@ local function UpdateDoomsdayBoard(data)
 			if pData.Name == player.Name then cColor = Color3.fromRGB(100, 255, 100) end
 
 			local entryLbl = Instance.new("TextLabel", ddScroll)
-			entryLbl.Size = UDim2.new(0, 200, 0, 16); entryLbl.BackgroundTransparency = 1
-			entryLbl.Font = Enum.Font.GothamBold; entryLbl.TextSize = 12; entryLbl.TextColor3 = cColor
+			entryLbl.Size = UDim2.new(0, 150, 0, 12); entryLbl.BackgroundTransparency = 1
+			entryLbl.Font = Enum.Font.GothamBold; entryLbl.TextSize = 9; entryLbl.TextColor3 = cColor
 			entryLbl.TextXAlignment = Enum.TextXAlignment.Right
-			-- [[ Leaderboard keeps abbreviations so it doesn't overlap screen bounds ]]
 			entryLbl.Text = "#" .. i .. " " .. pData.Name .. " - " .. AbbreviateNumber(pData.Damage)
-			local ts = Instance.new("UIStroke", entryLbl); ts.Thickness = 2
+			local ts = Instance.new("UIStroke", entryLbl); ts.Thickness = 1
 		end
 	end
 
 	local sepLbl = Instance.new("TextLabel", ddScroll)
-	sepLbl.Size = UDim2.new(0, 200, 0, 10); sepLbl.BackgroundTransparency = 1
-	sepLbl.Font = Enum.Font.GothamMedium; sepLbl.TextSize = 12; sepLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
+	sepLbl.Size = UDim2.new(0, 150, 0, 8); sepLbl.BackgroundTransparency = 1
+	sepLbl.Font = Enum.Font.GothamMedium; sepLbl.TextSize = 9; sepLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
 	sepLbl.TextXAlignment = Enum.TextXAlignment.Right; sepLbl.Text = "..."
-	local ts2 = Instance.new("UIStroke", sepLbl); ts2.Thickness = 2
+	local ts2 = Instance.new("UIStroke", sepLbl); ts2.Thickness = 1
 
 	local meLbl = Instance.new("TextLabel", ddScroll)
-	meLbl.Size = UDim2.new(0, 200, 0, 16); meLbl.BackgroundTransparency = 1
-	meLbl.Font = Enum.Font.GothamBlack; meLbl.TextSize = 12; meLbl.TextColor3 = Color3.fromRGB(100, 255, 100)
+	meLbl.Size = UDim2.new(0, 150, 0, 12); meLbl.BackgroundTransparency = 1
+	meLbl.Font = Enum.Font.GothamBlack; meLbl.TextSize = 9; meLbl.TextColor3 = Color3.fromRGB(100, 255, 100)
 	meLbl.TextXAlignment = Enum.TextXAlignment.Right
 	meLbl.Text = (myRank and "#" .. myRank or "UNRANKED") .. " YOU - " .. AbbreviateNumber(myDamage)
-	local ts3 = Instance.new("UIStroke", meLbl); ts3.Thickness = 2
+	local ts3 = Instance.new("UIStroke", meLbl); ts3.Thickness = 1
 end
 
 local function CreateMinimalButton(parent, text, size, baseColorHex)
@@ -131,30 +124,20 @@ local function CreateMinimalButton(parent, text, size, baseColorHex)
 	btn.Size = size; btn.BackgroundColor3 = Color3.fromRGB(22, 22, 26); btn.BorderSizePixel = 0
 	btn.AutoButtonColor = false; btn.Font = Enum.Font.GothamBold; btn.Text = text
 
+	btn.TextScaled = true
+	local tsc = Instance.new("UITextSizeConstraint", btn)
+	tsc.MaxTextSize = 11
+	tsc.MinTextSize = 7
+
 	local cColor = Color3.fromHex(baseColorHex:gsub("#", ""))
 	btn.TextColor3 = cColor
 
-	btn.TextWrapped = true
-	btn.TextScaled = true
-	local tsc = Instance.new("UITextSizeConstraint", btn)
-	tsc.MaxTextSize = 22; tsc.MinTextSize = 10
-
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
 	local stroke = Instance.new("UIStroke", btn)
-	stroke.Color = cColor
-	stroke.Thickness = 2
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Color = Color3.fromRGB(45, 45, 50); stroke.Thickness = 1; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-	btn.InputBegan:Connect(function(input) 
-		if btn.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then 
-			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35)}):Play()
-		end
-	end)
-	btn.InputEnded:Connect(function(input) 
-		if btn.Active and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then 
-			TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 26)}):Play()
-		end
-	end)
+	btn.InputBegan:Connect(function() if btn.Active then TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(30, 30, 35)}):Play(); TweenService:Create(stroke, TweenInfo.new(0.2), {Color = cColor}):Play() end end)
+	btn.InputEnded:Connect(function() if btn.Active then TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 26)}):Play(); TweenService:Create(stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(45, 45, 50)}):Play() end end)
 	return btn
 end
 
@@ -162,7 +145,7 @@ local function RenderStatuses(container, combatant)
 	if not container then return end
 	for _, child in ipairs(container:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
 	local function addIcon(iconTxt, bgColor, strokeColor)
-		local f = Instance.new("Frame", container); f.Size = UDim2.new(0, 30, 0, 22); f.BackgroundColor3 = bgColor; Instance.new("UICorner", f).CornerRadius = UDim.new(0, 4)
+		local f = Instance.new("Frame", container); f.Size = UDim2.new(0, 18, 0, 14); f.BackgroundColor3 = bgColor; Instance.new("UICorner", f).CornerRadius = UDim.new(0, 3)
 		local s = Instance.new("UIStroke", f); s.Color = strokeColor; s.Thickness = 1; s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		local t = Instance.new("TextLabel", f); t.Size = UDim2.new(1, 0, 1, 0); t.BackgroundTransparency = 1; t.Font = Enum.Font.GothamBlack; t.Text = iconTxt; t.TextColor3 = Color3.fromRGB(255,255,255); t.TextScaled = true
 	end
@@ -189,9 +172,8 @@ local function AppendLog(message, colorHex)
 	local panel = Instance.new("Frame", GUI.LogScroll)
 	panel.Size = UDim2.new(1, 0, 0, 0); panel.BackgroundColor3 = Color3.fromRGB(15, 15, 18); panel.BackgroundTransparency = 0.3; panel.BorderSizePixel = 0; panel.AutomaticSize = Enum.AutomaticSize.Y
 	local pStroke = Instance.new("UIStroke", panel); pStroke.Color = Color3.fromRGB(40, 40, 45)
-	local pad = Instance.new("UIPadding", panel); pad.PaddingLeft = UDim.new(0, 10); pad.PaddingRight = UDim.new(0, 10); pad.PaddingTop = UDim.new(0, 8); pad.PaddingBottom = UDim.new(0, 8)
-
-	local lbl = UIHelpers.CreateLabel(panel, message, UDim2.new(1, 0, 0, 0), Enum.Font.GothamMedium, logColor, 16)
+	local pad = Instance.new("UIPadding", panel); pad.PaddingLeft = UDim.new(0, 5); pad.PaddingRight = UDim.new(0, 5); pad.PaddingTop = UDim.new(0, 5); pad.PaddingBottom = UDim.new(0, 5)
+	local lbl = UIHelpers.CreateLabel(panel, message, UDim2.new(1, 0, 0, 0), Enum.Font.GothamMedium, logColor, 10)
 	lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.RichText = true; lbl.TextWrapped = true; lbl.AutomaticSize = Enum.AutomaticSize.Y
 
 	local children = GUI.LogScroll:GetChildren()
@@ -205,7 +187,7 @@ local function PlayLootAnimation(rewards)
 	task.spawn(function()
 		for i, reward in ipairs(rewards) do
 			local popup = Instance.new("Frame", GUI.CombatWindow)
-			popup.Size = UDim2.new(0.4, 0, 0.1, 0)
+			popup.Size = UDim2.new(0, 180, 0, 30)
 			local startX = math.random(35, 65) / 100
 			local startY = math.random(30, 50) / 100
 			popup.Position = UDim2.new(startX, 0, startY, 0)
@@ -213,12 +195,11 @@ local function PlayLootAnimation(rewards)
 			popup.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 			popup.BackgroundTransparency = 0.1
 			popup.ZIndex = 250
-			Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 6)
-			local stroke = Instance.new("UIStroke", popup); stroke.Color = Color3.fromHex(reward.Color:gsub("#", "")); stroke.Thickness = 2; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 4)
+			local stroke = Instance.new("UIStroke", popup); stroke.Color = Color3.fromHex(reward.Color:gsub("#", "")); stroke.Thickness = 1; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-			local lbl = UIHelpers.CreateLabel(popup, reward.Text, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex(reward.Color:gsub("#", "")), 18)
-			lbl.ZIndex = 251; lbl.TextScaled = true; local tsc = Instance.new("UITextSizeConstraint", lbl); tsc.MaxTextSize = 22
-
+			local lbl = UIHelpers.CreateLabel(popup, reward.Text, UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, Color3.fromHex(reward.Color:gsub("#", "")), 12)
+			lbl.ZIndex = 251
 			local scale = Instance.new("UIScale", popup); scale.Scale = 0
 
 			if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("Reveal", 1.0 + (i * 0.05)) end
@@ -252,8 +233,7 @@ local function UpdatePvPSkills()
 	if GUI.ActionGrid then for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end end
 
 	if isSpectating then
-		local lbl = UIHelpers.CreateLabel(GUI.ActionGrid, "SPECTATING MATCH...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 20)
-		lbl.TextScaled = true
+		UIHelpers.CreateLabel(GUI.ActionGrid, "SPECTATING MATCH...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 14)
 		return
 	end
 
@@ -266,15 +246,14 @@ local function UpdatePvPSkills()
 		local btnText = customLabel or string.upper(skillName)
 		local btn = CreateMinimalButton(GUI.ActionGrid, btnText, UDim2.new(0, 0, 0, 0), baseColor or "#DDDDDD")
 
-		btn.MouseButton1Click:Connect(function()
+		btn.Activated:Connect(function()
 			if inputLocked then return end
 			inputLocked = true 
 			HideAlly()
 
 			if InstantSkills[skillName] or skillName == "Surrender" or skillName == "Recover" then
 				for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-				local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "WAITING FOR OPPONENT...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
-				execLbl.TextScaled = true
+				UIHelpers.CreateLabel(GUI.ActionGrid, "WAITING FOR OPPONENT...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 14)
 				if skillName == "Surrender" then Network:WaitForChild("PvPAction"):FireServer("Surrender", currentPvPMatch)
 				else Network:WaitForChild("PvPAction"):FireServer("SubmitMove", currentPvPMatch, skillName) end
 			else
@@ -397,12 +376,12 @@ local function CloseUI(forcePathsOpen)
 
 	if GUI.CombatWindow then GUI.CombatWindow.Visible = false end
 
-	local hasMusic, MusicManager = pcall(function() return require(script.Parent.Parent:WaitForChild("MusicManager")) end)
+	local hasMusic, MusicManager = pcall(function() return require(player.PlayerScripts:WaitForChild("MusicManager")) end)
 	if hasMusic and MusicManager then MusicManager.SetCategory("Lobby") end
 
 	if forcePathsOpen then
 		task.delay(0.2, function()
-			local pathsModule = script.Parent:FindFirstChild("PathsShopUI")
+			local pathsModule = player.PlayerScripts:FindFirstChild("UIModules") and player.PlayerScripts.UIModules:FindFirstChild("PathsShopUI")
 			if pathsModule and pathsModule:IsA("ModuleScript") then
 				require(pathsModule).OpenShop()
 			end
@@ -438,9 +417,8 @@ local function UpdateState(data)
 					local dData = Network:WaitForChild("GetDoomsdayData"):InvokeServer()
 					UpdateDoomsdayBoard(dData)
 
-					-- [[ THE FIX: Comma Formatter implemented specifically on Boss Health ]]
 					if dData and dData.MaxHP and dData.BossHP then
-						GUI.eHPText.Text = "GLOBAL HP: " .. FormatCommas(dData.BossHP)
+						GUI.eHPText.Text = "GLOBAL HP: " .. AbbreviateNumber(dData.BossHP)
 						TweenService:Create(GUI.eHPBar, tInfo, {Size = UDim2.new(dData.MaxHP > 0 and math.clamp(dData.BossHP / dData.MaxHP, 0, 1) or 0, 0, 1, 0)}):Play()
 					end
 
@@ -546,6 +524,46 @@ local function GetTitanSkills(titanName)
 	return movesets[titanName] or {}
 end
 
+local function IsSkillValid(skillName, isTransformedCheck)
+	local sData = SkillData.Skills[skillName]
+	if not sData then return false end
+
+	local req = tostring(sData.Requirement or "None")
+
+	if isTransformedCheck then
+		local myTitan = player:GetAttribute("Titan") or "None"
+		local universalTitanMoves = { ["Eject"]=true, ["Titan Recover"]=true, ["Titan Rest"]=true, ["Cannibalize"]=true, ["Maneuver"]=true, ["Evasive Maneuver"]=true, ["Block"]=true, ["Close In"]=true, ["Fall Back"]=true, ["Advance"]=true, ["Charge"]=true, ["Transform"]=true, ["Titan Punch"]=true, ["Titan Kick"]=true }
+
+		if req == "Transformed" or req == "AnyTitan" or req == myTitan or string.find(myTitan, req, 1, true) or universalTitanMoves[skillName] then
+			return true
+		end
+		return false
+	end
+
+	if req == "None" or req == "ODM" then return true end
+
+	local myClan = player:GetAttribute("Clan") or "None"
+	if myClan ~= "None" then
+		if string.find(myClan, req, 1, true) then return true end
+		if string.find(req, "Awakened", 1, true) then
+			local baseReq = string.gsub(req, "Awakened ", "")
+			if string.find(myClan, "Abyssal " .. baseReq, 1, true) then return true end
+		end
+	end
+
+	if type(ItemData) == "table" and ItemData.Equipment then
+		for iName, iData in pairs(ItemData.Equipment) do
+			if iData.Style == req then
+				local safeNameBase = iName:gsub("[^%w]", "")
+				local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or 0
+				if count > 0 then return true end
+			end
+		end
+	end
+
+	return false
+end
+
 local function UpdateSkills()
 	inputLocked = false
 	if GUI.ActionGrid then GUI.ActionGrid.Visible = true end
@@ -635,7 +653,7 @@ local function UpdateSkills()
 			btn.TextColor3 = Color3.fromRGB(100, 100, 100)
 			local stroke = btn:FindFirstChild("UIStroke"); if stroke then stroke.Color = Color3.fromRGB(50, 50, 50) end
 
-			btn.MouseButton1Click:Connect(function()
+			btn.Activated:Connect(function()
 				if inputLocked then return end
 				if string.find(errorReason, "NO GAS") then
 					if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("GasHiss", 1.0) end
@@ -659,7 +677,7 @@ local function UpdateSkills()
 				end
 			end
 
-			btn.MouseButton1Click:Connect(function()
+			btn.Activated:Connect(function()
 				if inputLocked then return end
 				inputLocked = true 
 				HideAlly()
@@ -668,13 +686,13 @@ local function UpdateSkills()
 					local wasPaths = (skillName == "Retreat" or skillName == "Flee") and currentBattleState and currentBattleState.Context and currentBattleState.Context.IsPaths
 
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
-					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 20
+					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 16)
+					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 18
 					Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = skillName})
 
 					if wasPaths then
 						task.delay(1.5, function()
-							local pathsModule = script.Parent:FindFirstChild("PathsShopUI")
+							local pathsModule = player.PlayerScripts:FindFirstChild("UIModules") and player.PlayerScripts.UIModules:FindFirstChild("PathsShopUI")
 							if pathsModule and pathsModule:IsA("ModuleScript") then require(pathsModule).OpenShop() end
 						end)
 					end
@@ -688,44 +706,11 @@ local function UpdateSkills()
 		end
 	end
 
-	local universalTitanMoves = {
-		["Eject"] = true, ["Titan Recover"] = true, ["Titan Rest"] = true, ["Cannibalize"] = true,
-		["Maneuver"] = true, ["Evasive Maneuver"] = true, ["Block"] = true, ["Close In"] = true,
-		["Fall Back"] = true, ["Advance"] = true, ["Charge"] = true, ["Transform"] = true,
-		["Titan Punch"] = true, ["Titan Kick"] = true
-	}
-
 	for i = 1, 4 do
 		local skillName = player:GetAttribute("EquippedSkill_" .. i)
-		local isValid = false
-		if skillName and skillName ~= "" and skillName ~= "None" then
-			local sData = SkillData.Skills[skillName]
-			if sData then
-				local req = sData.Requirement
-				if isTransformed then
-					local myTitan = player:GetAttribute("Titan")
-					if req == "Transformed" or req == "AnyTitan" or req == myTitan or (myTitan and string.find(myTitan, req)) or universalTitanMoves[skillName] then
-						isValid = true
-					end
-				else
-					if req == "None" or req == "ODM" then
-						isValid = true
-					else
-						local myClan = player:GetAttribute("Clan")
-						if myClan and string.find(myClan, req) then
-							isValid = true
-						else
-							local wpn = player:GetAttribute("EquippedWeapon")
-							if wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style == req then
-								isValid = true
-							end
-						end
-					end
-				end
-			end
+		if not skillName or skillName == "" or skillName == "None" or not IsSkillValid(skillName, isTransformed) then 
+			skillName = fallbacks[i] 
 		end
-
-		if not isValid then skillName = fallbacks[i] end
 		CreateSkillButton(skillName)
 	end
 
@@ -738,12 +723,20 @@ local function UpdateSkills()
 			end
 		end
 	else
-		local myClan = player:GetAttribute("Clan")
-		if myClan and myClan ~= "None" then
+		local myClan = player:GetAttribute("Clan") or "None"
+		if myClan ~= "None" then
 			local clanSkills = {}
 			for sName, sData in pairs(SkillData.Skills) do
 				if sData.Type == "Style" and sData.Requirement and not string.find(sData.Requirement, "ODM") then
-					if string.find(myClan, sData.Requirement) then table.insert(clanSkills, {Name = sName, Data = sData}) end
+					local req = tostring(sData.Requirement)
+					if string.find(myClan, req, 1, true) then 
+						table.insert(clanSkills, {Name = sName, Data = sData}) 
+					elseif string.find(req, "Awakened", 1, true) then
+						local baseReq = string.gsub(req, "Awakened ", "")
+						if string.find(myClan, "Abyssal " .. baseReq, 1, true) then
+							table.insert(clanSkills, {Name = sName, Data = sData}) 
+						end
+					end
 				end
 			end
 			table.sort(clanSkills, function(a, b) return (a.Data.Order or 99) < (b.Data.Order or 99) end)
@@ -763,10 +756,18 @@ local function UpdateSkills()
 	if currentRange == "Close" then CreateSkillButton("Fall Back", "FALL BACK", "#FFAA55")
 	else CreateSkillButton("Close In", isTransformed and "CHARGE" or "CLOSE IN", "#FFAA55") end
 
+	local myCurrentClan = player:GetAttribute("Clan") or "None"
+	local isAckerman = string.find(myCurrentClan, "Ackerman", 1, true) ~= nil
 	local hasTitan = player:GetAttribute("Titan") and player:GetAttribute("Titan") ~= "None"
-	if GUI.pHeatContainer then GUI.pHeatContainer.Visible = hasTitan end
-	if hasTitan and not isTransformed then CreateSkillButton("Transform", "TRANSFORM", "#FFD700")
-	elseif isTransformed then CreateSkillButton("Eject", "EJECT", "#FFD700") end
+	local canTransform = hasTitan and not isAckerman
+
+	if GUI.pHeatContainer then GUI.pHeatContainer.Visible = canTransform or isTransformed end
+
+	if canTransform and not isTransformed then 
+		CreateSkillButton("Transform", "TRANSFORM", "#FFD700")
+	elseif isTransformed then 
+		CreateSkillButton("Eject", "EJECT", "#FFD700") 
+	end
 
 	CreateSkillButton("Retreat", "FLEE", "#FF5555")
 end
@@ -803,6 +804,7 @@ local function ShowUI(data)
 	end
 
 	AppendLog("<b>[SYSTEM] Tactical Engagement Initiated.</b>", "#FFD700")
+
 	if data and data.LogMsg then AppendLog(data.LogMsg) end
 
 	if data and data.Battle then
@@ -822,16 +824,20 @@ local function ShowUI(data)
 	UpdateSkills()
 end
 
+
+-- ==========================================
+-- INITIALIZATION
+-- ==========================================
 function MobileCombatUI.Initialize(masterScreenGui)
 	MasterGuiRef = masterScreenGui
 	GUI = MobileCombatBuilder.Build(masterScreenGui, player)
 
-	GUI.ClickOverlay.MouseButton1Click:Connect(function()
+	GUI.ClickOverlay.Activated:Connect(function()
 		if isTypewriting then skipTypewriting = true else ClickSignal:Fire() end
 	end)
 
 	for targetId, limbBtn in pairs(GUI.Limbs) do
-		limbBtn.MouseButton1Click:Connect(function()
+		limbBtn.Activated:Connect(function()
 			if pendingSkillName and not inputLocked then
 				inputLocked = true
 				HideAlly()
@@ -841,10 +847,8 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 				if GUI.ActionGrid then
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "WAITING...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
-					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 24
+					UIHelpers.CreateLabel(GUI.ActionGrid, "WAITING...", UDim2.new(0, 150, 0, 30), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 12)
 				end
-
 				local trueTarget = targetId
 				if targetId == "LArm" or targetId == "RArm" then trueTarget = "Arms" end
 				if targetId == "LLeg" or targetId == "RLeg" then trueTarget = "Legs" end
@@ -859,7 +863,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 		end)
 	end
 
-	GUI.CancelBtn.MouseButton1Click:Connect(function()
+	GUI.CancelBtn.Activated:Connect(function()
 		if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 		if GUI.ActionGrid then GUI.ActionGrid.Visible = true end
 		pendingSkillName = nil 
@@ -924,6 +928,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if GUI.CombatWindow and not GUI.CombatWindow.Visible then
 					if GUI.CombatBackdrop then GUI.CombatBackdrop.Visible = true; TweenService:Create(GUI.CombatBackdrop, TweenInfo.new(0.4), {BackgroundTransparency = 0.4}):Play() end
 					GUI.CombatWindow.Visible = true
+					if GUI.WindowScale then TweenService:Create(GUI.WindowScale, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end
 				end
 
 				if GUI.CombatantsFrame then GUI.CombatantsFrame.Visible = true end
@@ -977,8 +982,8 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 					local choicesArray = data.Choices or {"CONTINUE STORY"}
 					for idx, choiceText in ipairs(choicesArray) do
-						local btn = CreateMinimalButton(GUI.ChoicesContainer, choiceText, UDim2.new(0.6, 0, 0, 50), "#55FF55")
-						btn.MouseButton1Click:Connect(function()
+						local btn = CreateMinimalButton(GUI.ChoicesContainer, choiceText, UDim2.new(0, 200, 0, 35), "#55FF55")
+						btn.Activated:Connect(function()
 							GUI.DialogueBox.Visible = false
 							if GUI.LogContainer then GUI.LogContainer.Visible = true end
 							if GUI.ActionContainer then GUI.ActionContainer.Visible = true end
@@ -1021,7 +1026,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				end
 
 				local c
-				c = GUI.ExecuteBanner.MouseButton1Click:Connect(function()
+				c = GUI.ExecuteBanner.Activated:Connect(function()
 					c:Disconnect()
 
 					if VFXManager and type(VFXManager.PlaySFX) == "function" then 
@@ -1170,12 +1175,12 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 				if GUI.ActionGrid then
 					local continueBtn = CreateMinimalButton(GUI.ActionGrid, "CONTINUE EXPEDITION", UDim2.new(0, 0, 0, 0), "#55FF55")
-					continueBtn.MouseButton1Click:Connect(function()
+					continueBtn.Activated:Connect(function()
 						UpdateSkills()
 					end)
 
 					local retreatBtn = CreateMinimalButton(GUI.ActionGrid, "RETREAT TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
-					retreatBtn.MouseButton1Click:Connect(function()
+					retreatBtn.Activated:Connect(function()
 						Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = "Retreat"})
 					end)
 				end
@@ -1228,13 +1233,13 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if GUI.ActionGrid then
 					if data and data.Battle and data.Battle.Context and data.Battle.Context.IsStoryMission then
 						local continueCampBtn = CreateMinimalButton(GUI.ActionGrid, "CONTINUE CAMPAIGN", UDim2.new(0, 0, 0, 0), "#FFD700")
-						continueCampBtn.MouseButton1Click:Connect(function()
+						continueCampBtn.Activated:Connect(function()
 							Network:WaitForChild("CombatAction"):FireServer("EngageStory")
 						end)
 					end
 
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "RETURN TO COMMAND", UDim2.new(0, 0, 0, 0), "#55FF55")
-					closeBtn.MouseButton1Click:Connect(function() 
+					closeBtn.Activated:Connect(function() 
 						CloseUI() 
 					end)
 				end
@@ -1264,7 +1269,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 				if GUI.ActionGrid then
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "RETURN TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
-					closeBtn.MouseButton1Click:Connect(function() 
+					closeBtn.Activated:Connect(function() 
 						CloseUI(wasPaths) 
 					end)
 				end
@@ -1291,7 +1296,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end
 					GUI.ActionGrid.Visible = true
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "FORCE RETURN", UDim2.new(0, 0, 0, 0), "#FF5555")
-					closeBtn.MouseButton1Click:Connect(function() CloseUI() end)
+					closeBtn.Activated:Connect(function() CloseUI() end)
 				end
 			end
 		end
