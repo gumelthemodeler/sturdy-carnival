@@ -189,7 +189,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			local btnCover = Instance.new("TextButton", card); btnCover.Size = UDim2.new(1,0,1,0); btnCover.BackgroundTransparency = 1; btnCover.Text = ""; btnCover.ZIndex = 5
 
 			local ActionsOverlay = Instance.new("Frame", card); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.05; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
-			local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+			local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.FillDirection = Enum.FillDirection.Vertical; actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
 			local buttonConsumed = false; 
 			local function MakeOverlayBtn(text) 
@@ -488,7 +488,7 @@ local function BuildPrestigeTab(parentFrame)
 	UnlockBtn.Activated:Connect(function() if SelectedNodeId then Network:WaitForChild("UnlockPrestigeNode"):FireServer(SelectedNodeId) end end)
 
 	local function UpdateUI()
-		local pts = player:GetAttribute("PrestigePoints") or 0
+		local pts = player:GetAttribute("PrestigePoints") or 0; if PointsLabel then PointsLabel.Text = "AVAILABLE POINTS: " .. pts end
 		for id, gui in pairs(NodeGuis) do
 			local isOwned = player:GetAttribute("PrestigeNode_" .. id); local node = type(GameData) == "table" and GameData.PrestigeNodes and GameData.PrestigeNodes[id] or nil; if not node then continue end; local hasReq = node.Req == nil or player:GetAttribute("PrestigeNode_" .. node.Req)
 			if isOwned then gui.Btn.BorderColor3 = gui.BaseColor; gui.Btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); gui.Icon.TextColor3 = gui.BaseColor; gui.Glow.ImageColor3 = gui.BaseColor; gui.Glow.ImageTransparency = 0.4; if gui.Line then gui.Line.BackgroundColor3 = gui.BaseColor; gui.Line.ZIndex = 2 end
@@ -820,6 +820,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local cResult, cPity, cRoll, cPrem, cAuto, cStores = CreateGachaPanel("Clan", 2)
 
 	local function UpdateUI()
+		-- [[ THE FIX: Ignore dynamic UI updates while spinning so it doesn't flash the final result too early ]]
 		if not isRolling.Titan and not isAutoRolling.Titan then tResult.Text = "Current: " .. (player:GetAttribute("Titan") or "None") end
 		if not isRolling.Clan and not isAutoRolling.Clan then cResult.Text = "Current: " .. (player:GetAttribute("Clan") or "None") end
 
