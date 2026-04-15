@@ -20,6 +20,27 @@ local function GetUniqueSlotCount(plr)
 	return count
 end
 
+function LootManager.GiveOrAutoSellItem(player, itemName, amount)
+	local iData = ItemData.Equipment[itemName] or ItemData.Consumables[itemName]
+	if not iData then return end
+
+	local rarity = iData.Rarity or "Common"
+	local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
+
+	if isAutoSellEnabled then
+		local sellValue = (SellValues[rarity] or 10) * amount
+		player.leaderstats.Dews.Value += sellValue
+		local NotificationEvent = Network:FindFirstChild("NotificationEvent")
+		if NotificationEvent then
+			NotificationEvent:FireClient(player, "Auto-Sold " .. itemName .. " for " .. sellValue .. " Dews!", "Success")
+		end
+	else
+		local safeName = itemName:gsub("[^%w]", "") .. "Count"
+		local currentAmt = player:GetAttribute(safeName) or 0
+		player:SetAttribute(safeName, currentAmt + amount)
+	end
+end
+
 function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 	local droppedItems = {}
 	local autoSoldDewsCapacity = 0
@@ -30,28 +51,21 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 	local isYmirFavored = player:GetAttribute("YmirFavored")
 	local favoredMultiplier = isYmirFavored and 1.5 or 1.0 
 
+	local luckBoost = 1.0
+	local luckExpiry = player:GetAttribute("Buff_Luck_Expiry") or 0
+	if os.time() <= luckExpiry then
+		luckBoost = player:GetAttribute("LuckBoost") or 1.0
+	end
+
 	if enemyDrops and enemyDrops.ItemChance then
 		for itemName, baseChance in pairs(enemyDrops.ItemChance) do
 			local iData = ItemData.Equipment[itemName] or ItemData.Consumables[itemName]
 			local rarity = iData and iData.Rarity or "Common"
+
 			local finalChance = baseChance
 
-			if string.find(string.lower(itemName), "serum") then
-				finalChance = baseChance * 0.10 
-			elseif rarity == "Mythical" or rarity == "Transcendent" then
-				finalChance = baseChance * 0.25
-			elseif rarity == "Legendary" then
-				finalChance = baseChance * 0.50
-			elseif rarity == "Epic" then
-				finalChance = baseChance * 1.0
-			elseif rarity == "Rare" then
-				finalChance = baseChance * 2.0
-			elseif rarity == "Uncommon" or rarity == "Common" then
-				finalChance = baseChance * 4.0 
-			end
-
 			if isEndless then
-				-- Massively buffed wave scaling for endless mode
+				-- Wave scaling for endless mode
 				if rarity == "Mythical" then finalChance += (currentWave * 0.1)
 				elseif rarity == "Legendary" then finalChance += (currentWave * 0.3)
 				elseif rarity == "Epic" then finalChance += (currentWave * 1.0)
@@ -61,7 +75,8 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 				finalChance = finalChance * 1.5
 			end
 
-			finalChance = finalChance * favoredMultiplier
+			-- Apply Global multipliers alongside active Luck buff
+			finalChance = finalChance * favoredMultiplier * luckBoost
 			finalChance = math.clamp(finalChance, 0.01, 100)
 
 			local roll = math.random() * 100
