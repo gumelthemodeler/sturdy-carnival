@@ -8,6 +8,8 @@ local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 local CosmeticData = require(ReplicatedStorage:WaitForChild("CosmeticData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData")) 
+-- [[ THE FIX: Required ItemData so we can dynamically check Gamepass IDs ]]
+local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
@@ -232,7 +234,7 @@ PrestigeAction.OnServerInvoke = function(player)
 		local statsToReset = {"Health", "Gas", "Strength", "Defense", "Speed", "Resolve", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 		for _, s in ipairs(statsToReset) do
 			player:SetAttribute(s, 10) 
-			player:SetAttribute("Invested_" .. s, 10) -- Add this line to clear the hidden invested cap
+			player:SetAttribute("Invested_" .. s, 10)
 		end
 
 		player:SetAttribute("CurrentPart", 1)
@@ -249,10 +251,16 @@ PrestigeAction.OnServerInvoke = function(player)
 	end
 end
 
+-- [[ THE FIX: Updated Purchase Handler to verify ALL Gamepasses dynamically ]]
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
-	if wasPurchased and passId == 1749846514 then 
-		player:SetAttribute("HasAutoTrain", true)
-		NotificationEvent:FireClient(player, "Auto-Train Gamepass activated!", "Success")
+	if not wasPurchased then return end
+
+	for _, passData in ipairs(ItemData.Gamepasses) do
+		if passData.ID == passId then
+			player:SetAttribute("Has" .. passData.Key, true)
+			NotificationEvent:FireClient(player, passData.Name .. " activated!", "Success")
+			break
+		end
 	end
 end)
 
@@ -305,10 +313,20 @@ local function VerifyCoordinateTitle(player)
 	end
 end
 
+-- [[ THE FIX: Verify all owned gamepasses when the player loads into the game ]]
 Players.PlayerAdded:Connect(function(player)
 	player:GetAttributeChangedSignal("Titan"):Connect(function()
 		VerifyCoordinateTitle(player)
 	end)
+
+	for _, pass in ipairs(ItemData.Gamepasses) do
+		local success, ownsPass = pcall(function()
+			return MarketplaceService:UserOwnsGamePassAsync(player.UserId, pass.ID)
+		end)
+		if success and ownsPass then
+			player:SetAttribute("Has" .. pass.Key, true)
+		end
+	end
 end)
 
 -- [[ MEMORY RUNES: Infinite Progression Sink ]]
@@ -348,13 +366,16 @@ UpgradeRuneEvent.OnServerEvent:Connect(function(player, runeId)
 	end
 end)
 
--- [[ RELICS SHOP: Path Dust Rare Materials ]]
+-- [[ RELICS SHOP: Path Dust Rare Materials & Consumables ]]
 local PathsShopBuy = Network:FindFirstChild("PathsShopBuy") or Instance.new("RemoteEvent", Network)
 PathsShopBuy.Name = "PathsShopBuy"
 
 local PathShopItems = {
+	["Scout's Clover"] = 5,
+	["Ymir's Blessing"] = 20,
 	["Spinal Fluid Syringe"] = 25,
 	["Coordinate Shard"] = 50,
+	["Tears of the Founder"] = 100,
 	["Abyssal Blood"] = 100,
 	["Ymir's Clay Fragment"] = 200,
 	["Eldian Crown"] = 500,
