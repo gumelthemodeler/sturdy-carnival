@@ -31,7 +31,7 @@ local CONFIG = {
 		{Id = "SUPPLY_FORGE", Title = "MARKET & FORGERY", Icon = "rbxassetid://108619507999123"},
 		{Id = "REGIMENTS", Title = "REGIMENT HEADQUARTERS", Icon = "rbxassetid://74069077964164"},
 		-- [[ ADDED BESTIARY TO DOCK ]]
-		{Id = "BESTIARY", Title = "ABYSSAL BESTIARY", Icon = "rbxassetid://115407261158495"} 
+		{Id = "BESTIARY", Title = "ABYSSAL BESTIARY", Icon = "rbxassetid://119375458206372"} 
 	},
 	Currencies = {
 		{Id = "XP", Title = "XP", Color = "#55FF55"},
