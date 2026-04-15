@@ -616,29 +616,43 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 		rBtn.InputBegan:Connect(function() rTitleLbl.TextColor3 = UIHelpers.Colors.Gold; rTagLbl.TextColor3 = UIHelpers.Colors.Gold; rStrk.Color = UIHelpers.Colors.Gold end)
 		rBtn.InputEnded:Connect(function() rTitleLbl.TextColor3 = rColor; rTagLbl.TextColor3 = Color3.fromRGB(200, 200, 200); rStrk.Color = rColor end)
 
-		rBtn.MouseButton1Click:Connect(function()
-			selectedRecipeName = rec 
-			bpTitle.Text = string.upper(rec); bpTitle.TextColor3 = rColor
-			bpDesc.Text = "<font color='" .. ColorToHex(rColor) .. "'>[" .. rarity:upper() .. "]</font> " .. (resData and resData.Desc or "A piece of equipment forged from rare materials."); bpDesc.RichText = true
-			ReqTitle.Visible = true; CraftBtn.Visible = true
+		-- [[ THE FIX: Updated to check for ANY Itemized Abyssal Clan, regardless of type! ]]
+		rBtn.Activated:Connect(function()
+			selectedRitualName = rec 
+			rbpTitle.Text = string.upper(rec); rbpTitle.TextColor3 = rColor
+			rbpDesc.Text = "<font color='" .. ColorToHex(rColor) .. "'>[" .. rarity:upper() .. "]</font> " .. (resData and resData.Desc or "A forbidden rite."); rbpDesc.RichText = true
+			RReqTitle.Visible = true; RCraftBtn.Visible = true
 
-			for _, c in ipairs(ReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+			for _, c in ipairs(RReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+			for _, c in ipairs(RBuffList:GetChildren()) do if c:IsA("TextLabel") then c:Destroy() end end
 
 			local function MakeReq(matName, amt, hasAmt)
-				local rf = Instance.new("Frame", ReqList)
-				rf.Size = UDim2.new(1, 0, 0, 25)
-				rf.BackgroundTransparency = 1
+				local rf, rfStrk = CreateGrimPanel(RReqList)
+				rf.Size = UDim2.new(0, 110, 0, 120)
 				rf.ZIndex = 103
 
-				local reqBg = Instance.new("Frame", rf)
-				reqBg.Size = UDim2.new(1, 0, 1, 0)
-				reqBg.BackgroundColor3 = hasAmt and UIHelpers.Colors.BorderMuted or Color3.fromRGB(150, 40, 40)
-				reqBg.BackgroundTransparency = hasAmt and 0.5 or 0 
-				reqBg.BorderSizePixel = 0
-				local rGrad = Instance.new("UIGradient", reqBg); rGrad.Rotation = 90; rGrad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.7) }
+				local color = hasAmt and Color3.fromRGB(150, 200, 255) or Color3.fromRGB(150, 40, 40)
+				rfStrk.Color = color
 
-				local l = UIHelpers.CreateLabel(rf, amt .. "x " .. matName, UDim2.new(1, -10, 1, 0), Enum.Font.GothamBold, hasAmt and UIHelpers.Colors.TextWhite or Color3.fromRGB(255, 100, 100), 11)
-				l.Position = UDim2.new(0, 10, 0, 0); l.TextXAlignment = Enum.TextXAlignment.Left; l.ZIndex = 104
+				local glow = Instance.new("Frame", rf)
+				glow.Size = UDim2.new(1,0,1,0)
+				glow.BackgroundColor3 = color
+				glow.BackgroundTransparency = hasAmt and 0.8 or 0.95
+				glow.BorderSizePixel = 0
+				glow.ZIndex = 102
+
+				local countLbl = UIHelpers.CreateLabel(rf, amt .. "x", UDim2.new(1,0,0,30), Enum.Font.GothamBlack, color, 20)
+				countLbl.Position = UDim2.new(0,0,0,10)
+				countLbl.ZIndex = 104
+
+				local nameLbl = UIHelpers.CreateLabel(rf, matName:upper(), UDim2.new(1,-10,0,50), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 11)
+				nameLbl.Position = UDim2.new(0,5,0,45)
+				nameLbl.TextWrapped = true
+				nameLbl.ZIndex = 104
+
+				local statusLbl = UIHelpers.CreateLabel(rf, hasAmt and "FULFILLED" or "MISSING", UDim2.new(1,0,0,20), Enum.Font.GothamBlack, color, 10)
+				statusLbl.Position = UDim2.new(0,0,1,-25)
+				statusLbl.ZIndex = 104
 			end
 
 			local hasAllMats = true
@@ -648,15 +662,30 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 					local hasEnough = count >= amt; if not hasEnough then hasAllMats = false end
 					MakeReq(mat, amt, hasEnough) 
 				end
+
+				if ItemData.ForgeRecipes[rec].SpecialType == "AbyssalClanRequirement" then
+					local requiredCount = ItemData.ForgeRecipes[rec].AbyssalClanCount or 2
+					local abyssalFound = 0
+					local abyssalClans = {
+						"ItemizedAbyssalYeagerCount", "ItemizedAbyssalTyburCount", "ItemizedAbyssalAckermanCount", 
+						"ItemizedAbyssalGalliardCount", "ItemizedAbyssalBraunCount", "ItemizedAbyssalReissCount"
+					}
+
+					for _, attr in ipairs(abyssalClans) do
+						local count = player:GetAttribute(attr) or 0
+						if count > 0 then
+							abyssalFound += count
+						end
+					end
+
+					local hasEnough = abyssalFound >= requiredCount
+					if not hasEnough then hasAllMats = false end
+					MakeReq("Itemized Abyssal Variant", requiredCount, hasEnough)
+				end
+
 				local dCount = tonumber(player:GetAttribute("Dews")) or 0
 				local hasDews = dCount >= ItemData.ForgeRecipes[rec].DewCost; if not hasDews then hasAllMats = false end
 				MakeReq("Dews", ItemData.ForgeRecipes[rec].DewCost, hasDews)
-			end
-
-			if hasAllMats then
-				CraftBtn.Active = true; CraftBtn.Text = "START FORGE"; CraftBtn.TextColor3 = rColor; CraftStroke.Color = rColor
-			else
-				CraftBtn.Active = false; CraftBtn.Text = "INSUFFICIENT MATERIALS"; CraftBtn.TextColor3 = Color3.fromRGB(100, 100, 100); CraftStroke.Color = Color3.fromRGB(50, 50, 60)
 			end
 		end)
 	end
