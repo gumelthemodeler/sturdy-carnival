@@ -8,7 +8,7 @@ local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local ClanData = require(ReplicatedStorage:WaitForChild("ClanData"))
 local CombatCore = require(script.Parent:WaitForChild("CombatCore"))
-local LootManager = require(script.Parent:WaitForChild("LootManager")) 
+local LootManager = require(script.Parent:WaitForChild("LootManager"))
 
 local Network = ReplicatedStorage:FindFirstChild("Network") or Instance.new("Folder", ReplicatedStorage)
 Network.Name = "Network"
@@ -21,7 +21,7 @@ end
 
 local CombatAction = GetRemote("CombatAction")
 local CombatUpdate = GetRemote("CombatUpdate")
-local PlayVFX = GetRemote("PlayVFX") 
+local PlayVFX = GetRemote("PlayVFX")
 
 local ActiveBattles = {}
 
@@ -835,7 +835,8 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		if not isTransformed then
 			if skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "Transformed" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
 				local myClan = player:GetAttribute("Clan")
-				if not (myClan and string.find(myClan, skill.Requirement)) then
+				-- [[ THE FIX: Updated to natively allow Abyssal Clans to use Awakened moves! ]]
+				if not (myClan and (string.find(myClan, skill.Requirement) or (skill.Requirement == "Awakened" and string.find(myClan, "Abyssal")))) then
 					local wpn = player:GetAttribute("EquippedWeapon")
 					local wpnStyle = wpn and ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Style or "None"
 					if wpnStyle ~= skill.Requirement then
