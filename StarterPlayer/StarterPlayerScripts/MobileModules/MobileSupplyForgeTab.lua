@@ -1,8 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- @ScriptType: ModuleScript
 -- Name: MobileSupplyForgeTab
--- @ScriptType: ModuleScript
 local MobileSupplyForgeTab = {}
 
 local Players = game:GetService("Players")
@@ -18,6 +16,7 @@ local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local NotificationManager = require(SharedUI:WaitForChild("NotificationManager"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local TitanData = require(ReplicatedStorage:WaitForChild("TitanData")) 
+local ClanData = require(ReplicatedStorage:WaitForChild("ClanData")) -- [[ ADDED: ClanData for Buffs ]]
 local hasSkillData, SkillData = pcall(function() return require(ReplicatedStorage:WaitForChild("SkillData")) end)
 local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
 
@@ -79,6 +78,43 @@ local function CreateSharpButton(parent, text, size, font, textSize)
 		end
 	end)
 	return btn, stroke
+end
+
+-- [[ HELPER: Get Abyssal Buffs ]]
+local function GetClanBuffStrings(clanKey, isAbyssal)
+	local buffs = {}
+	if not ClanData.Clans or not ClanData.Clans[clanKey] then return buffs end
+	local cData = ClanData.Clans[clanKey]
+
+	if clanKey == "Fritz" then
+		table.insert(buffs, "6.0x MAX HP | 5.0x DMG | 5.0x ARMOR | 3.5x SPEED")
+		table.insert(buffs, "8x Guaranteed Death Defiance")
+		table.insert(buffs, "Founding Titan Synergy: +0.50x DMG, HP, ARMOR")
+		return buffs
+	end
+
+	if isAbyssal then
+		local statLine = ""
+		if cData.AbyssalDmgMult then statLine = statLine .. cData.AbyssalDmgMult .. "x DMG | " end
+		if cData.AbyssalHpMult then statLine = statLine .. cData.AbyssalHpMult .. "x HP | " end
+		if cData.AbyssalArmorMult then statLine = statLine .. cData.AbyssalArmorMult .. "x ARMOR | " end
+		if cData.AbyssalSpdMult then statLine = statLine .. cData.AbyssalSpdMult .. "x SPD | " end
+		if statLine ~= "" then table.insert(buffs, statLine:sub(1, -3)) end
+
+		if cData.AbyssalSurvivals then
+			table.insert(buffs, cData.AbyssalSurvivals .. "x Death Defiance (" .. (cData.SurvivalChance or 100) .. "%)")
+		end
+		if cData.AbyssalNapeCritMultiplier then
+			table.insert(buffs, cData.AbyssalNapeCritMultiplier .. "x Nape Crit DMG")
+		end
+		if cData.AbyssalDodgeBonus then
+			table.insert(buffs, "+" .. cData.AbyssalDodgeBonus .. "% Dodge Chance")
+		end
+		if cData.AbyssalMomentumDamagePerHit then
+			table.insert(buffs, "+" .. (cData.AbyssalMomentumDamagePerHit*100) .. "% DMG per Momentum Stack")
+		end
+	end
+	return buffs
 end
 
 function MobileSupplyForgeTab.Initialize(parentFrame)
@@ -550,7 +586,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	rlLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RecipeList.Size = UDim2.new(1, -10, 0, rlLayout.AbsoluteContentSize.Y) end)
 
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
-		if rec == "Fritz Clan Serum" or rec == "Ancestral Awakening Serum" then continue end
+		if rec == "Fritz Clan Serum" or rec == "Ancestral Awakening Serum" or rec == "Abyssal Ritual Chalice" then continue end
 		local resItem = recipeData.Result
 		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
 		local rarity = resData and resData.Rarity or "Common"
@@ -669,9 +705,24 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	RReqList.BackgroundTransparency = 1
 	local rreqLayout = Instance.new("UIListLayout", RReqList); rreqLayout.Padding = UDim.new(0, 8)
 
+	-- [[ ADDED: RBuffList for displaying Abyssal Multipliers ]]
+	local RBuffList = Instance.new("Frame", RInfoView)
+	RBuffList.Size = UDim2.new(1, -20, 0, 100)
+	RBuffList.Position = UDim2.new(0, 10, 0, 280) 
+	RBuffList.BackgroundTransparency = 1
+	local rbuffLayout = Instance.new("UIListLayout", RBuffList)
+	rbuffLayout.FillDirection = Enum.FillDirection.Vertical
+	rbuffLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	rbuffLayout.Padding = UDim.new(0, 5)
+
 	rreqLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		RReqList.Size = UDim2.new(1, -20, 0, rreqLayout.AbsoluteContentSize.Y)
-		RitualPanel.Size = UDim2.new(1, -10, 0, 125 + rreqLayout.AbsoluteContentSize.Y + 70)
+		RBuffList.Position = UDim2.new(0, 10, 0, 120 + rreqLayout.AbsoluteContentSize.Y + 10)
+
+		local buffHeight = rbuffLayout.AbsoluteContentSize.Y
+		RBuffList.Size = UDim2.new(1, -20, 0, buffHeight)
+
+		RitualPanel.Size = UDim2.new(1, -10, 0, 125 + rreqLayout.AbsoluteContentSize.Y + buffHeight + 80)
 	end)
 
 	local RCraftBtn, RCraftStroke = CreateSharpButton(RInfoView, "COMMENCE RITUAL", UDim2.new(0.8, 0, 0, 45), Enum.Font.GothamBlack, 16)
@@ -715,15 +766,16 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 			if count < amt then hasMats = false; break end
 		end
 
-		if recipe.SpecialType == "MythicalClanRequirement" then
-			local requiredCount = recipe.MythicalClanCount or 2
-			local mythicalClans = {"ItemizedReissCount", "ItemizedAckermanCount"}
-			local foundCount = 0
-			for _, mClanAttr in ipairs(mythicalClans) do
-				local c = player:GetAttribute(mClanAttr) or 0
-				foundCount += c
+		if recipe.SpecialType == "AbyssalClanRequirement" then
+			local abyssalFound = 0
+			local slotsToCheck = {"Clan", "Clan_Slot1", "Clan_Slot2", "Clan_Slot3", "Clan_Slot4", "Clan_Slot5", "Clan_Slot6"}
+			for _, slot in ipairs(slotsToCheck) do
+				local clanVal = player:GetAttribute(slot)
+				if type(clanVal) == "string" and string.find(clanVal, "Abyssal") then
+					abyssalFound += 1
+				end
 			end
-			if foundCount < requiredCount then hasMats = false end
+			if abyssalFound < (recipe.AbyssalClanCount or 2) then hasMats = false end
 		end
 
 		if not hasMats then NotificationManager.Show("Missing required sacrifices!", "Error") return end
@@ -792,7 +844,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 	rillLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RitualList.Size = UDim2.new(1, -10, 0, rillLayout.AbsoluteContentSize.Y) end)
 
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
-		if rec ~= "Fritz Clan Serum" and rec ~= "Ancestral Awakening Serum" then continue end
+		if rec ~= "Fritz Clan Serum" and rec ~= "Ancestral Awakening Serum" and rec ~= "Abyssal Ritual Chalice" then continue end
 
 		local resItem = recipeData.Result
 		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
@@ -833,6 +885,7 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 			RReqTitle.Visible = true; RCraftBtn.Visible = true
 
 			for _, c in ipairs(RReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+			for _, c in ipairs(RBuffList:GetChildren()) do if c:IsA("TextLabel") then c:Destroy() end end
 
 			local function MakeReq(matName, amt, hasAmt)
 				local rf = Instance.new("Frame", RReqList)
@@ -859,22 +912,55 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 					MakeReq(mat, amt, hasEnough) 
 				end
 
-				if ItemData.ForgeRecipes[rec].SpecialType == "MythicalClanRequirement" then
-					local requiredCount = ItemData.ForgeRecipes[rec].MythicalClanCount or 2
-					local mythicalClans = {"ItemizedReissCount", "ItemizedAckermanCount"}
-					local foundCount = 0
-					for _, mClanAttr in ipairs(mythicalClans) do
-						local c = player:GetAttribute(mClanAttr) or 0
-						foundCount += c
+				if ItemData.ForgeRecipes[rec].SpecialType == "AbyssalClanRequirement" then
+					local requiredCount = ItemData.ForgeRecipes[rec].AbyssalClanCount or 2
+					local abyssalFound = 0
+					local slotsToCheck = {"Clan", "Clan_Slot1", "Clan_Slot2", "Clan_Slot3", "Clan_Slot4", "Clan_Slot5", "Clan_Slot6"}
+
+					for _, slot in ipairs(slotsToCheck) do
+						local clanVal = player:GetAttribute(slot)
+						if type(clanVal) == "string" and string.find(clanVal, "Abyssal") then
+							abyssalFound += 1
+						end
 					end
-					local hasEnough = foundCount >= requiredCount
+
+					local hasEnough = abyssalFound >= requiredCount
 					if not hasEnough then hasAllMats = false end
-					MakeReq("Any Mythical Clan", requiredCount, hasEnough)
+					MakeReq("Any Abyssal Lineage", requiredCount, hasEnough)
 				end
 
 				local dCount = tonumber(player:GetAttribute("Dews")) or 0
 				local hasDews = dCount >= ItemData.ForgeRecipes[rec].DewCost; if not hasDews then hasAllMats = false end
 				MakeReq("Dews", ItemData.ForgeRecipes[rec].DewCost, hasDews)
+			end
+
+			-- [[ POPULATE DYNAMIC BUFFS ]]
+			local cKey = nil
+			local isAbyssal = false
+			if rec == "Fritz Clan Serum" then
+				cKey = "Fritz"
+				isAbyssal = true
+			elseif rec == "Abyssal Ritual Chalice" then
+				local currentClan = player:GetAttribute("Clan") or ""
+				local baseClan = string.gsub(currentClan, "Awakened ", "")
+				baseClan = string.gsub(baseClan, "Abyssal ", "")
+				cKey = baseClan
+				isAbyssal = true
+			end
+
+			if cKey then
+				local buffs = GetClanBuffStrings(cKey, isAbyssal)
+				if #buffs > 0 then
+					local bTitle = UIHelpers.CreateLabel(RBuffList, "RITUAL EMPOWERMENTS:", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 12)
+					bTitle.LayoutOrder = 0
+					bTitle.TextXAlignment = Enum.TextXAlignment.Left
+					for i, txt in ipairs(buffs) do
+						local bLbl = UIHelpers.CreateLabel(RBuffList, "• " .. txt, UDim2.new(1, 0, 0, 15), Enum.Font.GothamBold, Color3.fromRGB(200, 220, 255), 11)
+						bLbl.LayoutOrder = i
+						bLbl.TextXAlignment = Enum.TextXAlignment.Left
+						bLbl.AutomaticSize = Enum.AutomaticSize.XY
+					end
+				end
 			end
 
 			if hasAllMats then
@@ -883,6 +969,65 @@ function MobileSupplyForgeTab.Initialize(parentFrame)
 				RCraftBtn.Active = false; RCraftBtn.Text = "INSUFFICIENT SACRIFICES"; RCraftBtn.TextColor3 = Color3.fromRGB(100, 100, 100); RCraftStroke.Color = Color3.fromRGB(50, 50, 60)
 			end
 		end)
+	end
+
+	-- [[ THE FIX: NEW ABYSSAL ARCHIVES REGISTRY PANEL ]]
+	local ArchivesPanel, aStrk = CreateGrimPanel(rSplitContainer)
+	ArchivesPanel.Size = UDim2.new(1, -10, 0, 250)
+	ArchivesPanel.LayoutOrder = 3
+	aStrk.Color = Color3.fromRGB(100, 150, 255)
+
+	local rRegTitle = UIHelpers.CreateLabel(ArchivesPanel, "ABYSSAL & TRANSCENDENT ARCHIVES", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(150, 200, 255), 14)
+	rRegTitle.Position = UDim2.new(0, 0, 0, 10)
+
+	local rRegScroll = Instance.new("ScrollingFrame", ArchivesPanel)
+	rRegScroll.Size = UDim2.new(1, -20, 1, -50)
+	rRegScroll.Position = UDim2.new(0, 10, 0, 40)
+	rRegScroll.BackgroundTransparency = 1
+	rRegScroll.ScrollBarThickness = 4
+	rRegScroll.BorderSizePixel = 0
+
+	local rrsLayout = Instance.new("UIListLayout", rRegScroll)
+	rrsLayout.Padding = UDim.new(0, 10)
+	rrsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
+		rRegScroll.CanvasSize = UDim2.new(0,0,0, rrsLayout.AbsoluteContentSize.Y + 10) 
+	end)
+
+	if ClanData and ClanData.Clans then
+		local sortedClans = {"Yeager", "Tybur", "Ackerman", "Galliard", "Braun", "Reiss", "Fritz"}
+		for _, cName in ipairs(sortedClans) do
+			local cData = ClanData.Clans[cName]
+			if not cData then continue end
+
+			local buffs = GetClanBuffStrings(cName, true)
+			if #buffs > 0 then
+				local card, cStroke = CreateGrimPanel(rRegScroll)
+				card.AutomaticSize = Enum.AutomaticSize.Y
+				card.Size = UDim2.new(1, -10, 0, 0)
+				cStroke.Color = (cName == "Fritz") and UIHelpers.Colors.Gold or Color3.fromRGB(150, 200, 255)
+
+				local cPad = Instance.new("UIPadding", card)
+				cPad.PaddingTop = UDim.new(0, 10)
+				cPad.PaddingBottom = UDim.new(0, 10)
+				cPad.PaddingLeft = UDim.new(0, 15)
+				cPad.PaddingRight = UDim.new(0, 10)
+
+				local clayout = Instance.new("UIListLayout", card)
+				clayout.SortOrder = Enum.SortOrder.LayoutOrder
+				clayout.Padding = UDim.new(0, 5)
+
+				local title = UIHelpers.CreateLabel(card, (cName == "Fritz" and "FRITZ LINEAGE" or "ABYSSAL " .. string.upper(cName)), UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, (cName == "Fritz") and UIHelpers.Colors.Gold or Color3.fromRGB(150, 200, 255), 14)
+				title.LayoutOrder = 1
+				title.TextXAlignment = Enum.TextXAlignment.Left
+
+				for j, txt in ipairs(buffs) do
+					local bLbl = UIHelpers.CreateLabel(card, "• " .. txt, UDim2.new(1, 0, 0, 15), Enum.Font.GothamBold, Color3.fromRGB(200, 220, 255), 11)
+					bLbl.LayoutOrder = j + 1
+					bLbl.TextXAlignment = Enum.TextXAlignment.Left
+					bLbl.AutomaticSize = Enum.AutomaticSize.XY
+				end
+			end
+		end
 	end
 
 
