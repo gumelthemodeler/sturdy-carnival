@@ -7,6 +7,7 @@ local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local ClanData = require(ReplicatedStorage:WaitForChild("ClanData"))
+local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local CombatCore = require(script.Parent:WaitForChild("CombatCore"))
 local LootManager = require(script.Parent:WaitForChild("LootManager")) 
 
@@ -264,7 +265,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 	local awakenedStats = ParseAwakenedStats(combinedAwakenedString)
 
 	local clanName = player:GetAttribute("Clan") or "None"
-	local isAwakenedClan = string.find(tostring(clanName or ""), "Awakened") ~= nil
+	local isAwakenedClan = string.find(tostring(clanName or ""), "Awakened") ~= nil or string.find(tostring(clanName or ""), "Abyssal") ~= nil
 	local cStats = ClanData.GetClanStats(clanName, isAwakenedClan, player:GetAttribute("Titan"), false)
 
 	local baseHpStat = math.max(10, tonumber(player:GetAttribute("Health")) or 10)
@@ -312,22 +313,13 @@ local function StartBattle(player, encounterType, requestedPartId)
 	local isDynamicBoss = (encounterType == "EngageWorldBoss" or encounterType == "EngageNightmare" or encounterType == "EngageRaid" or encounterType == "EngageDoomsday")
 	if isDynamicBoss then
 		local groupMult = 1
-		local partyStrSum = pTotalStr * (awakenedStats.DmgMult or 1.0)
-		local partyHpSum = pMaxHP
-
 		if encounterType == "EngageWorldBoss" or encounterType == "EngageDoomsday" then 
 			groupMult = math.clamp(#Players:GetPlayers(), 1, 15)
-			partyStrSum = partyStrSum * groupMult
-			partyHpSum = partyHpSum * groupMult
 		elseif encounterType == "EngageRaid" then
 			local getPartyFunc = Network:FindFirstChild("GetPlayerParty")
 			if getPartyFunc then
 				local partyData = getPartyFunc:Invoke(player)
-				if partyData and partyData.Members then 
-					groupMult = #partyData.Members 
-					partyStrSum = partyStrSum * groupMult
-					partyHpSum = partyHpSum * groupMult
-				end
+				if partyData and partyData.Members then groupMult = #partyData.Members end
 			end
 		end
 
@@ -345,15 +337,18 @@ local function StartBattle(player, encounterType, requestedPartId)
 			baseDifficulty = 15.0; expectedTurnsToKill = 9999; expectedHitsToDie = 3
 		end
 
-		local estimatedPartyDps = partyStrSum * 4
-		eHP = math.floor(estimatedPartyDps * expectedTurnsToKill * baseDifficulty)
-		eStr = math.floor((partyHpSum / expectedHitsToDie) / 2 * baseDifficulty)
-		eDef = math.floor(partyStrSum * 0.8) 
+		local statCap = 100 + (prestige * 10)
+		if type(GameData) == "table" and type(GameData.GetStatCap) == "function" then statCap = GameData.GetStatCap(prestige) end
+		local expectedBaseStr = statCap + 50 
+		local expectedBaseHP = (statCap * 10) + 200
+
+		local totalPartyDps = expectedBaseStr * groupMult * 4
+		eHP = math.floor(totalPartyDps * expectedTurnsToKill * baseDifficulty)
+		eStr = math.floor((expectedBaseHP / expectedHitsToDie) / 2 * baseDifficulty) 
+		eDef = math.floor(expectedBaseStr * 0.8 * math.pow(baseDifficulty, 0.5)) 
 		eSpd = math.floor(pTotalSpd * 1.1) 
 
-		if encounterType == "EngageDoomsday" then
-			eHP = 500000000 
-		end
+		if encounterType == "EngageDoomsday" then eHP = 500000000 end
 
 		if eGateType == "Steam" then eGateHP = eTemplate.GateHP 
 		elseif eGateType then
@@ -745,6 +740,60 @@ local function SafeTriggerPathsShop(player, ctx)
 	end
 end
 
+local function IsSkillValid(player, skillName, isTransformedCheck)
+	local sData = SkillData.Skills[skillName]
+	if not sData then return false end
+
+	local req = tostring(sData.Requirement or "None")
+
+	local universalMoves = { 
+		["Maneuver"]=true, ["Evasive Maneuver"]=true, ["Block"]=true, 
+		["Close In"]=true, ["Fall Back"]=true, ["Advance"]=true, ["Charge"]=true, 
+		["Recover"]=true, ["Retreat"]=true, ["Flee"]=true, ["Transform"]=true,
+		["Basic Slash"]=true, ["Heavy Slash"]=true, ["Flare Gun"]=true, ["Anti-Titan Rifle"]=true
+	}
+	if universalMoves[skillName] then return true end
+
+	if isTransformedCheck then
+		local myTitan = player:GetAttribute("Titan") or "None"
+		local titanMoves = { ["Eject"]=true, ["Titan Recover"]=true, ["Titan Rest"]=true, ["Cannibalize"]=true, ["Titan Punch"]=true, ["Titan Kick"]=true }
+
+		if req == "Transformed" or req == "AnyTitan" or req == myTitan or string.find(myTitan, req, 1, true) or titanMoves[skillName] then
+			return true
+		end
+
+		local validHybridMoves = GetTitanSkills(myTitan)
+		for _, m in ipairs(validHybridMoves) do
+			if m == skillName then return true end
+		end
+
+		return false
+	end
+
+	if req == "None" or req == "ODM" then return true end
+
+	local myClan = player:GetAttribute("Clan") or "None"
+	if myClan ~= "None" then
+		if string.find(myClan, req, 1, true) then return true end
+		if string.find(req, "Awakened", 1, true) then
+			local baseReq = string.gsub(req, "Awakened ", "")
+			if string.find(myClan, "Abyssal " .. baseReq, 1, true) then return true end
+		end
+	end
+
+	if type(ItemData) == "table" and ItemData.Equipment then
+		for iName, iData in pairs(ItemData.Equipment) do
+			if iData.Style == req then
+				local safeNameBase = iName:gsub("[^%w]", "")
+				local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0
+				if count > 0 then return true end
+			end
+		end
+	end
+
+	return false
+end
+
 CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if actionType == "EngageStory" or actionType == "EngageWorldBoss" or actionType == "EngageNightmare" or actionType == "EngageRaid" or actionType == "EngageEndless" or actionType == "EngagePaths" or actionType == "EngageDoomsday" then 
 		local pId = actionData and (actionData.PartId or actionData.BossId) or nil; StartBattle(player, actionType, pId); return 
@@ -831,64 +880,9 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if skill then
 		local isTransformed = battle.Player.Statuses and battle.Player.Statuses["Transformed"]
 
-		if not isTransformed then
-			if skill.Requirement and skill.Requirement ~= "None" and skill.Requirement ~= "AnyTitan" and skill.Requirement ~= "Transformed" and skill.Requirement ~= "ODM" and skill.Requirement ~= "Enemy" then
-				local req = tostring(skill.Requirement)
-				local myClan = player:GetAttribute("Clan") or "None"
-				local isValid = false
-
-				if myClan ~= "None" then
-					if string.find(myClan, req, 1, true) then 
-						isValid = true 
-					elseif string.find(req, "Awakened", 1, true) then
-						local baseReq = string.gsub(req, "Awakened ", "")
-						if string.find(myClan, "Abyssal " .. baseReq, 1, true) then
-							isValid = true
-						end
-					end
-				end
-
-				if not isValid then
-					if type(ItemData) == "table" and ItemData.Equipment then
-						for iName, iData in pairs(ItemData.Equipment) do
-							if iData.Style == req then
-								local safeNameBase = iName:gsub("[^%w]", "")
-								local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0
-								if count > 0 then 
-									isValid = true
-									break 
-								end
-							end
-						end
-					end
-				end
-
-				if not isValid then
-					CombatUpdate:FireClient(player, "Update", {Battle = battle})
-					return
-				end
-			end
-		else
-			local validTitanMoves = GetTitanSkills(player:GetAttribute("Titan"))
-			local isValidMove = false
-			for _, m in ipairs(validTitanMoves) do
-				if m == skillName then isValidMove = true; break end
-			end
-
-			if skillName == "Eject" or skillName == "Titan Recover" or skillName == "Titan Rest" or skillName == "Cannibalize" or skillName == "Maneuver" or skillName == "Evasive Maneuver" or skillName == "Block" or skillName == "Close In" or skillName == "Fall Back" or skillName == "Advance" or skillName == "Charge" or skillName == "Titan Punch" or skillName == "Titan Kick" then
-				isValidMove = true
-			end
-
-			local req = skill.Requirement
-			local myTitan = player:GetAttribute("Titan")
-			if req == "Transformed" or req == "AnyTitan" or req == myTitan or (myTitan and string.find(myTitan, req, 1, true)) then
-				isValidMove = true
-			end
-
-			if not isValidMove then
-				CombatUpdate:FireClient(player, "Update", {Battle = battle})
-				return
-			end
+		if not IsSkillValid(player, skillName, isTransformed) then
+			CombatUpdate:FireClient(player, "Update", {Battle = battle})
+			return
 		end
 
 		if not isTransformed then
