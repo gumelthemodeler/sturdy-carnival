@@ -641,8 +641,9 @@ function SupplyForgeTab.Initialize(parentFrame)
 		end)
 	end)
 
+	-- [[ THE FIX: Safely exclude Itemized Abyssal lineages from the regular Forge Tab ]]
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
-		if rec == "Fritz Clan Serum" or rec == "Ancestral Awakening Serum" or rec == "Abyssal Ritual Chalice" then continue end
+		if rec == "Fritz Clan Serum" or rec == "Ancestral Awakening Serum" or string.find(rec, "Itemized Abyssal") then continue end
 
 		local resItem = recipeData.Result
 		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
@@ -678,43 +679,34 @@ function SupplyForgeTab.Initialize(parentFrame)
 		rBtn.MouseEnter:Connect(function() rTitleLbl.TextColor3 = UIHelpers.Colors.Gold; rTagLbl.TextColor3 = UIHelpers.Colors.Gold; rStrk.Color = UIHelpers.Colors.Gold end)
 		rBtn.MouseLeave:Connect(function() rTitleLbl.TextColor3 = rColor; rTagLbl.TextColor3 = Color3.fromRGB(200, 200, 200); rStrk.Color = rColor end)
 
-		-- [[ THE FIX: Updated to check for ANY Itemized Abyssal Clan, regardless of type! ]]
 		rBtn.MouseButton1Click:Connect(function()
-			selectedRitualName = rec 
-			rbpTitle.Text = string.upper(rec); rbpTitle.TextColor3 = rColor
-			rbpDesc.Text = "<font color='" .. ColorToHex(rColor) .. "'>[" .. rarity:upper() .. "]</font> " .. (resData and resData.Desc or "A forbidden rite."); rbpDesc.RichText = true
-			RReqTitle.Visible = true; RCraftBtn.Visible = true
+			selectedRecipeName = rec 
+			bpTitle.Text = string.upper(rec)
+			bpTitle.TextColor3 = rColor
+			bpDesc.Text = "<font color='" .. ColorToHex(rColor) .. "'>[" .. rarity:upper() .. "]</font> " .. (resData and resData.Desc or "A high-tier piece of equipment forged from rare materials.")
+			bpDesc.RichText = true
+			ReqTitle.Visible = true
+			CraftBtn.Visible = true
+			CraftStroke.Color = rColor
+			CraftBtn.TextColor3 = rColor
 
-			for _, c in ipairs(RReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-			for _, c in ipairs(RBuffList:GetChildren()) do if c:IsA("TextLabel") then c:Destroy() end end
+			for _, c in ipairs(ReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
 
 			local function MakeReq(matName, amt, hasAmt)
-				local rf, rfStrk = CreateGrimPanel(RReqList)
-				rf.Size = UDim2.new(0, 110, 0, 120)
+				local rf = Instance.new("Frame", ReqList)
+				rf.Size = UDim2.new(1, 0, 0, 25)
+				rf.BackgroundTransparency = 1
 				rf.ZIndex = 103
 
-				local color = hasAmt and Color3.fromRGB(150, 200, 255) or Color3.fromRGB(150, 40, 40)
-				rfStrk.Color = color
+				local reqBg = Instance.new("Frame", rf)
+				reqBg.Size = UDim2.new(1, 0, 1, 0)
+				reqBg.BackgroundColor3 = hasAmt and UIHelpers.Colors.BorderMuted or Color3.fromRGB(150, 40, 40)
+				reqBg.BackgroundTransparency = hasAmt and 0.5 or 0 
+				reqBg.BorderSizePixel = 0
+				local rGrad = Instance.new("UIGradient", reqBg); rGrad.Rotation = 90; rGrad.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.95), NumberSequenceKeypoint.new(1, 0.7) }
 
-				local glow = Instance.new("Frame", rf)
-				glow.Size = UDim2.new(1,0,1,0)
-				glow.BackgroundColor3 = color
-				glow.BackgroundTransparency = hasAmt and 0.8 or 0.95
-				glow.BorderSizePixel = 0
-				glow.ZIndex = 102
-
-				local countLbl = UIHelpers.CreateLabel(rf, amt .. "x", UDim2.new(1,0,0,30), Enum.Font.GothamBlack, color, 20)
-				countLbl.Position = UDim2.new(0,0,0,10)
-				countLbl.ZIndex = 104
-
-				local nameLbl = UIHelpers.CreateLabel(rf, matName:upper(), UDim2.new(1,-10,0,50), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 11)
-				nameLbl.Position = UDim2.new(0,5,0,45)
-				nameLbl.TextWrapped = true
-				nameLbl.ZIndex = 104
-
-				local statusLbl = UIHelpers.CreateLabel(rf, hasAmt and "FULFILLED" or "MISSING", UDim2.new(1,0,0,20), Enum.Font.GothamBlack, color, 10)
-				statusLbl.Position = UDim2.new(0,0,1,-25)
-				statusLbl.ZIndex = 104
+				local l = UIHelpers.CreateLabel(rf, amt .. "x " .. matName, UDim2.new(1, -10, 1, 0), Enum.Font.GothamBold, hasAmt and UIHelpers.Colors.TextWhite or Color3.fromRGB(255, 100, 100), 11)
+				l.Position = UDim2.new(0, 10, 0, 0); l.TextXAlignment = Enum.TextXAlignment.Left; l.ZIndex = 104
 			end
 
 			local hasAllMats = true
@@ -725,62 +717,39 @@ function SupplyForgeTab.Initialize(parentFrame)
 					MakeReq(mat, amt, hasEnough) 
 				end
 
-				if ItemData.ForgeRecipes[rec].SpecialType == "AbyssalClanRequirement" then
-					local requiredCount = ItemData.ForgeRecipes[rec].AbyssalClanCount or 2
-					local abyssalFound = 0
-					local abyssalClans = {
-						"ItemizedAbyssalYeagerCount", "ItemizedAbyssalTyburCount", "ItemizedAbyssalAckermanCount", 
-						"ItemizedAbyssalGalliardCount", "ItemizedAbyssalBraunCount", "ItemizedAbyssalReissCount"
-					}
-
-					for _, attr in ipairs(abyssalClans) do
-						local count = player:GetAttribute(attr) or 0
-						if count > 0 then
-							abyssalFound += count
-						end
-					end
-
-					local hasEnough = abyssalFound >= requiredCount
-					if not hasEnough then hasAllMats = false end
-					MakeReq("Itemized Abyssal Variant", requiredCount, hasEnough)
-				end
-
 				local dCount = tonumber(player:GetAttribute("Dews")) or 0
 				local hasDews = dCount >= ItemData.ForgeRecipes[rec].DewCost; if not hasDews then hasAllMats = false end
 				MakeReq("Dews", ItemData.ForgeRecipes[rec].DewCost, hasDews)
+			end
+
+			if hasAllMats then
+				CraftBtn.Active = true; CraftBtn.Text = "START FORGE"; CraftBtn.TextColor3 = rColor; CraftStroke.Color = rColor
+			else
+				CraftBtn.Active = false; CraftBtn.Text = "INSUFFICIENT MATERIALS"; CraftBtn.TextColor3 = Color3.fromRGB(100, 100, 100); CraftStroke.Color = Color3.fromRGB(50, 50, 60)
 			end
 		end)
 	end
 
 	-- ==========================================
-	-- 2.5 BLOODLINE RITUAL (NEW)
+	-- 2.5 BLOODLINE RITUAL
 	-- ==========================================
 	local RitualTab = activeSubFrames["BLOODLINE RITUAL"]
 	local selectedRitualName = nil 
 
-	local rSplitContainer = Instance.new("Frame", RitualTab)
-	rSplitContainer.Size = UDim2.new(1, 0, 1, 0)
-	rSplitContainer.BackgroundTransparency = 1
-	local rscLayout = Instance.new("UIListLayout", rSplitContainer)
-	rscLayout.FillDirection = Enum.FillDirection.Horizontal
-	rscLayout.Padding = UDim.new(0, 10)
-
-	local rLeftPanel = Instance.new("Frame", rSplitContainer)
-	rLeftPanel.Size = UDim2.new(0.55, 0, 1, 0)
-	rLeftPanel.BackgroundTransparency = 1
-
-	local RitualList = Instance.new("ScrollingFrame", rLeftPanel)
-	RitualList.Size = UDim2.new(1, 0, 0.35, 0)
+	local RitualList = Instance.new("ScrollingFrame", RitualTab)
+	RitualList.Size = UDim2.new(0.28, 0, 1, 0)
 	RitualList.BackgroundTransparency = 1
 	RitualList.ScrollBarThickness = 4
 	RitualList.BorderSizePixel = 0
+
 	local rillLayout = Instance.new("UIListLayout", RitualList)
 	rillLayout.Padding = UDim.new(0, 10)
 	rillLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RitualList.CanvasSize = UDim2.new(0, 0, 0, rillLayout.AbsoluteContentSize.Y + 20) end)
 
-	local RitualPanel = Instance.new("Frame", rLeftPanel)
-	RitualPanel.Size = UDim2.new(1, 0, 0.65, -10)
-	RitualPanel.Position = UDim2.new(0, 0, 0.35, 10)
+	local RitualPanel = Instance.new("Frame", RitualTab)
+	RitualPanel.Size = UDim2.new(0.7, 0, 1, 0)
+	RitualPanel.Position = UDim2.new(1, 0, 0, 0)
+	RitualPanel.AnchorPoint = Vector2.new(1, 0)
 	RitualPanel.BackgroundTransparency = 1 
 
 	local rBg = Instance.new("ImageLabel", RitualPanel)
@@ -800,14 +769,14 @@ function SupplyForgeTab.Initialize(parentFrame)
 	RInfoView.BackgroundTransparency = 1
 
 	local rbpTitle = UIHelpers.CreateLabel(RInfoView, "AWAITING TRIBUTE", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, Color3.fromRGB(150, 200, 255), 28)
-	rbpTitle.Position = UDim2.new(0, 0, 0, 20); rbpTitle.TextXAlignment = Enum.TextXAlignment.Center
+	rbpTitle.Position = UDim2.new(0, 0, 0, 40); rbpTitle.TextXAlignment = Enum.TextXAlignment.Center
 
 	local rbpDesc = UIHelpers.CreateLabel(RInfoView, "Select a rite from the tomes to rewrite your lineage.", UDim2.new(1, -100, 0, 60), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 14)
-	rbpDesc.Position = UDim2.new(0.5, 0, 0, 60); rbpDesc.AnchorPoint = Vector2.new(0.5, 0); rbpDesc.TextXAlignment = Enum.TextXAlignment.Center; rbpDesc.TextWrapped = true
+	rbpDesc.Position = UDim2.new(0.5, 0, 0, 80); rbpDesc.AnchorPoint = Vector2.new(0.5, 0); rbpDesc.TextXAlignment = Enum.TextXAlignment.Center; rbpDesc.TextWrapped = true
 
 	local RReqList = Instance.new("Frame", RInfoView)
 	RReqList.Size = UDim2.new(1, 0, 0, 140)
-	RReqList.Position = UDim2.new(0.5, 0, 0.45, 0)
+	RReqList.Position = UDim2.new(0.5, 0, 0.4, 0)
 	RReqList.AnchorPoint = Vector2.new(0.5, 0.5)
 	RReqList.BackgroundTransparency = 1
 	local rreqLayout = Instance.new("UIListLayout", RReqList)
@@ -816,8 +785,19 @@ function SupplyForgeTab.Initialize(parentFrame)
 	rreqLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 	rreqLayout.Padding = UDim.new(0, 15)
 
-	local RCraftBtn, RCraftStroke = CreateSharpButton(RInfoView, "COMMENCE RITUAL", UDim2.new(0.6, 0, 0, 50), Enum.Font.GothamBlack, 18)
-	RCraftBtn.Position = UDim2.new(0.5, 0, 1, -15); RCraftBtn.AnchorPoint = Vector2.new(0.5, 1); RCraftBtn.Visible = false
+	local RBuffList = Instance.new("Frame", RInfoView)
+	RBuffList.Size = UDim2.new(1, -60, 0, 100)
+	RBuffList.Position = UDim2.new(0.5, 0, 0.65, 0)
+	RBuffList.AnchorPoint = Vector2.new(0.5, 0.5)
+	RBuffList.BackgroundTransparency = 1
+	local rbuffLayout = Instance.new("UIListLayout", RBuffList)
+	rbuffLayout.FillDirection = Enum.FillDirection.Vertical
+	rbuffLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	rbuffLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	rbuffLayout.Padding = UDim.new(0, 5)
+
+	local RCraftBtn, RCraftStroke = CreateSharpButton(RInfoView, "COMMENCE RITUAL", UDim2.new(0.5, 0, 0, 50), Enum.Font.GothamBlack, 18)
+	RCraftBtn.Position = UDim2.new(0.5, 0, 1, -40); RCraftBtn.AnchorPoint = Vector2.new(0.5, 1); RCraftBtn.Visible = false
 	RCraftBtn.TextColor3 = Color3.fromRGB(150, 200, 255)
 	RCraftStroke.Color = Color3.fromRGB(150, 200, 255)
 
@@ -862,13 +842,18 @@ function SupplyForgeTab.Initialize(parentFrame)
 
 		if recipe.SpecialType == "AbyssalClanRequirement" then
 			local abyssalFound = 0
-			local slotsToCheck = {"Clan", "Clan_Slot1", "Clan_Slot2", "Clan_Slot3", "Clan_Slot4", "Clan_Slot5", "Clan_Slot6"}
-			for _, slot in ipairs(slotsToCheck) do
-				local clanVal = player:GetAttribute(slot)
-				if type(clanVal) == "string" and string.find(clanVal, "Abyssal") then
-					abyssalFound += 1
+			local abyssalClans = {
+				"ItemizedAbyssalYeagerCount", "ItemizedAbyssalTyburCount", "ItemizedAbyssalAckermanCount", 
+				"ItemizedAbyssalGalliardCount", "ItemizedAbyssalBraunCount", "ItemizedAbyssalReissCount"
+			}
+
+			for _, attr in ipairs(abyssalClans) do
+				local count = player:GetAttribute(attr) or 0
+				if count > 0 then
+					abyssalFound += count
 				end
 			end
+
 			if abyssalFound < (recipe.AbyssalClanCount or 2) then hasMats = false end
 		end
 
@@ -900,8 +885,9 @@ function SupplyForgeTab.Initialize(parentFrame)
 		end)
 	end)
 
+	-- [[ THE FIX: Exclusively include Itemized Abyssal Lineages in the Ritual Tab! ]]
 	for rec, recipeData in pairs(ItemData.ForgeRecipes or {}) do
-		if rec ~= "Fritz Clan Serum" and rec ~= "Ancestral Awakening Serum" and rec ~= "Abyssal Ritual Chalice" then continue end
+		if rec ~= "Fritz Clan Serum" and rec ~= "Ancestral Awakening Serum" and not string.find(rec, "Itemized Abyssal") then continue end
 
 		local resItem = recipeData.Result
 		local resData = ItemData.Equipment[resItem] or ItemData.Consumables[resItem]
@@ -949,10 +935,11 @@ function SupplyForgeTab.Initialize(parentFrame)
 			rBg.ImageColor3 = rColor
 
 			for _, c in ipairs(RReqList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+			for _, c in ipairs(RBuffList:GetChildren()) do if c:IsA("TextLabel") then c:Destroy() end end
 
 			local function MakeReq(matName, amt, hasAmt)
 				local rf, rfStrk = CreateGrimPanel(RReqList)
-				rf.Size = UDim2.new(0, 110, 0, 120)
+				rf.Size = UDim2.new(0, 110, 0, 140)
 				rf.ZIndex = 103
 
 				local color = hasAmt and Color3.fromRGB(150, 200, 255) or Color3.fromRGB(150, 40, 40)
@@ -969,8 +956,8 @@ function SupplyForgeTab.Initialize(parentFrame)
 				countLbl.Position = UDim2.new(0,0,0,10)
 				countLbl.ZIndex = 104
 
-				local nameLbl = UIHelpers.CreateLabel(rf, matName:upper(), UDim2.new(1,-10,0,50), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 11)
-				nameLbl.Position = UDim2.new(0,5,0,45)
+				local nameLbl = UIHelpers.CreateLabel(rf, matName:upper(), UDim2.new(1,-10,0,60), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 12)
+				nameLbl.Position = UDim2.new(0,5,0,50)
 				nameLbl.TextWrapped = true
 				nameLbl.ZIndex = 104
 
@@ -990,12 +977,15 @@ function SupplyForgeTab.Initialize(parentFrame)
 				if ItemData.ForgeRecipes[rec].SpecialType == "AbyssalClanRequirement" then
 					local requiredCount = ItemData.ForgeRecipes[rec].AbyssalClanCount or 2
 					local abyssalFound = 0
-					local slotsToCheck = {"Clan", "Clan_Slot1", "Clan_Slot2", "Clan_Slot3", "Clan_Slot4", "Clan_Slot5", "Clan_Slot6"}
+					local abyssalClans = {
+						"ItemizedAbyssalYeagerCount", "ItemizedAbyssalTyburCount", "ItemizedAbyssalAckermanCount", 
+						"ItemizedAbyssalGalliardCount", "ItemizedAbyssalBraunCount", "ItemizedAbyssalReissCount"
+					}
 
-					for _, slot in ipairs(slotsToCheck) do
-						local clanVal = player:GetAttribute(slot)
-						if type(clanVal) == "string" and string.find(clanVal, "Abyssal") then
-							abyssalFound += 1
+					for _, attr in ipairs(abyssalClans) do
+						local count = player:GetAttribute(attr) or 0
+						if count > 0 then
+							abyssalFound += count
 						end
 					end
 
@@ -1009,68 +999,35 @@ function SupplyForgeTab.Initialize(parentFrame)
 				MakeReq("Dews", ItemData.ForgeRecipes[rec].DewCost, hasDews)
 			end
 
+			local cKey = nil
+			local isAbyssal = false
+			if rec == "Fritz Clan Serum" then
+				cKey = "Fritz"
+				isAbyssal = true
+			elseif string.find(rec, "Itemized Abyssal") then
+				local baseClan = string.gsub(rec, "Itemized Abyssal ", "")
+				cKey = baseClan
+				isAbyssal = true
+			end
+
+			if cKey then
+				local buffs = GetClanBuffStrings(cKey, isAbyssal)
+				if #buffs > 0 then
+					local bTitle = UIHelpers.CreateLabel(RBuffList, "RITUAL EMPOWERMENTS:", UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14)
+					bTitle.LayoutOrder = 0
+					for i, txt in ipairs(buffs) do
+						local bLbl = UIHelpers.CreateLabel(RBuffList, "• " .. txt, UDim2.new(1, 0, 0, 18), Enum.Font.GothamBold, Color3.fromRGB(200, 220, 255), 12)
+						bLbl.LayoutOrder = i
+					end
+				end
+			end
+
 			if hasAllMats then
 				RCraftBtn.Active = true; RCraftBtn.Text = "COMMENCE RITUAL"; RCraftBtn.TextColor3 = rColor; RCraftStroke.Color = rColor
 			else
 				RCraftBtn.Active = false; RCraftBtn.Text = "INSUFFICIENT SACRIFICES"; RCraftBtn.TextColor3 = Color3.fromRGB(100, 100, 100); RCraftStroke.Color = Color3.fromRGB(50, 50, 60)
 			end
 		end)
-	end
-
-	-- [[ THE FIX: NEW ABYSSAL ARCHIVES REGISTRY PANEL ]]
-	local rRightPanel, _ = CreateGrimPanel(rSplitContainer)
-	rRightPanel.Size = UDim2.new(0.45, -10, 1, -20)
-	rRightPanel.Position = UDim2.new(0, 0, 0, 10)
-
-	local rRegTitle = UIHelpers.CreateLabel(rRightPanel, "ABYSSAL & TRANSCENDENT ARCHIVES", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(150, 200, 255), 18)
-	rRegTitle.Position = UDim2.new(0, 0, 0, 10)
-
-	local rRegScroll = Instance.new("ScrollingFrame", rRightPanel)
-	rRegScroll.Size = UDim2.new(1, -20, 1, -50)
-	rRegScroll.Position = UDim2.new(0, 10, 0, 40)
-	rRegScroll.BackgroundTransparency = 1
-	rRegScroll.ScrollBarThickness = 4
-	rRegScroll.BorderSizePixel = 0
-
-	local rrsLayout = Instance.new("UIListLayout", rRegScroll)
-	rrsLayout.Padding = UDim.new(0, 10)
-	rrsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() rRegScroll.CanvasSize = UDim2.new(0,0,0, rrsLayout.AbsoluteContentSize.Y + 10) end)
-
-	if ClanData and ClanData.Clans then
-		local sortedClans = {"Yeager", "Tybur", "Ackerman", "Galliard", "Braun", "Reiss", "Fritz"}
-		for _, cName in ipairs(sortedClans) do
-			local cData = ClanData.Clans[cName]
-			if not cData then continue end
-
-			local buffs = GetClanBuffStrings(cName, true)
-			if #buffs > 0 then
-				local card, cStroke = CreateGrimPanel(rRegScroll)
-				card.AutomaticSize = Enum.AutomaticSize.Y
-				card.Size = UDim2.new(1, -10, 0, 0)
-				cStroke.Color = (cName == "Fritz") and UIHelpers.Colors.Gold or Color3.fromRGB(150, 200, 255)
-
-				local cPad = Instance.new("UIPadding", card)
-				cPad.PaddingTop = UDim.new(0, 10)
-				cPad.PaddingBottom = UDim.new(0, 10)
-				cPad.PaddingLeft = UDim.new(0, 15)
-				cPad.PaddingRight = UDim.new(0, 10)
-
-				local clayout = Instance.new("UIListLayout", card)
-				clayout.SortOrder = Enum.SortOrder.LayoutOrder
-				clayout.Padding = UDim.new(0, 5)
-
-				local title = UIHelpers.CreateLabel(card, (cName == "Fritz" and "FRITZ LINEAGE" or "ABYSSAL " .. string.upper(cName)), UDim2.new(1, 0, 0, 20), Enum.Font.GothamBlack, (cName == "Fritz") and UIHelpers.Colors.Gold or Color3.fromRGB(150, 200, 255), 16)
-				title.LayoutOrder = 1
-				title.TextXAlignment = Enum.TextXAlignment.Left
-
-				for j, txt in ipairs(buffs) do
-					local bLbl = UIHelpers.CreateLabel(card, "• " .. txt, UDim2.new(1, 0, 0, 15), Enum.Font.GothamBold, Color3.fromRGB(200, 220, 255), 12)
-					bLbl.LayoutOrder = j + 1
-					bLbl.TextXAlignment = Enum.TextXAlignment.Left
-					bLbl.AutomaticSize = Enum.AutomaticSize.XY
-				end
-			end
-		end
 	end
 
 	-- ==========================================
