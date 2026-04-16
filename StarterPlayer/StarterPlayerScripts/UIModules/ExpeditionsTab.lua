@@ -12,6 +12,7 @@ local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 local AFKTab = require(script.Parent:WaitForChild("AFKTab"))
 local NotificationManager = require(SharedUI:WaitForChild("NotificationManager"))
+local LabyrinthUI = require(script.Parent:WaitForChild("LabyrinthUI"))
 
 local player = Players.LocalPlayer
 
@@ -24,7 +25,8 @@ local CONFIG = {
 		Nightmare = "rbxassetid://90132878979603",
 		WorldBoss = "rbxassetid://129655150803684",
 		Endless = "rbxassetid://81075056647024",
-		Paths = "rbxassetid://90938848776194"
+		Paths = "rbxassetid://90938848776194",
+		Labyrinth = "rbxassetid://90132878979603"
 	}
 }
 
@@ -91,7 +93,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 		if pageName == "Doomsday" and FetchDoomsdayData then 
 			FetchDoomsdayData(false) 
 
-			-- [[ THE FIX: Smooth local UI timer ticking logic ]]
 			if not doomsdayLoopActive then
 				doomsdayLoopActive = true
 				task.spawn(function()
@@ -222,12 +223,19 @@ function ExpeditionsTab.Initialize(parentFrame)
 	if not isPathsOpen then pathsCardLbl.TextColor3 = Color3.fromRGB(255, 100, 100) end
 
 	CreateModeCard(GridContainer, "ENDLESS FRONTIER", "Fight infinite waves to continually harvest Dews, XP, and materials.", CONFIG.Decals.Endless, 3, function() InitiateDeployment("CombatAction", "EngageEndless") end)
-	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 4, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
-	CreateModeCard(GridContainer, "DOOMSDAY BOUNTIES", "Server-wide raid bosses. Fight for the top of the global leaderboard.", CONFIG.Decals.WorldBoss, 5, function() ShowPage("Doomsday", "DOOMSDAY BOUNTIES") end, Color3.fromRGB(255, 50, 50))
-	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared. Intercept immediately.", CONFIG.Decals.WorldBoss, 6, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
-	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain legendary Cursed Weapons.", CONFIG.Decals.Nightmare, 7, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
-	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 8, function() ShowPage("PvP", "PVP ARENA") end)
-	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources over long periods.", CONFIG.Decals.AFK, 9, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
+
+	-- [[ THE FIX: Passes the Main ScreenGui down into LabyrinthUI.Open() ]]
+	CreateModeCard(GridContainer, "THE LABYRINTH", "Navigate a dark, shifting maze. Secure loot caches and escape, or die and lose everything.", CONFIG.Decals.Labyrinth, 4, function() 
+		local masterScreenGui = parentFrame:FindFirstAncestorOfClass("ScreenGui")
+		LabyrinthUI.Open(masterScreenGui) 
+	end, Color3.fromRGB(255, 85, 85))
+
+	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 5, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
+	CreateModeCard(GridContainer, "DOOMSDAY BOUNTIES", "Server-wide raid bosses. Fight for the top of the global leaderboard.", CONFIG.Decals.WorldBoss, 6, function() ShowPage("Doomsday", "DOOMSDAY BOUNTIES") end, Color3.fromRGB(255, 50, 50))
+	CreateModeCard(GridContainer, "WORLD BOSSES", "A catastrophic threat has appeared. Intercept immediately.", CONFIG.Decals.WorldBoss, 7, function() ShowPage("WorldBoss", "WORLD BOSSES") end)
+	CreateModeCard(GridContainer, "NIGHTMARE HUNTS", "Face corrupted Titans to obtain legendary Cursed Weapons.", CONFIG.Decals.Nightmare, 8, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
+	CreateModeCard(GridContainer, "PVP ARENA", "Test your ODM combat skills against other players.", CONFIG.Decals.PvP, 9, function() ShowPage("PvP", "PVP ARENA") end)
+	CreateModeCard(GridContainer, "AFK EXPEDITIONS", "Send out scout regiments to gather resources over long periods.", CONFIG.Decals.AFK, 10, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
 
 	local function CreateSubPage(name)
 		local page = Instance.new("Frame", MissionsPanel); page.Size = UDim2.new(1, 0, 0, 0); page.AutomaticSize = Enum.AutomaticSize.Y; page.BackgroundTransparency = 1; page.Visible = false; page.LayoutOrder = 2
