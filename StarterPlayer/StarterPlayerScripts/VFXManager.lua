@@ -9,6 +9,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 
+local player = Players.LocalPlayer
+
 local SFX_Folder = Instance.new("Folder")
 SFX_Folder.Name = "CombatSFX"
 SFX_Folder.Parent = SoundService
@@ -79,11 +81,9 @@ function VFXManager.Initialize()
 		end
 	end
 
-	-- Automatically hook every button currently existing, and any that are created later!
 	for _, child in ipairs(PlayerGui:GetDescendants()) do hookButton(child) end
 	PlayerGui.DescendantAdded:Connect(hookButton)
 
-	-- Catch specific standalone Server events (Like Boss Roars)
 	local Network = ReplicatedStorage:WaitForChild("Network")
 	local PlayVFX = Network:FindFirstChild("PlayVFX") or Instance.new("RemoteEvent", Network)
 	PlayVFX.OnClientEvent:Connect(function(vfxType, targetType)
@@ -125,11 +125,15 @@ function VFXManager.PlaySFX(sfxName, pitchMod)
 				for _, data in ipairs(pausedTracks) do
 					local audio = data.Track
 					if audio and audio.Parent then 
-						-- [[ THE FIX: Check if TimePosition > 0 to prevent ghost-resuming tracks that MusicManager stopped ]]
 						if not audio.IsPlaying and audio.TimePosition > 0 then
 							audio.Volume = 0
 							audio:Resume()
-							TweenService:Create(audio, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Volume = data.OrigVol}):Play()
+
+							-- Respect the settings volume when resuming tracks
+							local restoreVol = data.OrigVol
+							if player:GetAttribute("Setting_Music") == false then restoreVol = 0 end
+
+							TweenService:Create(audio, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Volume = restoreVol}):Play()
 						end
 					end
 				end
@@ -185,6 +189,9 @@ function VFXManager.PlayVFX(vfxName, targetFrame, customColor, isBlood)
 end
 
 function VFXManager.ScreenShake(intensity, duration)
+	-- Disable shake entirely if player has screen flashes turned off
+	if player:GetAttribute("Setting_ScreenFlash") == false then return end
+
 	local Camera = workspace.CurrentCamera
 	local startTime = os.clock()
 	local originalCFrame = Camera.CFrame
