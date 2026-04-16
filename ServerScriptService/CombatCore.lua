@@ -125,7 +125,8 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	end
 
 	if attacker.IsPlayer and attacker.PlayerObj then
-		local aStats = ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed)
+		local isAwakened = string.find(tostring(attacker.Clan or ""), "Awakened") ~= nil or string.find(tostring(attacker.Clan or ""), "Abyssal") ~= nil
+		local aStats = ClanData.GetClanStats(attacker.Clan, isAwakened, attacker.Titan, isAttackerTransformed)
 		atkBuff = atkBuff * aStats.DmgMult
 
 		if (aStats.MomentumDamagePerHit or 0) > 0 and not isAttackerTransformed then
@@ -150,7 +151,8 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	end
 
 	if defender.IsPlayer and defender.PlayerObj then
-		local dStats = ClanData.GetClanStats(defender.Clan, string.find(tostring(defender.Clan or ""), "Awakened"), defender.Titan, isDefenderTransformed)
+		local isAwakened = string.find(tostring(defender.Clan or ""), "Awakened") ~= nil or string.find(tostring(defender.Clan or ""), "Abyssal") ~= nil
+		local dStats = ClanData.GetClanStats(defender.Clan, isAwakened, defender.Titan, isDefenderTransformed)
 		defBuff = defBuff * dStats.ArmorMult
 	end
 
@@ -175,7 +177,8 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 	if targetLimb == "Nape" then
 		local napeMult = 1.5
 		if attacker.IsPlayer and not isAttackerTransformed then
-			local aStats = ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed)
+			local isAwakened = string.find(tostring(attacker.Clan or ""), "Awakened") ~= nil or string.find(tostring(attacker.Clan or ""), "Abyssal") ~= nil
+			local aStats = ClanData.GetClanStats(attacker.Clan, isAwakened, attacker.Titan, isAttackerTransformed)
 			napeMult = aStats.NapeCritMultiplier or 1.5
 		end
 
@@ -195,17 +198,6 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, targetLimb, b
 		local dmgCeiling = attacker.IsBoss and (pMaxHP * 0.45) or (pMaxHP * 0.25)
 		if baseDmg > dmgCeiling then
 			baseDmg = dmgCeiling + ((baseDmg - dmgCeiling) * 0.1)
-		end
-	end
-
-	if defender.IsBoss and isAttackerTransformed then
-		baseDmg = baseDmg * 0.50 
-	end
-
-	if defender.Name == "Abyssal Armored Titan" then
-		local aStyle = tostring(attacker.Style or "None")
-		if attacker.IsPlayer and not isAttackerTransformed and (aStyle == "Ultrahard Steel Blades" or aStyle == "None") then
-			baseDmg = baseDmg * 0.40 
 		end
 	end
 
@@ -244,7 +236,8 @@ function CombatCore.TakeDamage(combatant, damage, attackerStyle)
 			local maxSurvivals = 1
 
 			if combatant.IsPlayer and combatant.PlayerObj then
-				local cStats = ClanData.GetClanStats(combatant.Clan, string.find(tostring(combatant.Clan or ""), "Awakened"), combatant.Titan, combatant.Statuses and combatant.Statuses["Transformed"])
+				local isAwakened = string.find(tostring(combatant.Clan or ""), "Awakened") ~= nil or string.find(tostring(combatant.Clan or ""), "Abyssal") ~= nil
+				local cStats = ClanData.GetClanStats(combatant.Clan, isAwakened, combatant.Titan, combatant.Statuses and combatant.Statuses["Transformed"])
 				if cStats.SurvivalChance > 0 then survivalChance = cStats.SurvivalChance end
 				if cStats.Survivals > 0 then maxSurvivals = cStats.Survivals end
 				maxSurvivals = maxSurvivals + (tonumber(combatant.PlayerObj:GetAttribute("Prestige_Survivals")) or 0)
@@ -341,7 +334,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 
 		elseif skill.Effect == "Transform" then
 			local cName = attacker.Clan or "None"
-			-- [[ THE FIX: Updated to support Abyssal Ackerman as well! ]]
 			if attacker.IsPlayer and (string.find(cName, "Ackerman") or attacker.Titan == "None") then
 				return fLogName .. " attempted to use <b>" .. skillName .. "</b>, but their lineage prevents Titan transformation!", false, "None"
 			end
@@ -388,8 +380,11 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		defRes = tonumber(defender.PlayerObj:GetAttribute("Titan_Endurance_Val")) or 10
 	end
 
-	local aStats = attacker.IsPlayer and ClanData.GetClanStats(attacker.Clan, string.find(tostring(attacker.Clan or ""), "Awakened"), attacker.Titan, isAttackerTransformed) or ClanData.GetClanStats()
-	local dStats = defender.IsPlayer and ClanData.GetClanStats(defender.Clan, string.find(tostring(defender.Clan or ""), "Awakened"), defender.Titan, isDefenderTransformed) or ClanData.GetClanStats()
+	local aAwk = string.find(tostring(attacker.Clan or ""), "Awakened") ~= nil or string.find(tostring(attacker.Clan or ""), "Abyssal") ~= nil
+	local dAwk = string.find(tostring(defender.Clan or ""), "Awakened") ~= nil or string.find(tostring(defender.Clan or ""), "Abyssal") ~= nil
+
+	local aStats = attacker.IsPlayer and ClanData.GetClanStats(attacker.Clan, aAwk, attacker.Titan, isAttackerTransformed) or ClanData.GetClanStats()
+	local dStats = defender.IsPlayer and ClanData.GetClanStats(defender.Clan, dAwk, defender.Titan, isDefenderTransformed) or ClanData.GetClanStats()
 
 	atkSpd = atkSpd * aStats.SpdMult; atkRes = atkRes * aStats.ResolveMult
 	defSpd = defSpd * dStats.SpdMult; defRes = defRes * dStats.ResolveMult
@@ -510,7 +505,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		local baseDmg = CombatCore.CalculateDamage(attacker, defender, dmgMultValue, targetLimb, battleContext)
 		local survivalTriggered, hitGate, gateBroken, hpDmg, gateName = CombatCore.TakeDamage(defender, baseDmg, attacker.Style)
 
-		-- [[ THE FIX: Bulletproof pcall around Doomsday Hook & Send baseDmg! ]]
 		if defender.IsDoomsdayBoss and attacker.IsPlayer and attacker.PlayerObj then
 			if baseDmg > 0 then
 				local success, err = pcall(function()
@@ -537,13 +531,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 			if not defender.Statuses then defender.Statuses = {} end
 			defender.Statuses["Bleed"] = math.max((tonumber(defender.Statuses["Bleed"]) or 0), 2)
 			effectLog = effectLog .. " <font color='#FF5555'>[ABYSSAL SPIKES: Bleed Inflicted!]</font>"
-		end
-
-		if defender.Name == "Abyssal Armored Titan" and attacker.IsPlayer then
-			local aStyle = tostring(attacker.Style or "None")
-			if not isAttackerTransformed and (aStyle == "Ultrahard Steel Blades" or aStyle == "None") then
-				effectLog = effectLog .. " <font color='#555555'>[BLADES DEFLECTED: Minimal Damage!]</font>"
-			end
 		end
 
 		if skill.Effect == "CloseGap" then effectLog = effectLog .. " <font color='#55AAFF'>[CLOSED DISTANCE]</font>"
