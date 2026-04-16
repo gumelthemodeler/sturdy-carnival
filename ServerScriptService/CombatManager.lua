@@ -10,9 +10,17 @@ local ClanData = require(ReplicatedStorage:WaitForChild("ClanData"))
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local CombatCore = require(script.Parent:WaitForChild("CombatCore"))
 local LootManager = require(script.Parent:WaitForChild("LootManager")) 
+local LabyrinthManager = require(script.Parent:WaitForChild("LabyrinthManager"))
 
 local Network = ReplicatedStorage:FindFirstChild("Network") or Instance.new("Folder", ReplicatedStorage)
 Network.Name = "Network"
+
+local labEvent = game:GetService("ServerStorage"):FindFirstChild("LabyrinthEncounter")
+if not labEvent then
+	labEvent = Instance.new("BindableEvent")
+	labEvent.Name = "LabyrinthEncounter"
+	labEvent.Parent = game:GetService("ServerStorage")
+end
 
 local function GetRemote(name)
 	local r = Network:FindFirstChild(name)
@@ -129,7 +137,7 @@ end
 local function StartBattle(player, encounterType, requestedPartId)
 	local currentPart = player:GetAttribute("CurrentPart") or 1
 	local eTemplate, logFlavor
-	local isStory, isEndless, isPaths, isWorldBoss, isNightmare = false, false, false, false, false
+	local isStory, isEndless, isPaths, isWorldBoss, isNightmare, isLabyrinth = false, false, false, false, false, false
 	local activeMissionData = nil
 	local totalWaves, startingWave = 1, 1
 	local targetPart = currentPart
@@ -212,6 +220,16 @@ local function StartBattle(player, encounterType, requestedPartId)
 		logFlavor = "<font color='#55FFFF'>[THE PATHS - MEMORY " .. floor .. "]</font>\nA manifestation of " .. eTemplate.Name .. " emerges from the sand..."
 		cTerrain = "Plains"
 		cWeather = "Night"
+
+	elseif encounterType == "EngageLabyrinth" then
+		isLabyrinth = true
+		local targetFloor = requestedPartId or 1
+		targetPart = math.min(8, math.ceil(targetFloor / 2))
+		local partData = EnemyData.Parts[targetPart]
+		eTemplate = GetValidEndlessMob(partData)
+		logFlavor = "<font color='#FF5555'>[LABYRINTH FLOOR " .. targetFloor .. "]</font>\nA monstrous " .. eTemplate.Name .. " stalks the corridors!"
+		cTerrain = "Caverns"
+		cWeather = "Night"
 	else
 		targetPart = math.min(8, currentPart)
 		local partData = EnemyData.Parts[targetPart]
@@ -236,23 +254,6 @@ local function StartBattle(player, encounterType, requestedPartId)
 		if cWeather ~= "Clear" then
 			logFlavor = logFlavor .. "\n<font color='#5588FF'>[" .. string.upper(cWeather) .. "] " .. weatherFlavors[cWeather] .. "</font>"
 		end
-	end
-
-	local hpMult = GetHPScale(targetPart, isEndless, startingWave)
-	local dmgMult = GetDmgScale(targetPart, isEndless, startingWave)
-	local defMult = GetDefScale(targetPart, isEndless, startingWave)
-	local spdMult = GetSpdScale(targetPart, isEndless, startingWave)
-	local dropMult = 1.0 + (targetPart * 0.1) + (prestige * 0.25)
-
-	if isEndless then dropMult *= 1.5 end
-
-	if isPaths then
-		local floor = player:GetAttribute("PathsFloor") or 1
-		local pathScale = math.pow(1.10, floor - 1) 
-		hpMult = hpMult * (0.60 * pathScale) 
-		dmgMult = dmgMult * (1.10 * pathScale)
-		defMult = GetDefScale(1, false, 1) * (1.05 * pathScale)
-		dropMult = 1.0 + (prestige * 0.25) + (floor * 0.1)
 	end
 
 	local wpnName = player:GetAttribute("EquippedWeapon") or "None"
@@ -287,6 +288,44 @@ local function StartBattle(player, encounterType, requestedPartId)
 
 	local titanRuneLvl = tonumber(player:GetAttribute("Rune_Titan")) or 0
 	local pMaxTitanEnergy = 100 + (titanRuneLvl * 25)
+
+	local hpMult = GetHPScale(targetPart, isEndless, startingWave)
+	local dmgMult = GetDmgScale(targetPart, isEndless, startingWave)
+	local defMult = GetDefScale(targetPart, isEndless, startingWave)
+	local spdMult = GetSpdScale(targetPart, isEndless, startingWave)
+	local dropMult = 1.0 + (targetPart * 0.1) + (prestige * 0.25)
+
+	if isEndless then dropMult *= 1.5 end
+
+	if isPaths then
+		local floor = player:GetAttribute("PathsFloor") or 1
+		local pathScale = math.pow(1.10, floor - 1) 
+		hpMult = hpMult * (0.60 * pathScale) 
+		dmgMult = dmgMult * (1.10 * pathScale)
+		defMult = GetDefScale(1, false, 1) * (1.05 * pathScale)
+		dropMult = 1.0 + (prestige * 0.25) + (floor * 0.1)
+	end
+
+	-- [[ THE FIX: True RPG Formula Scaling for the Labyrinth ]]
+	if isLabyrinth then
+		local floor = requestedPartId or 1
+
+		-- Generates a Power Rating combining the player's true output
+		local playerPowerRating = (pTotalStr * 2.5) + (pMaxHP / 12) + (pTotalDef * 1.5)
+		local difficultyCurve = 1.0 + (floor * 0.15) 
+
+		local targetHP = math.max(100, math.floor((playerPowerRating * 12) * difficultyCurve))
+		local targetStr = math.max(10, math.floor((playerPowerRating * 0.35) * difficultyCurve))
+		local targetDef = math.max(10, math.floor((playerPowerRating * 0.25) * difficultyCurve))
+		local targetSpd = math.max(10, math.floor((pTotalSpd * 0.9) * (1.0 + (floor * 0.05))))
+
+		hpMult = targetHP / (eTemplate.Health or 100)
+		dmgMult = targetStr / (eTemplate.Strength or 10)
+		defMult = targetDef / (eTemplate.Defense or 10)
+		spdMult = targetSpd / (eTemplate.Speed or 10)
+
+		dropMult = 1.0 + (prestige * 0.25) + (floor * 0.20)
+	end
 
 	if eTemplate.IsDialogue then
 		ActiveBattles[player.UserId] = {
@@ -360,7 +399,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 		logFlavor = logFlavor .. "\n<font color='#AAAAAA'>[Dynamic Encounter: Attuned to Group Size " .. groupMult .. "x]</font>"
 	end
 
-	if isPaths then
+	if isPaths or isLabyrinth then
 		local mutators = {"Armored", "Frenzied", "Elusive", "Colossal"}
 		local selectedMutator = mutators[math.random(1, #mutators)]
 		if selectedMutator == "Armored" then
@@ -387,7 +426,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 
 	ActiveBattles[player.UserId] = {
 		IsProcessing = false,
-		Context = { IsStoryMission = isStory, IsEndless = isEndless, IsPaths = isPaths, IsWorldBoss = isWorldBoss, IsNightmare = isNightmare, TargetPart = targetPart, CurrentWave = startingWave, TotalWaves = totalWaves, MissionData = activeMissionData, TurnCount = 0, Range = ctxRange, Terrain = cTerrain, Weather = cWeather },
+		Context = { IsStoryMission = isStory, IsEndless = isEndless, IsPaths = isPaths, IsWorldBoss = isWorldBoss, IsNightmare = isNightmare, IsLabyrinth = isLabyrinth, TargetPart = targetPart, CurrentWave = startingWave, TotalWaves = totalWaves, MissionData = activeMissionData, TurnCount = 0, Range = ctxRange, Terrain = cTerrain, Weather = cWeather },
 		Player = { 
 			IsPlayer = true, Name = player.Name, PlayerObj = player, Titan = player:GetAttribute("Titan") or "None", 
 			Style = GetActualStyle(player), Clan = clanName, 
@@ -408,8 +447,26 @@ local function StartBattle(player, encounterType, requestedPartId)
 			local success, DoomsdayManager = pcall(function() return require(game:GetService("ServerScriptService"):WaitForChild("DoomsdayManager")) end)
 			if not success or type(DoomsdayManager.GetServerData) ~= "function" then return end
 
+			local lastHP = eHP
 			while ActiveBattles[player.UserId] and ActiveBattles[player.UserId].Enemy.IsDoomsdayBoss do
 				local ddData = DoomsdayManager.GetServerData()
+
+				-- [[ THE FIX: Actively subtract the local damage from the Global Doomsday Boss ]]
+				local currentHP = ActiveBattles[player.UserId].Enemy.HP
+				if lastHP > currentHP then
+					local dmg = lastHP - currentHP
+					pcall(function()
+						if DoomsdayManager.AddDamage then DoomsdayManager.AddDamage(player, dmg)
+						elseif DoomsdayManager.RegisterDamage then DoomsdayManager.RegisterDamage(player, dmg)
+						elseif DoomsdayManager.DamageBoss then DoomsdayManager.DamageBoss(player, dmg)
+						else
+							local we = Network:FindFirstChild("WorldBossAction")
+							if we then we:Fire("Damage", dmg) end
+						end
+					end)
+					lastHP = currentHP
+				end
+
 				if not ddData.IsActive or ddData.BossHP <= 0 then
 					local b = ActiveBattles[player.UserId]
 					if ddData.BossHP <= 0 then
@@ -420,7 +477,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 					ActiveBattles[player.UserId] = nil
 					break
 				end
-				task.wait(3)
+				task.wait(1) 
 			end
 		end)
 	end
@@ -727,6 +784,11 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 				end
 			end
 		end
+
+		if battle.Context.IsLabyrinth then
+			LabyrinthManager.OnCombatWin(player)
+		end
+
 		CombatUpdate:FireClient(player, "Victory", {Battle = battle, XP = xpGain, Dews = dewsGain, Items = droppedItems, ExtraLog = killMsg})
 		ActiveBattles[player.UserId] = nil
 	end
@@ -845,6 +907,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			if battle.Player.HP < 1 then
 				CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
 				SafeTriggerPathsShop(player, battle.Context)
+				if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
 				ActiveBattles[player.UserId] = nil
 			elseif battle.Enemy.HP < 1 then
 				ProcessEnemyDeath(player, battle)
@@ -857,7 +920,12 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 		if battle.Enemy.IsMinigame then
 			if actionData.Success then ProcessEnemyDeath(player, battle)
-			else CombatUpdate:FireClient(player, "Defeat", {Battle = battle}); SafeTriggerPathsShop(player, battle.Context); ActiveBattles[player.UserId] = nil end
+			else 
+				CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
+				SafeTriggerPathsShop(player, battle.Context)
+				if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
+				ActiveBattles[player.UserId] = nil 
+			end
 		end
 		return
 	end
@@ -869,6 +937,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if skillName == "Retreat" or skillName == "Flee" then
 		CombatUpdate:FireClient(player, "Fled", {Battle = battle})
 		SafeTriggerPathsShop(player, battle.Context)
+		if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
 		ActiveBattles[player.UserId] = nil
 		return
 	end
@@ -1033,6 +1102,12 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		if battle.Player.HP < 1 or battle.Enemy.HP < 1 then break end
 		if combatant.HP < 1 then continue end
 
+		-- [[ THE FIX: Cache incapacitation BEFORE TickStatuses removes it when duration hits 0 ]]
+		local wasIncapacitated = false
+		if combatant.Statuses and (combatant.Statuses["Blinded"] or combatant.Statuses["TrueBlind"] or combatant.Statuses["Stun"]) then
+			wasIncapacitated = true
+		end
+
 		local dotDamage, dotLog = CombatCore.TickStatuses(combatant)
 
 		if dotDamage > 0 then
@@ -1070,13 +1145,13 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			continue 
 		end
 
-		if combatant.Statuses and (combatant.Statuses["Blinded"] or combatant.Statuses["TrueBlind"] or combatant.Statuses["Stun"]) then
-
-			if combatant.IsBoss and combatant.Statuses["Telegraphing"] then
+		-- Evaluates the cached incapacitated state
+		if wasIncapacitated then
+			if combatant.IsBoss and combatant.Statuses and combatant.Statuses["Telegraphing"] then
 				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF0000'><b>" .. combatant.Name .. " shrugs off the crowd control and continues charging!</b></font>", DidHit = false, ShakeType = "None"})
 				task.wait(0.4)
 			else
-				if combatant.Statuses["Telegraphing"] then
+				if combatant.Statuses and combatant.Statuses["Telegraphing"] then
 					combatant.Statuses["Telegraphing"] = nil 
 					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#55FF55'><b>" .. combatant.Name .. "'s charge up was INTERRUPTED!</b></font>", DidHit = false, ShakeType = "Heavy"})
 					task.wait(0.4)
@@ -1275,6 +1350,11 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if battle.Player.HP < 1 then
 		CombatUpdate:FireClient(player, "Defeat", {Battle = battle})
 		SafeTriggerPathsShop(player, battle.Context)
+
+		if battle.Context.IsLabyrinth then
+			LabyrinthManager.OnCombatLoss(player)
+		end
+
 		ActiveBattles[player.UserId] = nil
 	elseif battle.Enemy.HP < 1 then
 		ProcessEnemyDeath(player, battle)
@@ -1282,6 +1362,10 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		battle.IsProcessing = false
 		CombatUpdate:FireClient(player, "Update", {Battle = battle})
 	end
+end)
+
+labEvent.Event:Connect(function(player, floor)
+	StartBattle(player, "EngageLabyrinth", floor)
 end)
 
 Players.PlayerRemoving:Connect(function(player) ActiveBattles[player.UserId] = nil end)
