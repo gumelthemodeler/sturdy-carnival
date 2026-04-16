@@ -524,19 +524,33 @@ local function GetTitanSkills(titanName)
 	return movesets[titanName] or {}
 end
 
-local function IsSkillValid(skillName, isTransformedCheck)
+local function IsSkillValid(player, skillName, isTransformedCheck)
 	local sData = SkillData.Skills[skillName]
 	if not sData then return false end
 
 	local req = tostring(sData.Requirement or "None")
 
+	local universalMoves = { 
+		["Maneuver"]=true, ["Evasive Maneuver"]=true, ["Block"]=true, 
+		["Close In"]=true, ["Fall Back"]=true, ["Advance"]=true, ["Charge"]=true, 
+		["Recover"]=true, ["Retreat"]=true, ["Flee"]=true, ["Transform"]=true,
+		["Basic Slash"]=true, ["Heavy Slash"]=true, ["Flare Gun"]=true, ["Anti-Titan Rifle"]=true
+	}
+	if universalMoves[skillName] then return true end
+
 	if isTransformedCheck then
 		local myTitan = player:GetAttribute("Titan") or "None"
-		local universalTitanMoves = { ["Eject"]=true, ["Titan Recover"]=true, ["Titan Rest"]=true, ["Cannibalize"]=true, ["Maneuver"]=true, ["Evasive Maneuver"]=true, ["Block"]=true, ["Close In"]=true, ["Fall Back"]=true, ["Advance"]=true, ["Charge"]=true, ["Transform"]=true, ["Titan Punch"]=true, ["Titan Kick"]=true }
+		local titanMoves = { ["Eject"]=true, ["Titan Recover"]=true, ["Titan Rest"]=true, ["Cannibalize"]=true, ["Titan Punch"]=true, ["Titan Kick"]=true }
 
-		if req == "Transformed" or req == "AnyTitan" or req == myTitan or string.find(myTitan, req, 1, true) or universalTitanMoves[skillName] then
+		if req == "Transformed" or req == "AnyTitan" or req == myTitan or string.find(myTitan, req, 1, true) or titanMoves[skillName] then
 			return true
 		end
+
+		local validHybridMoves = GetTitanSkills(myTitan)
+		for _, m in ipairs(validHybridMoves) do
+			if m == skillName then return true end
+		end
+
 		return false
 	end
 
@@ -555,7 +569,7 @@ local function IsSkillValid(skillName, isTransformedCheck)
 		for iName, iData in pairs(ItemData.Equipment) do
 			if iData.Style == req then
 				local safeNameBase = iName:gsub("[^%w]", "")
-				local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or 0
+				local count = tonumber(player:GetAttribute(safeNameBase .. "Count")) or tonumber(player:GetAttribute(iName)) or 0
 				if count > 0 then return true end
 			end
 		end
@@ -708,7 +722,7 @@ local function UpdateSkills()
 
 	for i = 1, 4 do
 		local skillName = player:GetAttribute("EquippedSkill_" .. i)
-		if not skillName or skillName == "" or skillName == "None" or not IsSkillValid(skillName, isTransformed) then 
+		if not skillName or skillName == "" or skillName == "None" or not IsSkillValid(player, skillName, isTransformed) then 
 			skillName = fallbacks[i] 
 		end
 		CreateSkillButton(skillName)
