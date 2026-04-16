@@ -34,7 +34,6 @@ LoadScreen.Size = UDim2.new(1, 0, 1, 0)
 LoadScreen.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
 LoadScreen.ZIndex = 9999 
 
--- Background Image
 local Background = Instance.new("ImageLabel", LoadScreen)
 Background.Size = UDim2.new(1, 0, 1, 0)
 Background.BackgroundTransparency = 1
@@ -43,7 +42,6 @@ Background.ScaleType = Enum.ScaleType.Crop
 Background.ImageTransparency = 0.3
 Background.ZIndex = 10000
 
--- Large Centered Title Image
 local FloatingTitleImage = Instance.new("ImageLabel", LoadScreen)
 FloatingTitleImage.Size = UDim2.new(0, 800, 0, 240)
 FloatingTitleImage.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -59,8 +57,6 @@ task.spawn(function()
 	while not isLoaded do
 		local dt = RunService.RenderStepped:Wait()
 		t = t + dt
-
-		-- Subtle Hover Effect
 		local hoverOffset = math.sin(t * 1.5) * 0.01
 		FloatingTitleImage.Position = UDim2.new(0.5, 0, 0.5 + hoverOffset, 0)
 	end
@@ -68,7 +64,6 @@ end)
 
 print("[AoT UI] Booting Main Interface...")
 
--- Boot Audio Engines
 task.spawn(function()
 	local VFXManager = require(playerScripts:WaitForChild("VFXManager"))
 	local MusicManager = require(playerScripts:WaitForChild("MusicManager"))
@@ -76,32 +71,50 @@ task.spawn(function()
 	MusicManager.Initialize()
 end)
 
+-- ==========================================
+-- ROBUST DEVICE & RESOLUTION DETECTION
+-- ==========================================
+local camera = workspace.CurrentCamera
+
+-- Yield the script if the ViewportSize hasn't loaded yet (The 0x0 Studio Bug)
+if camera.ViewportSize.X == 0 then
+	camera:GetPropertyChangedSignal("ViewportSize"):Wait()
+end
+
+local screenWidth = camera.ViewportSize.X
 local isMobile = false
-if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+
+-- Responsive Design Check: 
+-- If the screen is less than 900 pixels wide (Phones/Portrait Tablets) 
+-- OR if it's a strict touch-only device (Live Mobile Game)
+if screenWidth <= 900 or (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then
 	isMobile = true
 end
 
--- [[ THE FIX: Replaced FindFirstChild with WaitForChild so it securely loads ]]
 if isMobile then
-	local MobileModules = playerScripts:WaitForChild("MobileModules")
-	local UIModules = playerScripts:WaitForChild("UIModules") -- Still needed for shared modules
+	print("[AoT UI] Resolution: " .. screenWidth .. "px. Loading Mobile Interface Architecture...")
 
+	local MobileModules = playerScripts:WaitForChild("MobileModules")
+	local UIModules = playerScripts:WaitForChild("UIModules") 
+
+	-- Boots your mobile layouts
 	require(MobileModules:WaitForChild("MobileMainUI")).Initialize(MasterGui)
 	require(MobileModules:WaitForChild("MobileTradingUI")).Initialize(MasterGui)
 
-	-- Boot the standalone Paths Shop (which works perfectly on both PC/Mobile)
 	local PathsShop = UIModules:WaitForChild("PathsShopUI", 10)
 	if PathsShop then 
 		require(PathsShop).Initialize(MasterGui) 
 		print("[AoT UI] Paths Shop Module Initialized.")
 	end
 else
+	print("[AoT UI] Resolution: " .. screenWidth .. "px. Loading Standard PC Interface...")
+
 	local UIModules = playerScripts:WaitForChild("UIModules")
 
+	-- Boots your PC layouts
 	require(UIModules:WaitForChild("MainUI")).Initialize(MasterGui)
 	require(UIModules:WaitForChild("TradingUI")).Initialize(MasterGui)
 
-	-- Boot the standalone Paths Shop
 	local PathsShop = UIModules:WaitForChild("PathsShopUI", 10)
 	if PathsShop then 
 		require(PathsShop).Initialize(MasterGui) 
@@ -122,7 +135,7 @@ task.spawn(function()
 		end)
 
 		task.delay(15, function()
-			loadedBindable:Fire(false) -- Timeout
+			loadedBindable:Fire(false) 
 		end)
 
 		local success = loadedBindable.Event:Wait()
@@ -153,7 +166,6 @@ task.spawn(function()
 	for _, child in ipairs(LoadScreen:GetChildren()) do
 		local tweenGoals = {}
 
-		-- Only fade background if it's currently visible
 		if child.BackgroundTransparency < 1 then 
 			tweenGoals.BackgroundTransparency = 1 
 		end
