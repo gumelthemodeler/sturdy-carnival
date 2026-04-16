@@ -51,7 +51,9 @@ ItemData.Consumables = {
 	["Iron Bamboo Heart"] = { Rarity = "Epic", Cost = 3000, IsMaterial = true, Desc = "A rare material extracted from the Titan Forest via Expeditions. Used for complex forging." },
 	["Glowing Titan Crystal"] = { Rarity = "Legendary", Cost = 10000, IsMaterial = true, Desc = "A dense energy crystal found deep in Expeditions. Highly sought after by Hange." },
 	["Abyssal Blood"] = { Rarity = "Mythical", Cost = 50000, IsMaterial = true, Desc = "A terrifying black liquid dropped only by Nightmare Bosses. Used to forge Cursed gear." },
-	["Coordinate Shard"] = { Rarity = "Transcendent", Cost = 250000, IsMaterial = true, Desc = "A literal fragment of the Paths. The rarest material in existence." },
+
+	-- [[ THE FIX: Reverted Coordinate Shard to Mythical so it naturally generates in the Supply Shop Again ]]
+	["Coordinate Shard"] = { Rarity = "Mythical", Cost = 250000, IsMaterial = true, Desc = "A literal fragment of the Paths. One of the rarest materials in existence." },
 
 	["Iron Bamboo Extract"] = { Rarity = "Epic", Cost = 8000, Action = "Consume", Buff = "Damage", Duration = 900, Desc = "Increases all damage dealt by 50% for 15 minutes." },
 	["Titan Research Notes"] = { Rarity = "Rare", Cost = 5000, Action = "Consume", Buff = "XP", Duration = 900, Desc = "Doubles all XP gained from combat and training for 15 minutes." },
@@ -94,7 +96,6 @@ ItemData.Consumables = {
 	["Itemized Awakened Braun"] = { Rarity = "Legendary", Cost = 75000, Action = "EquipClan", ClanName = "Awakened Braun", Desc = "An extracted blood vial of the Awakened Braun lineage." },
 	["Itemized Awakened Reiss"] = { Rarity = "Transcendent", Cost = 125000, Action = "EquipClan", ClanName = "Awakened Reiss", Desc = "An extracted blood vial of the Awakened Reiss lineage." },
 
-	-- [[ THE FIX: Added Itemized Abyssal Variants ]]
 	["Itemized Abyssal Yeager"] = { Rarity = "Transcendent", Cost = 300000, Action = "EquipClan", ClanName = "Abyssal Yeager", Desc = "An extracted blood vial of the Abyssal Yeager lineage." },
 	["Itemized Abyssal Tybur"] = { Rarity = "Transcendent", Cost = 300000, Action = "EquipClan", ClanName = "Abyssal Tybur", Desc = "An extracted blood vial of the Abyssal Tybur lineage." },
 	["Itemized Abyssal Ackerman"] = { Rarity = "Transcendent", Cost = 500000, Action = "EquipClan", ClanName = "Abyssal Ackerman", Desc = "An extracted blood vial of the Abyssal Ackerman lineage." },
@@ -136,7 +137,6 @@ ItemData.ForgeRecipes = {
 	["Abyssal Thunder Spear"] = { Result = "Abyssal Thunder Spear", ReqItems = {["Thunder Spear"] = 5, ["Abyssal Blood"] = 3}, DewCost = 5000000 },
 	["Shroud of the Doomed"] = { Result = "Shroud of the Doomed", ReqItems = {["Commander's Bolo Tie"] = 5, ["Abyssal Blood"] = 3}, DewCost = 5000000 },
 
-	-- [[ THE FIX: Abyssal Ritual Chalice replaced with native Itemized Abyssal Forge Recipes ]]
 	["Itemized Abyssal Yeager"] = { Result = "Itemized Abyssal Yeager", ReqItems = {["Itemized Awakened Yeager"] = 1, ["Abyssal Blood"] = 5, ["Coordinate Shard"] = 1}, DewCost = 5000000 },
 	["Itemized Abyssal Tybur"] = { Result = "Itemized Abyssal Tybur", ReqItems = {["Itemized Awakened Tybur"] = 1, ["Abyssal Blood"] = 5, ["Coordinate Shard"] = 1}, DewCost = 5000000 },
 	["Itemized Abyssal Ackerman"] = { Result = "Itemized Abyssal Ackerman", ReqItems = {["Itemized Awakened Ackerman"] = 1, ["Abyssal Blood"] = 5, ["Coordinate Shard"] = 1}, DewCost = 5000000 },
@@ -144,7 +144,6 @@ ItemData.ForgeRecipes = {
 	["Itemized Abyssal Braun"] = { Result = "Itemized Abyssal Braun", ReqItems = {["Itemized Awakened Braun"] = 1, ["Abyssal Blood"] = 5, ["Coordinate Shard"] = 1}, DewCost = 5000000 },
 	["Itemized Abyssal Reiss"] = { Result = "Itemized Abyssal Reiss", ReqItems = {["Itemized Awakened Reiss"] = 1, ["Abyssal Blood"] = 5, ["Coordinate Shard"] = 1}, DewCost = 5000000 },
 
-	-- [[ THE FIX: Fritz Clan Serum now exclusively uses Itemized Abyssal Variants ]]
 	["Fritz Clan Serum"] = { Result = "Fritz Clan Serum", ReqItems = {["Ymir's Clay Fragment"] = 1}, SpecialType = "AbyssalClanRequirement", AbyssalClanCount = 2, DewCost = 2500000 }
 }
 
