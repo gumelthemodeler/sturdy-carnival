@@ -499,7 +499,13 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		end
 	end
 
-	player.AttributeChanged:Connect(function(attr) EvaluateCosmetics(); RefreshProfile() end)
+	-- [[ THE FIX: Inventory scroll resets no longer trigger from Background XP/Dews ]]
+	player.AttributeChanged:Connect(function(attr)
+		if string.match(attr, "Count$") or string.match(attr, "^Equipped") or attr == "Clan" or attr == "Titan" or attr == "Regiment" or string.match(attr, "_Awakened$") or string.match(attr, "_Locked$") then
+			EvaluateCosmetics()
+			RefreshProfile()
+		end
+	end)
 end
 
 -- ==========================================
@@ -753,8 +759,7 @@ local function BuildSkillsTab(parentFrame)
 	local sep = Instance.new("Frame", MainFrame); sep.Size = UDim2.new(0.95, 0, 0, 2); sep.BackgroundColor3 = Color3.fromRGB(70, 70, 80); sep.BorderSizePixel = 0; sep.LayoutOrder = 2
 	local LibHeader = CreateSharpLabel(MainFrame, "SKILL LIBRARY", UDim2.new(0.95, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(245, 245, 245), 18); LibHeader.LayoutOrder = 3; LibHeader.TextXAlignment = Enum.TextXAlignment.Left
 	local SkillLibraryContainer = Instance.new("ScrollingFrame", MainFrame); SkillLibraryContainer.Size = UDim2.new(0.95, 0, 1, -220); SkillLibraryContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y; SkillLibraryContainer.BackgroundTransparency = 1; SkillLibraryContainer.ScrollBarThickness = 6; SkillLibraryContainer.BorderSizePixel = 0; SkillLibraryContainer.LayoutOrder = 4; local libLayout = Instance.new("UIListLayout", SkillLibraryContainer); libLayout.Padding = UDim.new(0, 15); libLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; libLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	
-	-- [[ THE FIX: Unified Safe Skill Validation Function that completely ignores equipping! ]]
+
 	local function IsSkillValid(skillName, isTransformedCheck)
 		local sData = SkillData.Skills[skillName]
 		if not sData then return false end
@@ -794,7 +799,7 @@ local function BuildSkillsTab(parentFrame)
 
 		return false
 	end
-	
+
 	local function RefreshSkills()
 		for _, c in ipairs(SkillLibraryContainer:GetChildren()) do if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end end
 		if not hasSkillData or type(SkillData) ~= "table" then return end
@@ -1246,12 +1251,6 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				else
 					DoRoll(true)
 				end
-			else
-				PromptConfirmation("Sacrifice your Awakened lineage, 5,000,000 Dews, and 1 Abyssal Blood to transcend to an Abyssal Clan?", function(confirmed)
-					if confirmed then
-						Network:WaitForChild("AbyssalRoll"):FireServer()
-					end
-				end)
 			end
 		end)
 
