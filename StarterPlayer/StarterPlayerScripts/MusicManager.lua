@@ -1,12 +1,14 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: MusicManager
--- @ScriptType: ModuleScript
 local MusicManager = {}
 
 local TweenService = game:GetService("TweenService")
 local SoundService = game:GetService("SoundService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
 
 -- [[ ORGANIZE YOUR TRACKS HERE ]]
 local TRACKS = {
@@ -35,7 +37,7 @@ local TRACKS = {
 	}
 }
 
-local TARGET_VOLUME = 0.4
+local BASE_VOLUME = 0.4
 local FADE_TIME = 2.0
 
 local Player1 = Instance.new("Sound")
@@ -54,6 +56,19 @@ local ActivePlayer = Player1
 local CurrentCategory = nil
 local LastTrackId = 0
 
+-- Dynamically check if music should be muted based on settings
+local function GetTargetVolume()
+	if player:GetAttribute("Setting_Music") == false then return 0 end
+	return BASE_VOLUME
+end
+
+-- Listener to instantly adjust music if they toggle it mid-track
+player:GetAttributeChangedSignal("Setting_Music"):Connect(function()
+	if ActivePlayer and ActivePlayer.IsPlaying then
+		TweenService:Create(ActivePlayer, TweenInfo.new(0.5, Enum.EasingStyle.Linear), {Volume = GetTargetVolume()}):Play()
+	end
+end)
+
 local function PlayNextTrack()
 	if not CurrentCategory or not TRACKS[CurrentCategory] then return end
 
@@ -71,10 +86,9 @@ local function PlayNextTrack()
 	nextPlayer.SoundId = "rbxassetid://" .. tostring(nextTrackId)
 
 	task.spawn(function()
-		-- [[ THE FIX: Removed ContentProvider:PreloadAsync so the track plays immediately natively via streaming ]]
 		if nextPlayer.SoundId == "rbxassetid://" .. tostring(nextTrackId) then
 			nextPlayer:Play()
-			TweenService:Create(nextPlayer, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear), {Volume = TARGET_VOLUME}):Play()
+			TweenService:Create(nextPlayer, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear), {Volume = GetTargetVolume()}):Play()
 
 			local prevPlayer = ActivePlayer
 			local fadeOut = TweenService:Create(prevPlayer, TweenInfo.new(FADE_TIME, Enum.EasingStyle.Linear), {Volume = 0})
@@ -131,7 +145,6 @@ function MusicManager.Initialize()
 		end
 	end)
 
-	-- Hook into PvP matches as well
 	if PvPUpdate then
 		PvPUpdate.OnClientEvent:Connect(function(action)
 			if action == "MatchStarted" or action == "SpectateStarted" then
