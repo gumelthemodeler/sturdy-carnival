@@ -149,7 +149,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	RefreshProfile = function()
 		local tName = player:GetAttribute("Titan") or "None"; local cName = player:GetAttribute("Clan") or "None"; local regName = player:GetAttribute("Regiment") or "Cadet Corps"
 		local hasRegData, regDataModule = pcall(function() return require(game.ReplicatedStorage:WaitForChild("RegimentData")) end); if hasRegData and regDataModule and regDataModule.Regiments[regName] then regIcon.Image = regDataModule.Regiments[regName].Icon else regIcon.Image = "" end
-		if cName == "Ackerman" or cName == "Awakened Ackerman" or string.find(cName, "Abyssal", 1, true) then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end; clanLabel.Text = "Clan: <font color='#55FF55'>" .. cName .. "</font>"; regimentLabel.Text = "Regiment: <font color='"..(REG_COLORS[regName] or TEXT_COLORS.DefaultGreen).."'>" .. regName .. "</font>"
+		if cName == "Ackerman" or string.find(cName, "Ackerman", 1, true) then titanLabel.Text = "Titan: <font color='#FF5555'>(Titan Disabled)</font>" else titanLabel.Text = "Titan: <font color='#FF5555'>" .. tName .. "</font>" end; clanLabel.Text = "Clan: <font color='#55FF55'>" .. cName .. "</font>"; regimentLabel.Text = "Regiment: <font color='"..(REG_COLORS[regName] or TEXT_COLORS.DefaultGreen).."'>" .. regName .. "</font>"
 		local wpnName = player:GetAttribute("EquippedWeapon") or "None"; local accName = player:GetAttribute("EquippedAccessory") or "None"; local pTitle = player:GetAttribute("EquippedTitle") or "Cadet"; local pAura = player:GetAttribute("EquippedAura") or "None"
 		local resolvedTitleData = nil; if type(CosmeticData) == "table" and CosmeticData.Titles then resolvedTitleData = CosmeticData.Titles[pTitle]; if not resolvedTitleData then for k, v in pairs(CosmeticData.Titles) do if v.Name == pTitle then resolvedTitleData = v break end end end end; if resolvedTitleData then AvatarTitle.Text = string.upper(resolvedTitleData.Name); AvatarTitle.TextColor3 = Color3.fromHex((resolvedTitleData.Color or "#FFFFFF"):gsub("#", "")) end
 		local resolvedAuraData = nil; if type(CosmeticData) == "table" and CosmeticData.Auras then resolvedAuraData = CosmeticData.Auras[pAura]; if not resolvedAuraData then for k, v in pairs(CosmeticData.Auras) do if v.Name == pAura then resolvedAuraData = v break end end end end; if UIAuraManager and type(UIAuraManager.ApplyAura) == "function" and resolvedAuraData then UIAuraManager.ApplyAura(AvatarAuraGlow, resolvedAuraData, AvatarBox) end
@@ -246,7 +246,14 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			if currentSlotsUsed >= MAX_INVENTORY_CAPACITY then InvTitle.TextColor3 = Color3.fromRGB(255, 100, 100) else InvTitle.TextColor3 = Color3.fromRGB(225, 185, 60) end
 		end
 	end
-	player.AttributeChanged:Connect(function(attr) EvaluateCosmetics(); RefreshProfile() end); RefreshProfile()
+
+	-- [[ THE FIX: Inventory scroll resets no longer trigger from Background XP/Dews ]]
+	player.AttributeChanged:Connect(function(attr)
+		if string.match(attr, "Count$") or string.match(attr, "^Equipped") or attr == "Clan" or attr == "Titan" or attr == "Regiment" or string.match(attr, "_Awakened$") or string.match(attr, "_Locked$") then
+			EvaluateCosmetics()
+			RefreshProfile()
+		end
+	end)
 end
 
 -- ==========================================
@@ -323,19 +330,14 @@ local function BuildAttributesTab(parentFrame)
 		tBtn.Activated:Connect(TriggerTrain); missBtn.Activated:Connect(function() if isTitan and titanCombo > 0 then titanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if titanCombo == 0 then comboLbl.Visible = false end end) elseif not isTitan and humanCombo > 0 then humanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if humanCombo == 0 then comboLbl.Visible = false end end) end end)
 
 		if player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397 then 
-			local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11)
-			autoBtn.Position = UDim2.new(1, -100, 0, 12); autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); autoBtn.ZIndex = 5
+			local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11); autoBtn.Position = UDim2.new(1, -100, 0, 12); autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); autoBtn.ZIndex = 5
 
 			autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
 			player:GetAttributeChangedSignal("HasAutoTrain"):Connect(function()
 				autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
 			end)
 
-			local isAutoTraining = false
-			autoBtn.Activated:Connect(function() 
-				isAutoTraining = not isAutoTraining; autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"; autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255)
-				if isAutoTraining then task.spawn(function() while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end; task.wait(0.6) end end) end 
-			end) 
+			local isAutoTraining = false; autoBtn.Activated:Connect(function() isAutoTraining = not isAutoTraining; autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"; autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255); if isAutoTraining then task.spawn(function() while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end; task.wait(0.6) end end) end end) 
 		end
 		return box
 	end
@@ -381,7 +383,8 @@ local function BuildSkillsTab(parentFrame)
 	local sep = Instance.new("Frame", MainFrame); sep.Size = UDim2.new(0.95, 0, 0, 2); sep.BackgroundColor3 = Color3.fromRGB(70, 70, 80); sep.BorderSizePixel = 0; sep.LayoutOrder = 2
 	local LibHeader = CreateSharpLabel(MainFrame, "SKILL LIBRARY", UDim2.new(0.95, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(245, 245, 245), 18); LibHeader.LayoutOrder = 3; LibHeader.TextXAlignment = Enum.TextXAlignment.Left
 	local SkillLibraryContainer = Instance.new("Frame", MainFrame); SkillLibraryContainer.Size = UDim2.new(0.95, 0, 0, 0); SkillLibraryContainer.AutomaticSize = Enum.AutomaticSize.Y; SkillLibraryContainer.BackgroundTransparency = 1; SkillLibraryContainer.LayoutOrder = 4; local libLayout = Instance.new("UIListLayout", SkillLibraryContainer); libLayout.Padding = UDim.new(0, 15); libLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; libLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	
+
+	-- [[ THE FIX: Unified Safe Skill Validation Function ]]
 	local function IsSkillValid(skillName, isTransformedCheck)
 		local sData = SkillData.Skills[skillName]
 		if not sData then return false end
@@ -421,7 +424,7 @@ local function BuildSkillsTab(parentFrame)
 
 		return false
 	end
-	
+
 	local function RefreshSkills()
 		for _, c in ipairs(SkillLibraryContainer:GetChildren()) do if c:IsA("Frame") or c:IsA("TextLabel") then c:Destroy() end end
 		if not hasSkillData or type(SkillData) ~= "table" then return end
@@ -513,9 +516,9 @@ local function BuildSkillsTab(parentFrame)
 							local slotBtn, _ = CreateSharpButton(ActionsOverlay, "SLOT " .. sIndex, UDim2.new(0.8, 0, 0, 24), Enum.Font.GothamBlack, 10); 
 							slotBtn.ZIndex = 11; 
 							slotBtn.Activated:Connect(function() 
-								Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName)
+								Network:WaitForChild("EquipSkill"):FireServer(sIndex, sName); 
 								player:SetAttribute("EquippedSkill_"..sIndex, sName)
-								ActionsOverlay.Visible = false
+								ActionsOverlay.Visible = false; 
 								RefreshSkills() 
 							end) 
 						end
@@ -765,7 +768,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local ResultLbl = CreateSharpLabel(BottomArea, "Current: None", UDim2.new(0.6, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16); ResultLbl.RichText = true; ResultLbl.TextXAlignment = Enum.TextXAlignment.Left; ResultLbl.Position = UDim2.new(0.05, 0, 0, 0)
 
 		if gType == "Titan" or gType == "Clan" then
-			local ItemizeBtn, iStroke = CreateSharpButton(BottomArea, "ITEMIZE (100K)", UDim2.new(0.3, 0, 0, 24), Enum.Font.GothamBold, 11)
+			local ItemizeBtn, iStroke = CreateSharpButton(BottomArea, "ITEMIZE (100K)", UDim2.new(0.3, 0, 0, 24), Enum.Font.GothamBold, 10)
 			ItemizeBtn.Position = UDim2.new(0.95, 0, 0, 3)
 			ItemizeBtn.AnchorPoint = Vector2.new(1, 0)
 			ItemizeBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -806,10 +809,10 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local labelPrefix = (gType == "Titan") and "Serum" or "Vial"
 		local RollBtn, rStroke = CreateSharpButton(RollActions, "ROLL (1x " .. labelPrefix .. ")", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
 
-		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
+		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
 		if gType == "Titan" then 
 			PremiumRollBtn.Visible = true
-			PremiumRollBtn.Text = "PREMIUM (1x Syringe)\nOwned: 0" 
+			PremiumRollBtn.Text = "PREMIUM (1x Syringe)" 
 		else 
 			PremiumRollBtn.Visible = false
 		end
@@ -853,12 +856,6 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 				else
 					DoRoll(true)
 				end
-			else
-				PromptConfirmation("Sacrifice your Awakened lineage, 5,000,000 Dews, and 1 Abyssal Blood to transcend to an Abyssal Clan?", function(confirmed)
-					if confirmed then
-						Network:WaitForChild("AbyssalRoll"):FireServer()
-					end
-				end)
 			end
 		end)
 
@@ -990,7 +987,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 end
 
 -- ==========================================
--- 6. BOUNTIES TAB
+-- BOUNTIES TAB
 -- ==========================================
 local function FormatBountyName(taskType, count)
 	if taskType == "Kill" then return "Eliminate " .. count .. " enemies"
