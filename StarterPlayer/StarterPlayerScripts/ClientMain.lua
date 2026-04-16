@@ -72,32 +72,32 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ROBUST DEVICE & RESOLUTION DETECTION
+-- DEVICE DETECTION (The Bulletproof Fix)
 -- ==========================================
-local camera = workspace.CurrentCamera
-
--- Yield the script if the ViewportSize hasn't loaded yet (The 0x0 Studio Bug)
-if camera.ViewportSize.X == 0 then
-	camera:GetPropertyChangedSignal("ViewportSize"):Wait()
-end
-
-local screenWidth = camera.ViewportSize.X
 local isMobile = false
 
--- Responsive Design Check: 
--- If the screen is less than 900 pixels wide (Phones/Portrait Tablets) 
--- OR if it's a strict touch-only device (Live Mobile Game)
-if screenWidth <= 900 or (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) then
-	isMobile = true
+-- [[ STUDIO OVERRIDE ]]
+-- Change this to 'true' ONLY when you want to test the mobile UI in Studio.
+-- Change it to 'false' to work on your PC layout.
+local TEST_MOBILE_IN_STUDIO = false
+
+if RunService:IsStudio() then
+	isMobile = TEST_MOBILE_IN_STUDIO
+else
+	-- [[ LIVE GAME HARDWARE CHECK ]]
+	-- If the device has a Touchscreen and NO Mouse, it is 100% a Phone or Tablet.
+	-- This perfectly handles touchscreen laptops (they have a mouse, so they get PC layout).
+	if UserInputService.TouchEnabled and not UserInputService.MouseEnabled then
+		isMobile = true
+	end
 end
 
 if isMobile then
-	print("[AoT UI] Resolution: " .. screenWidth .. "px. Loading Mobile Interface Architecture...")
+	print("[AoT UI] Device Detected: MOBILE/TABLET. Loading Mobile Architecture...")
 
 	local MobileModules = playerScripts:WaitForChild("MobileModules")
 	local UIModules = playerScripts:WaitForChild("UIModules") 
 
-	-- Boots your mobile layouts
 	require(MobileModules:WaitForChild("MobileMainUI")).Initialize(MasterGui)
 	require(MobileModules:WaitForChild("MobileTradingUI")).Initialize(MasterGui)
 
@@ -107,11 +107,10 @@ if isMobile then
 		print("[AoT UI] Paths Shop Module Initialized.")
 	end
 else
-	print("[AoT UI] Resolution: " .. screenWidth .. "px. Loading Standard PC Interface...")
+	print("[AoT UI] Device Detected: PC. Loading Standard PC Architecture...")
 
 	local UIModules = playerScripts:WaitForChild("UIModules")
 
-	-- Boots your PC layouts
 	require(UIModules:WaitForChild("MainUI")).Initialize(MasterGui)
 	require(UIModules:WaitForChild("TradingUI")).Initialize(MasterGui)
 
