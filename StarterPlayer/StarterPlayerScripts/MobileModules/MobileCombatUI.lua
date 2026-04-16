@@ -1048,9 +1048,13 @@ function MobileCombatUI.Initialize(masterScreenGui)
 						if type(VFXManager.ScreenShake) == "function" then VFXManager.ScreenShake(1.5, 0.5) end
 					end
 
-					GUI.ExecuteFlash.BackgroundTransparency = 0
+					-- [[ THE FIX: Check attribute before flashing the screen white ]]
+					if player:GetAttribute("Setting_ScreenFlash") ~= false then
+						GUI.ExecuteFlash.BackgroundTransparency = 0
+						TweenService:Create(GUI.ExecuteFlash, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+					end
+
 					GUI.ExecuteBanner.Visible = false
-					TweenService:Create(GUI.ExecuteFlash, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
 
 					if VFXManager and type(VFXManager.PlayVFX) == "function" and GUI.eAvatar then 
 						VFXManager.PlayVFX("Blood", GUI.eAvatar, Color3.fromRGB(180, 0, 0), true) 
