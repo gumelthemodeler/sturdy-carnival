@@ -23,13 +23,13 @@ local LBCache = { Prestige = {}, Elo = {} }
 local RemotesFolder = ReplicatedStorage:FindFirstChild("Network") or Instance.new("Folder", ReplicatedStorage)
 RemotesFolder.Name = "Network"
 
--- [[ THE FIX: PathsShopEvent, PathsShopBuy, and UpgradeRune explicitly registered! ]]
+-- [[ THE FIX: Added LabyrinthAction and LabyrinthUpdate to the remote generator ]]
 local requiredRemotes = {
 	"ToggleMute", "CombatAction", "CombatUpdate", "PrestigeEvent", "NotificationEvent", "DungeonUpdate", "WorldBossUpdate", "WorldBossAction", 
 	"RaidAction", "RaidUpdate", "ToggleTraining", "ShopAction", "ShopUpdate", "UpgradeStat", "TrainAction", "EquipItem", "SellItem", "AutoSell", "AdminCommand",
 	"GachaRoll", "GachaRollAuto", "GachaResult", "AwakenAction", "ManageStorage", "VIPFreeReroll", "RedeemCode", "ClaimBounty", "ForgeItem", "ConsumeItem", "JoinRegiment", "ShowRegimentUI",
 	"FuseTitan", "PathsShopBuy", "AwakenWeapon", "DispatchAction", "TradeAction", "TradeUpdate", "TradeRequest", "DeployToDistrict", "EquipSkill",
-	"PathsShopEvent", "UpgradeRune"
+	"PathsShopEvent", "UpgradeRune", "LabyrinthAction", "LabyrinthUpdate"
 }
 
 for _, remoteName in ipairs(requiredRemotes) do
@@ -268,7 +268,7 @@ RemotesFolder.AdminCommand.OnServerEvent:Connect(function(player, command, targe
 
 		local savedGamepasses = {}
 		for k, v in pairs(targetPlayer:GetAttributes()) do
-			if string.match(k, "^Has") then
+			if string.match(k, "^Has") or k == "PathDust" or k == "PathsFloor" then
 				savedGamepasses[k] = v
 			end
 		end
