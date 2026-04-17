@@ -306,11 +306,8 @@ local function StartBattle(player, encounterType, requestedPartId)
 		dropMult = 1.0 + (prestige * 0.25) + (floor * 0.1)
 	end
 
-	-- [[ THE FIX: True RPG Formula Scaling for the Labyrinth ]]
 	if isLabyrinth then
 		local floor = requestedPartId or 1
-
-		-- Generates a Power Rating combining the player's true output
 		local playerPowerRating = (pTotalStr * 2.5) + (pMaxHP / 12) + (pTotalDef * 1.5)
 		local difficultyCurve = 1.0 + (floor * 0.15) 
 
@@ -447,25 +444,8 @@ local function StartBattle(player, encounterType, requestedPartId)
 			local success, DoomsdayManager = pcall(function() return require(game:GetService("ServerScriptService"):WaitForChild("DoomsdayManager")) end)
 			if not success or type(DoomsdayManager.GetServerData) ~= "function" then return end
 
-			local lastHP = eHP
 			while ActiveBattles[player.UserId] and ActiveBattles[player.UserId].Enemy.IsDoomsdayBoss do
 				local ddData = DoomsdayManager.GetServerData()
-
-				-- [[ THE FIX: Actively subtract the local damage from the Global Doomsday Boss ]]
-				local currentHP = ActiveBattles[player.UserId].Enemy.HP
-				if lastHP > currentHP then
-					local dmg = lastHP - currentHP
-					pcall(function()
-						if DoomsdayManager.AddDamage then DoomsdayManager.AddDamage(player, dmg)
-						elseif DoomsdayManager.RegisterDamage then DoomsdayManager.RegisterDamage(player, dmg)
-						elseif DoomsdayManager.DamageBoss then DoomsdayManager.DamageBoss(player, dmg)
-						else
-							local we = Network:FindFirstChild("WorldBossAction")
-							if we then we:Fire("Damage", dmg) end
-						end
-					end)
-					lastHP = currentHP
-				end
 
 				if not ddData.IsActive or ddData.BossHP <= 0 then
 					local b = ActiveBattles[player.UserId]
@@ -477,7 +457,16 @@ local function StartBattle(player, encounterType, requestedPartId)
 					ActiveBattles[player.UserId] = nil
 					break
 				end
-				task.wait(1) 
+
+				-- ONLY sync the health visually, do not double-calculate damage
+				ActiveBattles[player.UserId].Enemy.HP = ddData.BossHP
+				ActiveBattles[player.UserId].Enemy.MaxHP = ddData.MaxHP or 500000000
+
+				if not ActiveBattles[player.UserId].IsProcessing then
+					CombatUpdate:FireClient(player, "Update", {Battle = ActiveBattles[player.UserId]})
+				end
+
+				task.wait(2) 
 			end
 		end)
 	end
@@ -527,7 +516,6 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		if squadEvent then
 			local spAward = battle.Enemy.IsBoss and 5 or 1 
 
-			-- [[ THE FIX: Multiplayer SP Bonus Loop ]]
 			local getPartyFunc = Network:FindFirstChild("GetPlayerParty")
 			if getPartyFunc then
 				pcall(function()
@@ -1126,7 +1114,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		if battle.Player.HP < 1 or battle.Enemy.HP < 1 then break end
 		if combatant.HP < 1 then continue end
 
-		-- [[ THE FIX: Cache incapacitation BEFORE TickStatuses removes it when duration hits 0 ]]
+		-- Cache incapacitation BEFORE TickStatuses removes it when duration hits 0 
 		local wasIncapacitated = false
 		if combatant.Statuses and (combatant.Statuses["Blinded"] or combatant.Statuses["TrueBlind"] or combatant.Statuses["Stun"]) then
 			wasIncapacitated = true
@@ -1166,6 +1154,8 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = msg, DidHit = false, ShakeType = "Light"})
 			task.wait(turnDelay)
+
+			-- SKIPS ENEMY COMBAT AI SO HE NEVER ATTACKS YOU
 			continue 
 		end
 
