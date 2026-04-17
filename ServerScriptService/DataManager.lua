@@ -20,10 +20,13 @@ local PrestigeLB = DataStoreService:GetOrderedDataStore("Global_Prestige_LB_V3")
 local EloLB = DataStoreService:GetOrderedDataStore("Global_Elo_LB_V3")
 local LBCache = { Prestige = {}, Elo = {} }
 
+-- [[ THE FIX: Top 5 Global Caches for dynamically mapping Titles and Luck Boosts ]]
+local Top5PrestigeCache = {}
+local Top5EloCache = {}
+
 local RemotesFolder = ReplicatedStorage:FindFirstChild("Network") or Instance.new("Folder", ReplicatedStorage)
 RemotesFolder.Name = "Network"
 
--- [[ THE FIX: Added LabyrinthAction and LabyrinthUpdate to the remote generator ]]
 local requiredRemotes = {
 	"ToggleMute", "CombatAction", "CombatUpdate", "PrestigeEvent", "NotificationEvent", "DungeonUpdate", "WorldBossUpdate", "WorldBossAction", 
 	"RaidAction", "RaidUpdate", "ToggleTraining", "ShopAction", "ShopUpdate", "UpgradeStat", "TrainAction", "EquipItem", "SellItem", "AutoSell", "AdminCommand",
@@ -152,12 +155,20 @@ task.spawn(function()
 			local pages = PrestigeLB:GetSortedAsync(false, 50)
 			local data = pages:GetCurrentPage()
 			local newCache = {}
+			local top5Users = {}
 			for rank, entry in ipairs(data) do
 				local pName = "Unknown"
 				pcall(function() pName = Players:GetNameFromUserIdAsync(tonumber(entry.key)) end)
 				table.insert(newCache, {Rank = rank, Name = pName, Value = entry.value})
+				if rank <= 5 then top5Users[tonumber(entry.key)] = true end
 			end
 			LBCache.Prestige = newCache
+			Top5PrestigeCache = top5Users
+
+			-- Instantly map attributes to online players
+			for _, p in ipairs(Players:GetPlayers()) do
+				p:SetAttribute("Top5_Prestige", top5Users[p.UserId] or false)
+			end
 		end)
 		task.wait(2)
 
@@ -165,12 +176,20 @@ task.spawn(function()
 			local pages = EloLB:GetSortedAsync(false, 50)
 			local data = pages:GetCurrentPage()
 			local newCache = {}
+			local top5Users = {}
 			for rank, entry in ipairs(data) do
 				local pName = "Unknown"
 				pcall(function() pName = Players:GetNameFromUserIdAsync(tonumber(entry.key)) end)
 				table.insert(newCache, {Rank = rank, Name = pName, Value = entry.value})
+				if rank <= 5 then top5Users[tonumber(entry.key)] = true end
 			end
 			LBCache.Elo = newCache
+			Top5EloCache = top5Users
+
+			-- Instantly map attributes to online players
+			for _, p in ipairs(Players:GetPlayers()) do
+				p:SetAttribute("Top5_Elo", top5Users[p.UserId] or false)
+			end
 		end)
 		task.wait(60)
 	end
@@ -221,7 +240,7 @@ pcall(function()
 	end)
 end)
 
-local SavePlayer -- Forward declaration
+local SavePlayer 
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 
 RemotesFolder.AdminCommand.OnServerEvent:Connect(function(player, command, targetName, args)
@@ -256,7 +275,15 @@ RemotesFolder.AdminCommand.OnServerEvent:Connect(function(player, command, targe
 	if command == "SetXP" then targetPlayer:SetAttribute("XP", tonumber(args) or 0)
 	elseif command == "SetDews" then targetPlayer.leaderstats.Dews.Value = tonumber(args) or 0
 	elseif command == "UnlockAllParts" then targetPlayer:SetAttribute("CurrentPart", 8); targetPlayer:SetAttribute("CurrentWave", 1)
-	elseif command == "GiveItem" then local safeName = args.Item:gsub("[^%w]", "") .. "Count"; targetPlayer:SetAttribute(safeName, (targetPlayer:GetAttribute(safeName) or 0) + (tonumber(args.Amount) or 1))
+	elseif command == "GiveItem" then 
+		-- [[ THE FIX: Safely parse args whether it's a string or a table ]]
+		local itemName = type(args) == "table" and tostring(args.Item) or tostring(args)
+		local itemAmount = type(args) == "table" and tonumber(args.Amount) or 1
+		if itemName and itemName ~= "nil" and itemName ~= "" then
+			local safeName = itemName:gsub("[^%w]", "") .. "Count"
+			targetPlayer:SetAttribute(safeName, (targetPlayer:GetAttribute(safeName) or 0) + itemAmount)
+			RemotesFolder.NotificationEvent:FireClient(player, "Gave " .. targetPlayer.Name .. " " .. itemAmount .. "x " .. itemName, "Success")
+		end
 	elseif command == "MaxPrestige" then 
 		targetPlayer.leaderstats.Prestige.Value = 10
 		task.spawn(function() PrestigeLB:SetAsync(tostring(targetPlayer.UserId), 10) end) 
@@ -385,6 +412,10 @@ local function LoadPlayer(player)
 	eVal.Changed:Connect(function(val) player:SetAttribute("Elo", val) end)
 	player:SetAttribute("Elo", eVal.Value)
 
+	-- [[ THE FIX: Check caches for newly joining players so they instantly get their titles ]]
+	player:SetAttribute("Top5_Prestige", Top5PrestigeCache[player.UserId] or false)
+	player:SetAttribute("Top5_Elo", Top5EloCache[player.UserId] or false)
+
 	for k, v in pairs(DefaultData) do if k ~= "Prestige" and k ~= "Dews" and k ~= "Elo" then player:SetAttribute(k, data[k] or v) end end
 	for k, v in pairs(data) do if DefaultData[k] == nil and k ~= "Prestige" and k ~= "Dews" and k ~= "Elo" then player:SetAttribute(k, v) end end
 
@@ -397,6 +428,8 @@ local function LoadPlayer(player)
 
 				player.leaderstats.Dews.Value += 25000
 				player:SetAttribute("TitanHardeningExtractCount", (player:GetAttribute("TitanHardeningExtractCount") or 0) + 1)
+
+				-- [[ THE FIX: Added missing quote before "this week!" ]]
 				task.delay(3, function() RemotesFolder.NotificationEvent:FireClient(player, "Your Regiment secured " .. dName .. " this week! (+25k Dews, +1 Extract)", "Success") end)
 			end
 		end
