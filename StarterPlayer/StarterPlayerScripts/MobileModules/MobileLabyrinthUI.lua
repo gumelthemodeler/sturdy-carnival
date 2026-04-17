@@ -450,13 +450,26 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 	end)
 
 	Network:WaitForChild("LabyrinthUpdate").OnClientEvent:Connect(function(action, data)
-		if action == "Sync" then
-			if not CurrentSession or CurrentSession.Floor ~= data.Floor then
-				CurrentSession = data
-				BuildGrid() 
-			else
-				CurrentSession = data
+		-- THE FIX: Added InitSync to force the grid to rebuild unconditionally
+		if action == "InitSync" then
+			CurrentSession = data
+			BuildGrid()
+
+			local tint, _, _ = GetFloorTheme(data.Floor)
+			TitleLbl.TextColor3 = tint
+			SubTitleLbl.Text = "FLOOR " .. data.Floor
+
+			LootDisplay.Text = "<font color='#FFD700'>+0 Dews</font>\n<font color='#55FF55'>+0 XP</font>\n\n"
+			UpdateGridVisibility()
+
+			if not GUI.Visible then 
+				GUI.Visible = true 
+				ToggleAtmosphere(true, data.Floor)
+				SpawnPathDust(data.Floor)
 			end
+
+		elseif action == "Sync" then
+			CurrentSession = data
 
 			local tint, _, _ = GetFloorTheme(data.Floor)
 			TitleLbl.TextColor3 = tint
