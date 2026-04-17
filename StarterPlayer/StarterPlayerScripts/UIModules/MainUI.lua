@@ -106,7 +106,6 @@ local function BuildMasterWindow()
 	WindowTitle.Position = UDim2.new(0, 25, 0, 0)
 	WindowTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-	-- Universal Close Button
 	local CloseBtn = Instance.new("TextButton", Header)
 	CloseBtn.Size = UDim2.new(0, 40, 0, 40)
 	CloseBtn.Position = UDim2.new(1, -10, 0.5, 0)
@@ -162,6 +161,24 @@ local function BuildMasterWindow()
 	for _, cData in ipairs(CONFIG.Currencies) do
 		CurrencyLabels[cData.Id] = CreateTopBox(cData.Title, cData.Color)
 	end
+
+	-- [[ THE FIX: Added Live Luck Timer to Top Bar ]]
+	local LuckTimerBox = CreateTopBox("LUCK BUFF", "#55FF55")
+	LuckTimerBox.Parent.Visible = false
+	task.spawn(function()
+		while task.wait(1) do
+			local expiry = player:GetAttribute("Buff_Luck_Expiry") or 0
+			local left = expiry - os.time()
+			if left > 0 then
+				LuckTimerBox.Parent.Visible = true
+				local m = math.floor(left / 60)
+				local s = left % 60
+				LuckTimerBox.Text = string.format("%02d:%02d", m, s)
+			else
+				LuckTimerBox.Parent.Visible = false
+			end
+		end
+	end)
 
 	local function UpdateCurrencies()
 		local ls = player:FindFirstChild("leaderstats")
@@ -249,8 +266,7 @@ local function BuildMasterWindow()
 		clTitle.Position = UDim2.new(0, 10, 0, 10)
 		clTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-		-- [[ THE FIX: Updated Changelog Text ]]
-		local updatedChangelog = "<b>v1.7.0 - The Labyrinth Update</b>\n\n• The Labyrinth: Infinite shifting dungeon & Pouch extraction.\n• System Settings: Auto-Train, Music & Screen Flash Toggles.\n• Native Mobile & Tablet UI Overhauls.\n• The Abyssal Bestiary added to Command Center.\n\n<b>ACTIVE CODES:</b>\n[LABYRINTH]\n[CAMPAIGN!]\n[SQUADS]"
+		local updatedChangelog = "<b>v1.7.0 - The Labyrinth Update</b>\n\n• The Labyrinth: Infinite shifting dungeon & Pouch extraction.\n• System Settings: Auto-Train, Music & Screen Flash Toggles.\n• Native Mobile & Tablet UI Overhauls.\n• The Abyssal Bestiary added to Command Center.\n\n<b>ACTIVE CODES:</b>\n[LABYRINTH]\n[LUCKY]\n[GOJOHNNYGO]"
 		local clText = UIHelpers.CreateLabel(ChangeLogBox, updatedChangelog, UDim2.new(1, -20, 1, -50), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 14)
 		clText.Position = UDim2.new(0, 10, 0, 45)
 		clText.TextXAlignment = Enum.TextXAlignment.Left
@@ -356,7 +372,6 @@ local function BuildMasterWindow()
 	end
 	BuildHomeTab()
 
-	-- [[ LAUNCH EXTERNAL TAB MODULES ]]
 	task.spawn(function() local HeroMod = require(script.Parent:WaitForChild("HeroMenu")); if HeroMod.Initialize then HeroMod.Initialize(TabContainers["PROFILE"]) end end)
 	task.spawn(function() local ExpMod = require(script.Parent:WaitForChild("ExpeditionsTab")); if ExpMod.Initialize then ExpMod.Initialize(TabContainers["EXPEDITIONS"]) end end)
 	task.spawn(function() local SquadsMod = require(script.Parent:WaitForChild("SquadsTab")); if SquadsMod.Initialize then SquadsMod.Initialize(TabContainers["SQUADS"]) end end)
