@@ -1,5 +1,6 @@
--- @ScriptType: Script
 -- @ScriptType: ModuleScript
+-- @ScriptType: Script
+-- Name: DoomsdayManager
 local DoomsdayManager = {}
 
 local MessagingService = game:GetService("MessagingService")
@@ -7,19 +8,22 @@ local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local DoomsdayDataStore = DataStoreService:GetDataStore("Doomsday_Boss_V2")
-
-local BOSS_MAX_HP = 500000000 -- 500 Million HP
-local currentBossHP = BOSS_MAX_HP
-local damageLeaderboard = {} 
-
 local Network = ReplicatedStorage:WaitForChild("Network")
 local GetDoomsdayData = Network:FindFirstChild("GetDoomsdayData") or Instance.new("RemoteFunction", Network)
 GetDoomsdayData.Name = "GetDoomsdayData"
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
+local BOSS_MAX_HP = 500000000 -- 500 Million HP
+local currentBossHP = BOSS_MAX_HP
+local damageLeaderboard = {} 
+
 local IsBossActive = false
 local BossDuration = 900 -- Active for 15 minutes (900 seconds)
+local JobId = game.JobId
+
+-- Batching variables to prevent MessagingService limits
+local pendingBroadcastDamage = 0
+local pendingLeaderboardUpdates = {}
 
 local function DistributeRewards()
 	local sorted = {}
@@ -61,6 +65,8 @@ local function CheckSchedule()
 			IsBossActive = true
 			currentBossHP = BOSS_MAX_HP
 			damageLeaderboard = {}
+			pendingBroadcastDamage = 0
+			pendingLeaderboardUpdates = {}
 			NotificationEvent:FireAllClients("The Primordial Threat has appeared! Deploy via Combat Deployment!", "Error")
 		end
 	else
@@ -77,42 +83,41 @@ local function CheckSchedule()
 	end
 end
 
-MessagingService:SubscribeAsync("DoomsdayDamageTick", function(message)
-	local payload = message.Data
-	if not IsBossActive then return end
-	currentBossHP = math.max(0, currentBossHP - payload.Damage)
+pcall(function()
+	MessagingService:SubscribeAsync("DoomsdaySync", function(message)
+		local payload = message.Data
+		if payload.ServerId == JobId then return end -- Ignore our own broadcast
+		if not IsBossActive then return end
 
-	if not damageLeaderboard[payload.UserId] then
-		damageLeaderboard[payload.UserId] = {Name = payload.UserName, Damage = 0}
-	end
-	damageLeaderboard[payload.UserId].Damage += payload.Damage
+		currentBossHP = math.max(0, currentBossHP - payload.TotalDamage)
+
+		for uidStr, pData in pairs(payload.Players) do
+			local uid = tonumber(uidStr)
+			if not damageLeaderboard[uid] then damageLeaderboard[uid] = {Name = pData.Name, Damage = 0} end
+			damageLeaderboard[uid].Damage += pData.Damage
+		end
+	end)
 end)
 
 function DoomsdayManager.RegisterDamage(player, damage)
 	if not IsBossActive or currentBossHP <= 0 then return end
 
+	-- Apply instantly locally
 	currentBossHP = math.max(0, currentBossHP - damage)
-
 	if not damageLeaderboard[player.UserId] then
 		damageLeaderboard[player.UserId] = {Name = player.Name, Damage = 0}
 	end
 	damageLeaderboard[player.UserId].Damage += damage
 
-	pcall(function()
-		MessagingService:PublishAsync("DoomsdayDamageTick", {
-			UserId = player.UserId,
-			UserName = player.Name,
-			Damage = damage
-		})
-	end)
+	-- Queue for batch broadcast
+	pendingBroadcastDamage += damage
+	local uidStr = tostring(player.UserId)
+	if not pendingLeaderboardUpdates[uidStr] then pendingLeaderboardUpdates[uidStr] = {Name = player.Name, Damage = 0} end
+	pendingLeaderboardUpdates[uidStr].Damage += damage
 end
 
--- Used by CombatManager to auto-eject players
 function DoomsdayManager.GetServerData()
-	return {
-		IsActive = IsBossActive,
-		BossHP = currentBossHP
-	}
+	return { IsActive = IsBossActive, BossHP = currentBossHP, MaxHP = BOSS_MAX_HP }
 end
 
 GetDoomsdayData.OnServerInvoke = function(player)
@@ -120,30 +125,37 @@ GetDoomsdayData.OnServerInvoke = function(player)
 	for userId, data in pairs(damageLeaderboard) do
 		table.insert(sortedLeaderboard, {Name = data.Name, Damage = data.Damage, UserId = userId})
 	end
-
 	table.sort(sortedLeaderboard, function(a, b) return a.Damage > b.Damage end)
 
 	local top100 = {}
-	for i = 1, math.min(100, #sortedLeaderboard) do
-		table.insert(top100, sortedLeaderboard[i])
-	end
-
-	local timeUntilNext = 3600 - (os.time() % 3600)
-	local timeRemaining = BossDuration - (os.time() % 3600)
+	for i = 1, math.min(100, #sortedLeaderboard) do table.insert(top100, sortedLeaderboard[i]) end
 
 	return {
 		IsActive = IsBossActive,
 		BossHP = currentBossHP,
 		MaxHP = BOSS_MAX_HP,
 		Leaderboard = top100,
-		TimeUntilNext = timeUntilNext,
-		TimeRemaining = timeRemaining
+		TimeUntilNext = 3600 - (os.time() % 3600),
+		TimeRemaining = BossDuration - (os.time() % 3600)
 	}
 end
 
 task.spawn(function()
-	while task.wait(1) do
-		CheckSchedule()
+	while task.wait(1) do CheckSchedule() end
+end)
+
+task.spawn(function()
+	while task.wait(3) do
+		if pendingBroadcastDamage > 0 and IsBossActive then
+			local payload = {
+				ServerId = JobId,
+				TotalDamage = pendingBroadcastDamage,
+				Players = pendingLeaderboardUpdates
+			}
+			pendingBroadcastDamage = 0
+			pendingLeaderboardUpdates = {}
+			pcall(function() MessagingService:PublishAsync("DoomsdaySync", payload) end)
+		end
 	end
 end)
 
