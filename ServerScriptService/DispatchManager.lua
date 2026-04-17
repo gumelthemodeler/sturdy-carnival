@@ -43,7 +43,7 @@ local function UpdateBountyProgress(plr, taskType, amt)
 	end
 end
 
--- [[ Dynamic Ally Events (No Wiping) ]]
+-- [[ Dynamic Ally Events ]]
 local DispatchEvents = {
 	{ Chance = 10, Name = "Aberrant Encounter", DewMod = 0.5, XPMod = 1.5, LootBonus = 0, Msg = "<font color='#FF5555'>Fought off an Aberrant! Lost some supplies but gained massive combat experience.</font>" },
 	{ Chance = 15, Name = "Hidden Cache", DewMod = 2.0, XPMod = 1.0, LootBonus = 2, Msg = "<font color='#55FF55'>Found an abandoned supply cache! Loot significantly increased.</font>" },
@@ -93,7 +93,10 @@ RemotesFolder:WaitForChild("DispatchAction").OnServerEvent:Connect(function(play
 
 	elseif action == "Recall" then
 		local info = dData[allyName]
-		if not info or info.Type ~= "Ally" then return end
+		if not info then return end
+
+		-- [[ THE FIX: Safely handles older dispatches from before the Regiment Update ]]
+		if info.Type ~= nil and info.Type ~= "Ally" then return end
 
 		local elapsedMins = math.floor((os.time() - info.StartTime) / 60)
 		elapsedMins = math.min(elapsedMins, 720)
@@ -148,7 +151,6 @@ RemotesFolder:WaitForChild("DispatchAction").OnServerEvent:Connect(function(play
 		dData[allyName] = nil; SaveDispatchData(player, dData)
 		RemotesFolder.NotificationEvent:FireClient(player, allyName .. " returned!\n" .. dropLog, "Success")
 
-		-- [[ Regiment Command Mechanics (No Wiping) ]]
 	elseif action == "RegimentDeploy" then
 		local regName = player:GetAttribute("Regiment") or "Cadet Corps"
 		if dData["RegimentSquad"] then return end
