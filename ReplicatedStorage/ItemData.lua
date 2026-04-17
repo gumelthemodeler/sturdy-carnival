@@ -44,6 +44,9 @@ ItemData.Consumables = {
 	["Spinal Fluid Syringe"] = { Rarity = "Legendary", Cost = 25000, Desc = "Premium item. Guarantees a Legendary or Mythical Titan." },
 	["Clan Blood Vial"] = { Rarity = "Epic", Cost = 10000, Desc = "Used to roll for Clan Lineages." },
 
+	-- [[ THE FIX: Added Legendary Clan Vial ]]
+	["Legendary Clan Vial"] = { Rarity = "Legendary", Cost = 25000, Desc = "Premium item. Guarantees a Legendary or Mythical Clan Lineage." },
+
 	["Ancestral Awakening Serum"] = { Rarity = "Mythical", Cost = 150000, Action = "AwakenClan", Desc = "Awakens the true power of your current lineage. Only works on major clans." },
 	["Ymir's Clay Fragment"] = { Rarity = "Mythical", Cost = 150000, Action = "AwakenTitan", Desc = "Allows the Attack Titan to reach the Coordinate." },
 	["Titan Hardening Extract"] = { Rarity = "Legendary", Cost = 75000, IsMaterial = true, Desc = "(Obtained in the Supply Shop) Used in the Forge to Awaken max-tier weapons with random Substats." },
@@ -52,7 +55,6 @@ ItemData.Consumables = {
 	["Glowing Titan Crystal"] = { Rarity = "Legendary", Cost = 10000, IsMaterial = true, Desc = "A dense energy crystal found deep in Expeditions. Highly sought after by Hange." },
 	["Abyssal Blood"] = { Rarity = "Mythical", Cost = 50000, IsMaterial = true, Desc = "A terrifying black liquid dropped only by Nightmare Bosses. Used to forge Cursed gear." },
 
-	-- [[ THE FIX: Reverted Coordinate Shard to Mythical so it naturally generates in the Supply Shop Again ]]
 	["Coordinate Shard"] = { Rarity = "Mythical", Cost = 250000, IsMaterial = true, Desc = "A literal fragment of the Paths. One of the rarest materials in existence." },
 
 	["Iron Bamboo Extract"] = { Rarity = "Epic", Cost = 8000, Action = "Consume", Buff = "Damage", Duration = 900, Desc = "Increases all damage dealt by 50% for 15 minutes." },
@@ -190,6 +192,9 @@ ItemData.Products = {
 	{ ID = 3557909698, Name = "5x Titan Serums", Desc = "Grants five Standard Titan Serums.", Reward = "Item", ItemName = "Standard Titan Serum", Amount = 5 },
 	{ ID = 3557938597, Name = "1x Clan Vial", Desc = "Grants one Clan Blood Vial.", Reward = "Item", ItemName = "Clan Blood Vial", Amount = 1 },
 	{ ID = 3557938636, Name = "5x Clan Vials", Desc = "Grants five Clan Blood Vials.", Reward = "Item", ItemName = "Clan Blood Vial", Amount = 5 },
+
+	-- [[ THE FIX: Added Legendary Clan Vial ]]
+	{ ID = 3557938637, Name = "1x Leg. Clan Vial", Desc = "Grants one Legendary Clan Vial.", Reward = "Item", ItemName = "Legendary Clan Vial", Amount = 1 },
 
 	{ ID = 3562817556, Name = "Gift: Auto Train", Desc = "Grants a tradable Auto Train pass.", Reward = "Item", ItemName = "Auto Train (Gift)", Amount = 1 },
 	{ ID = 3562817710, Name = "Gift: 2x XP & Funds", Desc = "Grants a tradable 2x XP pass.", Reward = "Item", ItemName = "2x XP & Funds (Gift)", Amount = 1 },
