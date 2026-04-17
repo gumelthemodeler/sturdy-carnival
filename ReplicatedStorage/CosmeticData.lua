@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- Name: CosmeticData
 local CosmeticData = {}
 
 CosmeticData.Titles = {
@@ -10,7 +11,12 @@ CosmeticData.Titles = {
 	["Abyssal"] = { Name = "Abyssal Survivor", Desc = "Defeat the Abyssal Armored Titan in Nightmare Hunts.", Color = "#AA00AA", ReqType = "Achievement", ReqValue = "Defeat_Abyssal", Order = 5 },
 	["Coordinate"] = { Name = "The Coordinate", Desc = "Awaken the Founding Attack Titan.", Color = "#55FFFF", ReqType = "Titan", ReqValue = "Founding Attack Titan", Order = 6 },
 	["Champion"] = { Name = "Arena Champion", Desc = "Reach 2000 Elo in PVP.", Color = "#55AAFF", ReqType = "Elo", ReqValue = 2000, Order = 7 },
-	["Warlord"] = { Name = "Warlord", Desc = "Reach 4000 Elo in PVP.", Color = "#FF55FF", ReqType = "Elo", ReqValue = 4000, Order = 8 }
+	["Warlord"] = { Name = "Warlord", Desc = "Reach 4000 Elo in PVP.", Color = "#FF55FF", ReqType = "Elo", ReqValue = 4000, Order = 8 },
+
+	-- [[ THE FIX: Added exclusive Top 5 Leaderboard Titles ]]
+	["Prestige Apex"] = { Name = "Prestige Apex", Desc = "Hold a Top 5 spot on the Global Prestige Leaderboard.", Color = "#FFD700", ReqType = "Leaderboard", ReqValue = "Top5_Prestige", Order = 9 },
+	["Arena Apex"] = { Name = "Arena Apex", Desc = "Hold a Top 5 spot on the Global Elo Leaderboard.", Color = "#55AAFF", ReqType = "Leaderboard", ReqValue = "Top5_Elo", Order = 10 },
+	["Squad Apex"] = { Name = "Squad Apex", Desc = "Be in a Top 5 Strike Squad.", Color = "#FF5555", ReqType = "Leaderboard", ReqValue = "Top5_Squad", Order = 11 }
 }
 
 CosmeticData.Auras = {
@@ -24,7 +30,6 @@ CosmeticData.Auras = {
 function CosmeticData.CheckUnlock(player, reqType, reqValue)
 	if reqType == "None" then return true end
 
-	-- [[ THE FIX: Safely check attributes instead of leaderstats to prevent client-side race conditions ]]
 	if reqType == "Prestige" then
 		local prestige = player:GetAttribute("Prestige") or 0
 		return prestige >= reqValue
@@ -38,6 +43,9 @@ function CosmeticData.CheckUnlock(player, reqType, reqValue)
 		if t1 == reqValue then return true end
 		for i=1, 6 do if player:GetAttribute("Titan_Slot"..i) == reqValue then return true end end
 		return false
+	elseif reqType == "Leaderboard" then
+		-- [[ THE FIX: Read the globally synced player attributes ]]
+		return player:GetAttribute(reqValue) == true
 	end
 	return false
 end
