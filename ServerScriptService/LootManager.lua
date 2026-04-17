@@ -46,6 +46,8 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 	local autoSoldDewsCapacity = 0
 	local autoSoldDewsSettings = 0
 	local currentSlots = GetUniqueSlotCount(player)
+	-- THE FIX: Prevent auto-selling by respecting the expanded capacity
+	local MAX_INVENTORY_CAPACITY = player:GetAttribute("HasBackpackExpansion") and 75 or 25
 
 	local dropMultiplier = player:GetAttribute("HasDoubleDrops") and 2 or 1
 	local isYmirFavored = player:GetAttribute("YmirFavored")
