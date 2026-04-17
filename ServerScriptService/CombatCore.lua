@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- Name: CombatCore
 local CombatCore = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
@@ -505,32 +506,22 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		local baseDmg = CombatCore.CalculateDamage(attacker, defender, dmgMultValue, targetLimb, battleContext)
 		local survivalTriggered, hitGate, gateBroken, hpDmg, gateName = CombatCore.TakeDamage(defender, baseDmg, attacker.Style)
 
+		local isArmored = defender.GateType == "Reinforced Skin" and (tonumber(defender.GateHP) or 0) > 0
+
+		-- Log pure damage output directly to the global manager
+		local globalDmgLog = ""
 		if defender.IsDoomsdayBoss and attacker.IsPlayer and attacker.PlayerObj then
 			if baseDmg > 0 then
 				local success, err = pcall(function()
 					local DoomsdayManager = require(game:GetService("ServerScriptService"):WaitForChild("DoomsdayManager"))
 					DoomsdayManager.RegisterDamage(attacker.PlayerObj, baseDmg)
 				end)
-				if not success then
+				if success then
+					globalDmgLog = " <font color='#FF55FF'><b>[GLOBAL DMG LOGGED: " .. math.floor(baseDmg) .. "]</b></font>"
+				else
 					warn("[DOOMSDAY ERROR]: Failed to log damage! Ensure DoomsdayManager is a ModuleScript. Error: " .. tostring(err))
 				end
 			end
-		end
-
-		local isArmored = defender.GateType == "Reinforced Skin" and (tonumber(defender.GateHP) or 0) > 0
-
-		if attacker.Name == "Doomsday Apparition" and defender.IsPlayer then
-			defender.Gas = math.max(0, (tonumber(defender.Gas) or 0) - 15)
-			if defender.TitanEnergy then defender.TitanEnergy = math.max(0, (tonumber(defender.TitanEnergy) or 0) - 15) end
-			if not defender.Statuses then defender.Statuses = {} end
-			defender.Statuses["Burn"] = math.max((tonumber(defender.Statuses["Burn"]) or 0), 2)
-			effectLog = effectLog .. " <font color='#FFAA00'>[DOOMSDAY AURA: Sapped 15 Gas/Heat & Inflicted Burn!]</font>"
-		end
-
-		if attacker.Name == "Abyssal Armored Titan" and defender.IsPlayer then
-			if not defender.Statuses then defender.Statuses = {} end
-			defender.Statuses["Bleed"] = math.max((tonumber(defender.Statuses["Bleed"]) or 0), 2)
-			effectLog = effectLog .. " <font color='#FF5555'>[ABYSSAL SPIKES: Bleed Inflicted!]</font>"
 		end
 
 		if skill.Effect == "CloseGap" then effectLog = effectLog .. " <font color='#55AAFF'>[CLOSED DISTANCE]</font>"
@@ -680,7 +671,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, targetLimb, log
 		if isCrit or survivalTriggered then overallShake = "Heavy" elseif overallShake == "None" then overallShake = "Normal" end
 
 		local hitMsg = ""
-		if attacker.IsPlayer then hitMsg = hitsToDo == 1 and (fLogName .. " struck the <b>" .. targetLimb .. "</b>" .. synergyTag .. " for " .. math.floor(baseDmg) .. " dmg!" .. effectLog) or ("- Hit " .. i .. " dealt " .. math.floor(baseDmg) .. " damage" .. effectLog)
+		if attacker.IsPlayer then hitMsg = hitsToDo == 1 and (fLogName .. " struck the <b>" .. targetLimb .. "</b>" .. synergyTag .. " for " .. math.floor(baseDmg) .. " dmg!" .. effectLog .. globalDmgLog) or ("- Hit " .. i .. " dealt " .. math.floor(baseDmg) .. " damage" .. effectLog .. globalDmgLog)
 		else hitMsg = hitsToDo == 1 and (fLogName .. " struck you" .. synergyTag .. " for " .. math.floor(baseDmg) .. " dmg!" .. effectLog) or ("- Hit " .. i .. " dealt " .. math.floor(baseDmg) .. " damage" .. effectLog) end
 
 		if skill.Unavoidable and not attacker.IsPlayer then hitMsg = hitMsg .. " <font color='#FF5555'>[UNAVOIDABLE]</font>" end
