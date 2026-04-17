@@ -7,7 +7,11 @@ local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
 
 local SquadStore = DataStoreService:GetDataStore("StrikeSquads_V2")
-local SquadLeaderboard = DataStoreService:GetOrderedDataStore("Global_Squad_SP_V1")
+
+local SECONDS_IN_WEEK = 604800
+local SUNDAY_OFFSET = 259200 -- Shifts the Thursday baseline to Sunday
+local currentSeasonWeek = math.floor((os.time() + SUNDAY_OFFSET) / SECONDS_IN_WEEK)
+local SquadLeaderboard = DataStoreService:GetOrderedDataStore("Global_Squad_SP_Season_" .. currentSeasonWeek)
 
 local Network = ReplicatedStorage:WaitForChild("Network")
 local SquadAction = Network:FindFirstChild("SquadAction") or Instance.new("RemoteEvent", Network)
@@ -28,8 +32,10 @@ local isFetchingCache = false
 local PendingRequests = {} 
 
 local currentTopSquadName = nil 
+local Top5SquadsCache = {}
 
 local function SaveSquadData(squadName, data)
+	data.Season = currentSeasonWeek
 	pcall(function() SquadStore:SetAsync(squadName, data); SquadLeaderboard:SetAsync(squadName, data.SP or 0) end)
 end
 
@@ -38,12 +44,15 @@ local function UpdateOnlineMembers(sqName)
 	if not sqData then return end
 	local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None","None","None","None","None","None","None","None","None"})
 	local isFavored = (sqName == currentTopSquadName)
+	local isTop5 = Top5SquadsCache[sqName] or false
+
 	for _, p in ipairs(Players:GetPlayers()) do
 		if p:GetAttribute("SquadName") == sqName then
 			p:SetAttribute("SquadSP", sqData.SP)
 			p:SetAttribute("SquadVault", vaultStr)
 			p:SetAttribute("SquadIsLeader", tonumber(sqData.Leader) == p.UserId)
 			p:SetAttribute("YmirFavored", isFavored)
+			p:SetAttribute("Top5_Squad", isTop5)
 		end
 	end
 end
@@ -81,8 +90,16 @@ end
 
 local function FetchTopSquad()
 	pcall(function()
-		local pages = SquadLeaderboard:GetSortedAsync(false, 1)
-		local topEntry = pages:GetCurrentPage()[1]
+		local pages = SquadLeaderboard:GetSortedAsync(false, 5)
+		local topSquads = {}
+		local topEntry = nil
+
+		for rank, entry in ipairs(pages:GetCurrentPage()) do
+			if rank <= 5 then topSquads[entry.key] = true end
+			if rank == 1 then topEntry = entry end
+		end
+		Top5SquadsCache = topSquads
+
 		if topEntry then
 			local newTopName = topEntry.key
 			if newTopName ~= currentTopSquadName then
@@ -93,12 +110,38 @@ local function FetchTopSquad()
 					end
 				end
 			end
-			for _, p in ipairs(Players:GetPlayers()) do
-				local pSquad = p:GetAttribute("SquadName")
-				if pSquad and pSquad ~= "None" and pSquad ~= "" then
-					p:SetAttribute("YmirFavored", pSquad == currentTopSquadName)
-				else
-					p:SetAttribute("YmirFavored", false)
+		end
+
+		for _, p in ipairs(Players:GetPlayers()) do
+			local pSquad = p:GetAttribute("SquadName")
+			if pSquad and pSquad ~= "None" and pSquad ~= "" then
+				p:SetAttribute("YmirFavored", pSquad == currentTopSquadName)
+				p:SetAttribute("Top5_Squad", topSquads[pSquad] or false)
+			else
+				p:SetAttribute("YmirFavored", false)
+				p:SetAttribute("Top5_Squad", false)
+			end
+		end
+	end)
+end
+
+local function RewardTopSquads()
+	pcall(function()
+		local pages = SquadLeaderboard:GetSortedAsync(false, 5)
+		for rank, entry in ipairs(pages:GetCurrentPage()) do
+			if rank == 1 then
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p:GetAttribute("SquadName") == entry.key and p:FindFirstChild("leaderstats") then
+						p.leaderstats.Dews.Value += 500000
+						NotificationEvent:FireClient(p, "SEASON END: Your Squad placed #1 Globally! (+500,000 Dews)", "Success")
+					end
+				end
+			elseif rank <= 5 then
+				for _, p in ipairs(Players:GetPlayers()) do
+					if p:GetAttribute("SquadName") == entry.key and p:FindFirstChild("leaderstats") then
+						p.leaderstats.Dews.Value += 100000
+						NotificationEvent:FireClient(p, "SEASON END: Your Squad placed Top 5! (+100,000 Dews)", "Success")
+					end
 				end
 			end
 		end
@@ -109,6 +152,26 @@ task.spawn(function()
 	RefreshGlobalCache()
 	FetchTopSquad()
 	while task.wait(30) do 
+		local realWeek = math.floor((os.time() + SUNDAY_OFFSET) / SECONDS_IN_WEEK)
+		if realWeek > currentSeasonWeek then
+			RewardTopSquads()
+
+			currentSeasonWeek = realWeek
+			SquadLeaderboard = DataStoreService:GetOrderedDataStore("Global_Squad_SP_Season_" .. currentSeasonWeek)
+
+			for sqName, sqData in pairs(ActiveSquads) do
+				sqData.SP = 0
+				sqData.Season = currentSeasonWeek
+				SaveSquadData(sqName, sqData)
+				UpdateOnlineMembers(sqName)
+				task.wait(1.5)
+			end
+
+			Top5SquadsCache = {}
+			currentTopSquadName = nil
+			GlobalSquadCache = {}
+		end
+
 		RefreshGlobalCache() 
 		FetchTopSquad()
 	end
@@ -130,13 +193,13 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 			Name = data.Name, Desc = data.Desc or "A newly founded Strike Squad.", Logo = safeLogo,
 			Leader = player.UserId, Members = { [tostring(player.UserId)] = {Role = "Leader", Name = player.Name} },
 			Requests = {}, SP = 0, Level = 1,
-			Vault = {"None", "None", "None", "None", "None", "None", "None", "None", "None"}
+			Vault = {"None", "None", "None", "None", "None", "None", "None", "None", "None"},
+			Season = currentSeasonWeek
 		}
 
 		ActiveSquads[data.Name] = newSquadData
 		SaveSquadData(data.Name, newSquadData)
 
-		-- [[ THE FIX: Remove lingering requests when they create a squad ]]
 		for _, reqList in pairs(PendingRequests) do
 			if reqList[tostring(player.UserId)] then
 				reqList[tostring(player.UserId)] = nil
@@ -149,6 +212,7 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		player:SetAttribute("SquadSP", 0)
 		player:SetAttribute("SquadIsLeader", true)
 		player:SetAttribute("YmirFavored", false)
+		player:SetAttribute("Top5_Squad", false)
 		player:SetAttribute("SquadVault", HttpService:JSONEncode(newSquadData.Vault))
 		NotificationEvent:FireClient(player, "Squad '" .. data.Name .. "' officially founded!", "Success")
 
@@ -188,7 +252,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		if freshData then sqData.Members = freshData.Members end
 
 		if decision == "Accept" then
-			-- [[ THE FIX: Verify target is not secretly already inside another squad ]]
 			local alreadyInSquad = false
 			for _, otherSq in pairs(ActiveSquads) do
 				if otherSq.Members[targetId] then
@@ -215,6 +278,7 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 					p:SetAttribute("SquadSP", sqData.SP)
 					p:SetAttribute("SquadIsLeader", false)
 					p:SetAttribute("YmirFavored", sqName == currentTopSquadName)
+					p:SetAttribute("Top5_Squad", Top5SquadsCache[sqName] or false)
 					p:SetAttribute("SquadVault", HttpService:JSONEncode(sqData.Vault))
 					NotificationEvent:FireClient(p, "Your request to join " .. sqName .. " was accepted!", "Success")
 				end
@@ -254,6 +318,7 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 					p:SetAttribute("SquadName", "None")
 					p:SetAttribute("SquadIsLeader", false)
 					p:SetAttribute("YmirFavored", false)
+					p:SetAttribute("Top5_Squad", false)
 					p:SetAttribute("SquadSP", 0)
 					p:SetAttribute("SquadVault", '{"1":"None","2":"None","3":"None","4":"None","5":"None","6":"None","7":"None","8":"None","9":"None"}')
 					NotificationEvent:FireClient(p, "You have been kicked from the Squad.", "Error")
@@ -347,6 +412,7 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		player:SetAttribute("SquadName", "None")
 		player:SetAttribute("SquadIsLeader", false)
 		player:SetAttribute("YmirFavored", false)
+		player:SetAttribute("Top5_Squad", false)
 		player:SetAttribute("SquadVault", '{"1":"None","2":"None","3":"None","4":"None","5":"None","6":"None","7":"None","8":"None","9":"None"}')
 		NotificationEvent:FireClient(player, "You left the Squad.", "Info")
 		UpdateOnlineMembers(sqName)
@@ -366,6 +432,7 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 				p:SetAttribute("SquadName", "None")
 				p:SetAttribute("SquadIsLeader", false)
 				p:SetAttribute("YmirFavored", false)
+				p:SetAttribute("Top5_Squad", false)
 				p:SetAttribute("SquadSP", 0)
 				p:SetAttribute("SquadVault", '{"1":"None","2":"None","3":"None","4":"None","5":"None","6":"None","7":"None","8":"None","9":"None"}')
 				NotificationEvent:FireClient(p, "Your Squad was disbanded by the Leader.", "Error")
@@ -396,7 +463,7 @@ GetPublicSquads.OnServerInvoke = function()
 			seen[name] = true
 		end
 	end
-	table.sort(returned, function(a, b) return a.SP > b.SP end)
+	table.sort(returned, function(a, b) return (tonumber(a.SP) or 0) > (tonumber(b.SP) or 0) end)
 	return returned
 end
 
@@ -430,18 +497,19 @@ GetSquadRoster.OnServerInvoke = function(player)
 	return roster
 end
 
+-- [[ THE FIX: Removed entirely any chance of Nil Math Errors ]]
 GetSquadLeaderboard.OnServerInvoke = function(player)
 	local sorted = {}
 	local seen = {}
 
 	for name, data in pairs(ActiveSquads) do
-		table.insert(sorted, {Name = data.Name, SP = data.SP})
+		table.insert(sorted, {Name = data.Name, SP = tonumber(data.SP) or 0})
 		seen[name] = true
 	end
 
 	for _, sq in ipairs(GlobalSquadCache) do
 		if not seen[sq.Name] then
-			table.insert(sorted, {Name = sq.Name, SP = sq.SP})
+			table.insert(sorted, {Name = sq.Name, SP = tonumber(sq.SP) or 0})
 			seen[sq.Name] = true
 		end
 	end
@@ -478,17 +546,35 @@ local function LoadPlayerSquad(player)
 		end
 
 		if sqData then
-			-- NEW LOGIC: Verify against fresh Datastore if the cache is missing the player
 			if not sqData.Members[tostring(player.UserId)] then
 				local success, freshData = pcall(function() return SquadStore:GetAsync(mySquad) end)
 				if success and freshData and freshData.Members[tostring(player.UserId)] then
 					sqData = freshData
-					ActiveSquads[mySquad] = sqData -- Update the stale cache
+					ActiveSquads[mySquad] = sqData 
 				else
 					player:SetAttribute("SquadName", "None")
 					player:SetAttribute("SquadIsLeader", false)
 					player:SetAttribute("YmirFavored", false)
+					player:SetAttribute("Top5_Squad", false)
 					return
+				end
+			end
+
+			-- [[ THE FIX: Correctly detached memory tracking to prevent save lockouts ]]
+			local needsSeasonReset = false
+			if not sqData.Season or sqData.Season < currentSeasonWeek then
+				needsSeasonReset = true
+			end
+
+			if needsSeasonReset then
+				local alreadySavedThisServer = ActiveSquads[mySquad] and ActiveSquads[mySquad].Season == currentSeasonWeek
+
+				sqData.SP = 0
+				sqData.Season = currentSeasonWeek
+				ActiveSquads[mySquad] = sqData
+
+				if not alreadySavedThisServer then
+					SaveSquadData(mySquad, sqData)
 				end
 			end
 
@@ -497,6 +583,7 @@ local function LoadPlayerSquad(player)
 			player:SetAttribute("SquadSP", sqData.SP)
 			player:SetAttribute("SquadIsLeader", tonumber(sqData.Leader) == player.UserId)
 			player:SetAttribute("YmirFavored", mySquad == currentTopSquadName)
+			player:SetAttribute("Top5_Squad", Top5SquadsCache[mySquad] or false)
 			local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None", "None", "None", "None", "None", "None", "None", "None", "None"})
 			player:SetAttribute("SquadVault", vaultStr)
 		end
