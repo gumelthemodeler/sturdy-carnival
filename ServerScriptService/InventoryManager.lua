@@ -66,6 +66,34 @@ ToggleLock.OnServerEvent:Connect(function(player, itemName)
 	player:SetAttribute(safeName, not player:GetAttribute(safeName))
 end)
 
+-- [[ THE FIX: Added Itemize Handlers for Titan and Clan extraction ]]
+for _, gType in ipairs({"Titan", "Clan"}) do
+	local remote = Network:FindFirstChild("Itemize" .. gType) or Instance.new("RemoteEvent", Network)
+	remote.Name = "Itemize" .. gType
+	remote.OnServerEvent:Connect(function(player, action)
+		if action == "Equipped" then
+			local current = player:GetAttribute(gType)
+			if not current or current == "None" then return end
+			if player.leaderstats.Dews.Value < 100000 then
+				NotificationEvent:FireClient(player, "Requires 100,000 Dews to Itemize!", "Error")
+				return
+			end
+
+			local itemizedName = "Itemized " .. current
+			if not ItemData.Consumables[itemizedName] then
+				NotificationEvent:FireClient(player, "This cannot be itemized.", "Error")
+				return
+			end
+
+			player.leaderstats.Dews.Value -= 100000
+			local safeName = itemizedName:gsub("[^%w]", "") .. "Count"
+			player:SetAttribute(safeName, (player:GetAttribute(safeName) or 0) + 1)
+			player:SetAttribute(gType, "None")
+			NotificationEvent:FireClient(player, "Successfully itemized " .. current .. " into your Pouch!", "Success")
+		end
+	end)
+end
+
 Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemName)
 	local itemInfo = ItemData.Consumables[itemName]
 	if itemInfo and itemInfo.Action then
