@@ -526,6 +526,30 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 		local squadEvent = Network:FindFirstChild("AddSquadSP")
 		if squadEvent then
 			local spAward = battle.Enemy.IsBoss and 5 or 1 
+
+			-- [[ THE FIX: Multiplayer SP Bonus Loop ]]
+			local getPartyFunc = Network:FindFirstChild("GetPlayerParty")
+			if getPartyFunc then
+				pcall(function()
+					local partyData = getPartyFunc:Invoke(player)
+					if partyData and partyData.Members then
+						local squadmatesPresent = 0
+						for _, mem in ipairs(partyData.Members) do
+							if mem.UserId ~= player.UserId then
+								local memPlayer = Players:GetPlayerByUserId(mem.UserId)
+								if memPlayer and memPlayer:GetAttribute("SquadName") == sqName then
+									squadmatesPresent += 1
+								end
+							end
+						end
+
+						if squadmatesPresent > 0 then
+							spAward = spAward + (squadmatesPresent * (battle.Enemy.IsBoss and 5 or 2))
+						end
+					end
+				end)
+			end
+
 			squadEvent:Fire(sqName, spAward)
 		end
 	end
