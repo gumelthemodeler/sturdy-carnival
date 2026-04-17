@@ -4,7 +4,7 @@ local ClanData = {
 	Clans = {
 		["Yeager"] = {
 			BaseDmgMult = 1.25, AwakenedDmgMult = 1.50, AbyssalDmgMult = 3.50,
-			TitanSynergies = { ["Attack Titan"] = { DmgMult = 0.30 } }
+			TitanSynergies = { ["Attack"] = { DmgMult = 0.30 } }
 		},
 		["Tybur"] = {
 			BaseDmgMult = 1.20, AwakenedDmgMult = 1.40, AbyssalDmgMult = 3.00,
@@ -24,15 +24,15 @@ local ClanData = {
 		["Galliard"] = {
 			BaseDmgMult = 1.05, AwakenedDmgMult = 1.15, AbyssalDmgMult = 2.50,
 			BaseSpdMult = 1.15, AwakenedSpdMult = 1.30, AbyssalSpdMult = 3.00,
-			TitanSynergies = { ["Jaw Titan"] = { SpdMult = 0.25, CritBonus = 25 } }
+			TitanSynergies = { ["Jaw"] = { SpdMult = 0.25, CritBonus = 25 } }
 		},
 		["Braun"] = {
 			BaseArmorMult = 1.20, AwakenedArmorMult = 1.40, AbyssalArmorMult = 4.00,
-			TitanSynergies = { ["Armored Titan"] = { ArmorMult = 0.50 } } 
+			TitanSynergies = { ["Armored"] = { ArmorMult = 0.50 } } 
 		},
 		["Arlert"] = {
 			BaseResolveMult = 1.15, AwakenedResolveMult = 1.30, AbyssalResolveMult = 3.00,
-			TitanSynergies = { ["Colossal Titan"] = { HpMult = 0.50 } }
+			TitanSynergies = { ["Colossal"] = { HpMult = 0.50 } }
 		},
 		["Braus"] = {
 			BaseSpdMult = 1.10, AwakenedSpdMult = 1.20, AbyssalSpdMult = 2.50,
@@ -45,7 +45,8 @@ local ClanData = {
 			BaseResolveMult = 1.25, AwakenedResolveMult = 1.50, AbyssalResolveMult = 3.50,
 			BaseSurvivals = 1, AwakenedSurvivals = 2, AbyssalSurvivals = 5,
 			SurvivalChance = 75,
-			TitanSynergies = { ["Founding Titan"] = { HpMult = 0.50, DmgMult = 0.25, ArmorMult = 0.25 } }
+			-- [[ THE FIX: Look for "Founding" instead of "Founding Titan" to catch Fusions ]]
+			TitanSynergies = { ["Founding"] = { HpMult = 0.50, DmgMult = 0.25, ArmorMult = 0.25 } }
 		},
 		["Fritz"] = {
 			BaseHpMult = 2.00, AwakenedHpMult = 3.00, AbyssalHpMult = 6.00,
@@ -54,7 +55,8 @@ local ClanData = {
 			BaseSpdMult = 1.25, AwakenedSpdMult = 1.50, AbyssalSpdMult = 3.50,
 			BaseSurvivals = 2, AwakenedSurvivals = 4, AbyssalSurvivals = 8,
 			SurvivalChance = 100,
-			TitanSynergies = { ["Founding Titan"] = { DmgMult = 0.50, HpMult = 0.50, ArmorMult = 0.50 } }
+			-- [[ THE FIX: Look for "Founding" instead of "Founding Titan" to catch Fusions ]]
+			TitanSynergies = { ["Founding"] = { DmgMult = 0.50, HpMult = 0.50, ArmorMult = 0.50 } }
 		}
 	}
 }
@@ -62,7 +64,7 @@ local ClanData = {
 function ClanData.GetClanStats(clanNameStr, isAwakened, titanNameStr, isTransformed)
 	local isAbyssal = string.find(clanNameStr or "", "Abyssal") ~= nil
 	local baseName = string.gsub(clanNameStr or "None", "Awakened ", "")
-	baseName = string.gsub(baseName, "Abyssal ", "") -- Strip both to find base data
+	baseName = string.gsub(baseName, "Abyssal ", "") 
 
 	local data = ClanData.Clans[baseName]
 
