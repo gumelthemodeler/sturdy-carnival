@@ -79,19 +79,23 @@ local function EndMatch(matchId, winnerUserId)
 	elseif p2 and p2.UserId == winnerUserId then winner = p2; loser = p1 end
 
 	if winnerUserId ~= "Draw" and winner and loser then
-		local wElo = winner:FindFirstChild("leaderstats") and winner.leaderstats:FindFirstChild("Elo")
-		local lElo = loser:FindFirstChild("leaderstats") and loser.leaderstats:FindFirstChild("Elo")
+		-- [[ THE FIX: Ensure the winner hasn't disconnected before awarding stats ]]
+		if winner.Parent and winner:FindFirstChild("leaderstats") and loser.Parent and loser:FindFirstChild("leaderstats") then
+			local wElo = winner.leaderstats:FindFirstChild("Elo")
+			local lElo = loser.leaderstats:FindFirstChild("Elo")
 
-		if wElo and lElo then
-			wElo.Value = wElo.Value + 25
-			lElo.Value = math.max(100, lElo.Value - 15)
+			if wElo and lElo then
+				wElo.Value = wElo.Value + 25
+				lElo.Value = math.max(100, lElo.Value - 15)
+			end
+
+			winner.leaderstats.Dews.Value += 2500
+			winner:SetAttribute("XP", (winner:GetAttribute("XP") or 0) + 1500)
+			Network.NotificationEvent:FireClient(winner, "Victory! +25 Elo, +2500 Dews", "Success")
+			Network.NotificationEvent:FireClient(loser, "Defeat. -15 Elo", "Error")
 		end
 
-		winner.leaderstats.Dews.Value += 2500
-		winner:SetAttribute("XP", (winner:GetAttribute("XP") or 0) + 1500)
-		Network.NotificationEvent:FireClient(winner, "Victory! +25 Elo, +2500 Dews", "Success")
-		Network.NotificationEvent:FireClient(loser, "Defeat. -15 Elo", "Error")
-
+		-- Payout bets regardless of if the fighters are still in the server
 		local winnerPot = 0
 		local loserPot = 0
 		for _, b in pairs(match.Bets[winner.UserId] or {}) do winnerPot += b.Amount end
