@@ -57,6 +57,11 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 		luckBoost = player:GetAttribute("LuckBoost") or 1.0
 	end
 
+	-- [[ THE FIX: Top 5 Global Players get a 15% passive luck boost ]]
+	if player:GetAttribute("Top5_Prestige") or player:GetAttribute("Top5_Elo") or player:GetAttribute("Top5_Squad") then
+		luckBoost = luckBoost * 1.15
+	end
+
 	if enemyDrops and enemyDrops.ItemChance then
 		for itemName, baseChance in pairs(enemyDrops.ItemChance) do
 			local iData = ItemData.Equipment[itemName] or ItemData.Consumables[itemName]
@@ -65,17 +70,14 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			local finalChance = baseChance
 
 			if isEndless then
-				-- Wave scaling for endless mode
 				if rarity == "Mythical" then finalChance += (currentWave * 0.1)
 				elseif rarity == "Legendary" then finalChance += (currentWave * 0.3)
 				elseif rarity == "Epic" then finalChance += (currentWave * 1.0)
 				else finalChance += (currentWave * 2.0) end
 
-				-- Flat 50% bonus to base rates during endless mode
 				finalChance = finalChance * 1.5
 			end
 
-			-- Apply Global multipliers alongside active Luck buff
 			finalChance = finalChance * favoredMultiplier * luckBoost
 			finalChance = math.clamp(finalChance, 0.01, 100)
 
@@ -98,7 +100,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			end
 		end
 
-		-- Guarantee a drop every single endless wave if nothing drops normally
 		if isEndless and #droppedItems == 0 and autoSoldDewsCapacity == 0 and autoSoldDewsSettings == 0 then
 			local pool = {}
 			for iname, _ in pairs(enemyDrops.ItemChance) do 
