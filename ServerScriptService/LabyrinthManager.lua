@@ -124,16 +124,13 @@ function LabyrinthManager.StartSession(player)
 	local grid, size, sX, sY = GenerateCaverns(currentFloor)
 
 	ActiveSessions[player.UserId] = {
-		Grid = grid,
-		Size = size,
-		Floor = currentFloor,
-		PlayerX = sX,
-		PlayerY = sY,
-		InCombat = false,
+		Grid = grid, Size = size, Floor = currentFloor,
+		PlayerX = sX, PlayerY = sY, InCombat = false,
 		AccumulatedLoot = { Dews = 0, XP = 0, Items = {} }
 	}
 
-	Network.LabyrinthUpdate:FireClient(player, "Sync", ActiveSessions[player.UserId])
+	-- THE FIX: Changed from "Sync" to "InitSync" to force a UI rebuild
+	Network.LabyrinthUpdate:FireClient(player, "InitSync", ActiveSessions[player.UserId])
 end
 
 function LabyrinthManager.OnCombatWin(player)
