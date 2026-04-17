@@ -499,7 +499,6 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		end
 	end
 
-	-- [[ THE FIX: Inventory scroll resets no longer trigger from Background XP/Dews ]]
 	player.AttributeChanged:Connect(function(attr)
 		if string.match(attr, "Count$") or string.match(attr, "^Equipped") or attr == "Clan" or attr == "Titan" or attr == "Regiment" or string.match(attr, "_Awakened$") or string.match(attr, "_Locked$") then
 			EvaluateCosmetics()
@@ -1047,7 +1046,7 @@ local function BuildPrestigeTab(parentFrame)
 end
 
 -- ==========================================
--- INHERITANCE TAB (NOW WITH ABYSSAL ALTAR)
+-- INHERITANCE TAB
 -- ==========================================
 local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 	local MainScroll = Instance.new("ScrollingFrame", parentFrame); MainScroll.Size = UDim2.new(1, 0, 1, 0); MainScroll.BackgroundTransparency = 1; MainScroll.Visible = true; MainScroll.ScrollBarThickness = 0; MainScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
@@ -1205,11 +1204,13 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local RollBtn, rStroke = CreateSharpButton(RollActions, "ROLL (1x " .. labelPrefix .. ")\nOwned: 0", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
 
 		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
+
+		-- [[ THE FIX: Enable Premium Clan Button ]]
+		PremiumRollBtn.Visible = true
 		if gType == "Titan" then 
-			PremiumRollBtn.Visible = true
 			PremiumRollBtn.Text = "PREMIUM (1x Syringe)\nOwned: 0" 
 		else 
-			PremiumRollBtn.Visible = false
+			PremiumRollBtn.Text = "PREMIUM (1x Leg. Vial)\nOwned: 0"
 		end
 
 		local AutoRollBtn, aStroke = CreateSharpButton(RollActions, "ROLL TILL LEGENDARY+", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBlack, 11)
@@ -1218,7 +1219,12 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		autoRollBtns[gType] = AutoRollBtn
 
 		local function DoRoll(isPremium)
-			local countAttr = isPremium and "SpinalFluidSyringeCount" or attrReq
+			-- [[ THE FIX: Map Premium Clan Vial ]]
+			local countAttr = attrReq
+			if isPremium then
+				countAttr = (gType == "Titan") and "SpinalFluidSyringeCount" or "LegendaryClanVialCount"
+			end
+
 			local count = player:GetAttribute(countAttr) or 0
 			if count > 0 then
 				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
@@ -1243,14 +1249,12 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		PremiumRollBtn.MouseButton1Click:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
-			if gType == "Titan" then
-				if IsHighTier(gType) then
-					PromptConfirmation("You currently have a Legendary+ Titan. Are you sure you want to spin it away?", function(confirmed)
-						if confirmed then DoRoll(true) end
-					end)
-				else
-					DoRoll(true)
-				end
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then DoRoll(true) end
+				end)
+			else
+				DoRoll(true)
 			end
 		end)
 
@@ -1329,8 +1333,16 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		tPity.Text = "PITY: " .. (player:GetAttribute("TitanPity") or 0) .. " / 100"
 		cPity.Text = "PITY: " .. (player:GetAttribute("ClanPity") or 0) .. " / 100"
 		tRoll.Text = "ROLL (x" .. (player:GetAttribute("StandardTitanSerumCount") or 0) .. ")"
-		if tPrem.Visible and tPrem.Text:find("PREMIUM") then tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" end
 		cRoll.Text = "ROLL (x" .. (player:GetAttribute("ClanBloodVialCount") or 0) .. ")"
+
+		-- [[ THE FIX: Updated Premium Counts ]]
+		if tPrem.Visible and tPrem.Text:find("PREMIUM") then 
+			if tPrem.Text:find("Syringe") then
+				tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" 
+			else
+				cPrem.Text = "PREMIUM (x" .. (player:GetAttribute("LegendaryClanVialCount") or 0) .. ")"
+			end
+		end
 	end
 	player.AttributeChanged:Connect(UpdateUI); UpdateUI()
 
