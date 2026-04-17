@@ -489,7 +489,8 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			end)
 		end
 
-		local MAX_INVENTORY_CAPACITY = 25
+		-- THE FIX: Dynamically check for Backpack Expansion
+		local MAX_INVENTORY_CAPACITY = player:GetAttribute("HasBackpackExpansion") and 75 or 25
 		if currentInvFilter == "Items" then
 			InvTitle.Text = "SCOUT'S POUCH (∞)"
 			InvTitle.TextColor3 = Color3.fromRGB(150, 255, 150)
@@ -505,6 +506,9 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			RefreshProfile()
 		end
 	end)
+
+	-- THE FIX: Force the inventory to build immediately on boot
+	RefreshProfile()
 end
 
 -- ==========================================
