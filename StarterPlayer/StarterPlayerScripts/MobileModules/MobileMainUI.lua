@@ -1,6 +1,5 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
--- Name: MobileMainUI
 local MobileMainUI = {}
 local Players = game:GetService("Players"); local TweenService = game:GetService("TweenService"); local ReplicatedStorage = game:GetService("ReplicatedStorage"); local Network = ReplicatedStorage:WaitForChild("Network")
 local player = Players.LocalPlayer; local playerScripts = player:WaitForChild("PlayerScripts"); local SharedUI = playerScripts:WaitForChild("SharedUI"); local UIModules = playerScripts:WaitForChild("UIModules"); local MobileModules = playerScripts:WaitForChild("MobileModules"); local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
@@ -17,7 +16,8 @@ local CONFIG = {
 		{Id = "SQUADS", Icon = "rbxassetid://111674249930782"}, 
 		{Id = "SUPPLY_FORGE", Icon = "rbxassetid://108619507999123"}, 
 		{Id = "REGIMENTS", Icon = "rbxassetid://74069077964164"},
-		{Id = "BESTIARY", Icon = "rbxassetid://119375458206372"}
+		{Id = "BESTIARY", Icon = "rbxassetid://119375458206372"},
+		{Id = "SETTINGS", Icon = "rbxassetid://10734900011"}
 	},
 	Currencies = { {Id = "XP", Prefix = "XP:", Color = "#55FF55"}, {Id = "TitanXP", Prefix = "T-XP:", Color = "#FF5555"}, {Id = "Dews", Prefix = "DEWS:", Color = "#FF88FF"}, {Id = "Prestige", Prefix = "PR:", Color = "#FFD700"}, {Id = "Elo", Prefix = "ELO:", Color = "#55AAFF"} }
 }
@@ -51,6 +51,24 @@ local function BuildMasterWindow()
 
 	for _, cData in ipairs(CONFIG.Currencies) do CurrencyLabels[cData.Id] = CreateTopBox(cData.Prefix, cData.Color); CurrencyLabels[cData.Id]:SetAttribute("Prefix", cData.Prefix) end
 
+	-- [[ THE FIX: Added Live Luck Timer to Mobile Top Bar ]]
+	local LuckTimerBox = CreateTopBox("LUCK:", "#55FF55")
+	LuckTimerBox.Parent.Visible = false
+	task.spawn(function()
+		while task.wait(1) do
+			local expiry = player:GetAttribute("Buff_Luck_Expiry") or 0
+			local left = expiry - os.time()
+			if left > 0 then
+				LuckTimerBox.Parent.Visible = true
+				local m = math.floor(left / 60)
+				local s = left % 60
+				LuckTimerBox.Text = string.format("LUCK: %02d:%02d", m, s)
+			else
+				LuckTimerBox.Parent.Visible = false
+			end
+		end
+	end)
+
 	local function UpdateCurrencies()
 		local ls = player:FindFirstChild("leaderstats")
 		if CurrencyLabels.Prestige then CurrencyLabels.Prestige.Text = CurrencyLabels.Prestige:GetAttribute("Prefix") .. " " .. FormatAbbreviation((ls and ls:FindFirstChild("Prestige")) and ls.Prestige.Value or 0) end
@@ -63,7 +81,7 @@ local function BuildMasterWindow()
 
 	local ContentArea = Instance.new("Frame", MasterWindow); ContentArea.Size = UDim2.new(1, 0, 1, -92); ContentArea.Position = UDim2.new(0, 0, 0, 42); ContentArea.BackgroundTransparency = 1
 
-	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS", "BESTIARY"}
+	local tabs = {"HOME", "PROFILE", "EXPEDITIONS", "SQUADS", "SUPPLY_FORGE", "REGIMENTS", "BESTIARY", "SETTINGS"}
 	if isAdmin then table.insert(tabs, "ADMIN") end
 	for _, tabName in ipairs(tabs) do local tabFrame = Instance.new("Frame", ContentArea); tabFrame.Name = tabName; tabFrame.Size = UDim2.new(1, 0, 1, 0); tabFrame.BackgroundTransparency = 1; tabFrame.Visible = false; TabContainers[tabName] = tabFrame end
 
@@ -74,7 +92,9 @@ local function BuildMasterWindow()
 
 	local ChangeLogBox = Instance.new("Frame", HomeScroll); ChangeLogBox.Size = UDim2.new(1, 0, 0, 150); ChangeLogBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26); local clStroke = Instance.new("UIStroke", ChangeLogBox); clStroke.Color = Color3.fromRGB(70, 70, 80); clStroke.Thickness = 2
 	local clTitle = UIHelpers.CreateLabel(ChangeLogBox, "CHANGELOG & CODES", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14); clTitle.Position = UDim2.new(0, 10, 0, 5); clTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local clText = UIHelpers.CreateLabel(ChangeLogBox, "<b>v1.6.0 - Ymir's Favored Update</b>\n\n• Strike Squad 9-Slot Vaults & Global Champion Buffs.\n• Secure Player Trading System.\n• Titan Fusion & Combat Overhauls.\n\n<b>ACTIVE CODES:</b>\n[CAMPAIGN!]\n[NIGHTMAREMODE]\n[SQUADS]", UDim2.new(1, -20, 1, -30), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11)
+
+	local updatedChangelog = "<b>v1.7.0 - The Labyrinth Update</b>\n\n• The Labyrinth: Infinite shifting dungeon & Pouch extraction.\n• System Settings: Auto-Train, Music & Screen Flash Toggles.\n• Native Mobile & Tablet UI Overhauls.\n• The Abyssal Bestiary added to Command Center.\n\n<b>ACTIVE CODES:</b>\n[LABYRINTH]\n[LUCKY]\n[GOJOHNNYGO]"
+	local clText = UIHelpers.CreateLabel(ChangeLogBox, updatedChangelog, UDim2.new(1, -20, 1, -30), Enum.Font.GothamMedium, UIHelpers.Colors.TextWhite, 11)
 	clText.Position = UDim2.new(0, 10, 0, 25); clText.TextXAlignment = Enum.TextXAlignment.Left; clText.TextYAlignment = Enum.TextYAlignment.Top; clText.RichText = true; clText.TextWrapped = true
 
 	local LeaderboardBox = Instance.new("Frame", HomeScroll); LeaderboardBox.Size = UDim2.new(1, 0, 0, 300); LeaderboardBox.BackgroundColor3 = Color3.fromRGB(18, 18, 22); local lbStroke = Instance.new("UIStroke", LeaderboardBox); lbStroke.Color = Color3.fromRGB(70, 70, 80); lbStroke.Thickness = 2
@@ -130,6 +150,7 @@ local function BuildMasterWindow()
 	SafeLoad("MobileSquadsTab", "SquadsTab", "SQUADS")
 	SafeLoad("MobileRegimentsTab", "RegimentsTab", "REGIMENTS") 
 	SafeLoad("MobileBestiaryUI", "BestiaryUI", "BESTIARY")
+	SafeLoad("MobileSettingsTab", "SettingsTab", "SETTINGS")
 
 	if isAdmin then task.spawn(function() local AdminMod = require(MobileModules:WaitForChild("MobileAdminTab")); if AdminMod.Initialize then AdminMod.Initialize(TabContainers["ADMIN"]) end end) end
 end
@@ -142,7 +163,7 @@ local function OpenMasterTab(tabName, displayTitle)
 	local titles = { 
 		HOME = "COMMAND CENTER", PROFILE = "OPERATIVE", EXPEDITIONS = "COMBAT", 
 		SQUADS = "STRIKE SQUADS COMMAND", SUPPLY_FORGE = "MARKET & FORGE", 
-		REGIMENTS = "REGIMENTS", BESTIARY = "ABYSSAL BESTIARY", ADMIN = "DEBUG" 
+		REGIMENTS = "REGIMENTS", BESTIARY = "ABYSSAL BESTIARY", SETTINGS = "SYSTEM SETTINGS", ADMIN = "DEBUG" 
 	} 
 	if WindowTitle then WindowTitle.Text = titles[tabName] or tabName end
 
@@ -152,7 +173,7 @@ end
 local function BuildBottomBar()
 	local Dock = Instance.new("Frame", MasterGui); Dock.AnchorPoint = Vector2.new(0.5, 1); Dock.Position = UDim2.new(0.5, 0, 1, 0); Dock.Size = UDim2.new(1, 0, 0, 50); Dock.BackgroundColor3 = Color3.fromRGB(18, 18, 22); Dock.BorderSizePixel = 0
 	local dStroke = Instance.new("UIStroke", Dock); dStroke.Color = Color3.fromRGB(60, 60, 70); dStroke.Thickness = 1; local dGrad = Instance.new("UIGradient", Dock); dGrad.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 35)), ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 18))}; dGrad.Rotation = 90
-	local layout = Instance.new("UIListLayout", Dock); layout.FillDirection = Enum.FillDirection.Horizontal; layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; layout.VerticalAlignment = Enum.VerticalAlignment.Center; layout.Padding = UDim.new(0.02, 0) 
+	local layout = Instance.new("UIListLayout", Dock); layout.FillDirection = Enum.FillDirection.Horizontal; layout.HorizontalAlignment = Enum.HorizontalAlignment.Center; layout.VerticalAlignment = Enum.VerticalAlignment.Center; layout.Padding = UDim.new(0.015, 0) 
 
 	if isAdmin then
 		local adminExists = false
@@ -161,7 +182,7 @@ local function BuildBottomBar()
 	end
 
 	for _, btnData in ipairs(CONFIG.DockTabs) do
-		local btn = Instance.new("ImageButton", Dock); btn.Size = UDim2.new(0, 38, 0, 38); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Image = btnData.Icon; btn.BorderSizePixel = 0; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+		local btn = Instance.new("ImageButton", Dock); btn.Size = UDim2.new(0, 35, 0, 35); btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30); btn.Image = btnData.Icon; btn.BorderSizePixel = 0; Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 		local bStrk = Instance.new("UIStroke", btn); bStrk.Color = Color3.fromRGB(80, 80, 90); bStrk.Thickness = 1; bStrk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 		btn.MouseButton1Click:Connect(function() OpenMasterTab(btnData.Id, btnData.Id) end)
