@@ -943,7 +943,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		-- [[ THE FIX: Updated Premium Counts ]]
 		if tPrem.Visible and tPrem.Text:find("PREMIUM") then 
-			if gType == "Titan" then
+			if tPrem.Text:find("Syringe") then
 				tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" 
 			else
 				cPrem.Text = "PREMIUM (x" .. (player:GetAttribute("LegendaryClanVialCount") or 0) .. ")"
