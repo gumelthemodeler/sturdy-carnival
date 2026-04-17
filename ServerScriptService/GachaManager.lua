@@ -19,7 +19,6 @@ local SwapDebounce = {}
 
 ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
 	local now = os.clock()
-	-- If this player sent a request less than 0.5 seconds ago, ignore it completely.
 	if SwapDebounce[player.UserId] and (now - SwapDebounce[player.UserId]) < 0.5 then 
 		return 
 	end
@@ -30,7 +29,6 @@ ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
 
 	if not safeIndex or (safeGType ~= "Titan" and safeGType ~= "Clan") then return end
 
-	-- Verify Gamepass Ownership for extra slots (4, 5, 6)
 	if safeIndex > 3 and not player:GetAttribute("Has" .. safeGType .. "Vault") then
 		return 
 	end
@@ -38,19 +36,16 @@ ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
 	local activeAttr = safeGType 
 	local slotAttr = safeGType .. "_Slot" .. safeIndex
 
-	-- Sanitize attributes to guarantee "None" is used instead of ghost strings or nils
 	local currentActive = player:GetAttribute(activeAttr)
 	if not currentActive or currentActive == "" then currentActive = "None" end
 
 	local currentSlotted = player:GetAttribute(slotAttr)
 	if not currentSlotted or currentSlotted == "" then currentSlotted = "None" end
 
-	-- Abort if both are empty
 	if currentActive == "None" and currentSlotted == "None" then
 		return
 	end
 
-	-- Execute the Swap
 	player:SetAttribute(activeAttr, currentSlotted)
 	player:SetAttribute(slotAttr, currentActive)
 
@@ -61,7 +56,14 @@ ManageStorage.OnServerEvent:Connect(function(player, gType, slotIndex)
 end)
 
 GachaRoll.OnServerEvent:Connect(function(player, gType, isPremium)
-	local attrReq = (gType == "Titan") and (isPremium and "SpinalFluidSyringeCount" or "StandardTitanSerumCount") or "ClanBloodVialCount"
+	-- [[ THE FIX: Properly separate the Item count checks for Premium vs Standard ]]
+	local attrReq = ""
+	if gType == "Titan" then
+		attrReq = isPremium and "SpinalFluidSyringeCount" or "StandardTitanSerumCount"
+	else
+		attrReq = isPremium and "LegendaryClanVialCount" or "ClanBloodVialCount"
+	end
+
 	local itemsOwned = player:GetAttribute(attrReq) or 0
 
 	if itemsOwned > 0 then
@@ -84,6 +86,10 @@ GachaRoll.OnServerEvent:Connect(function(player, gType, isPremium)
 			end
 		else
 			local clanPity = player:GetAttribute("ClanPity") or 0
+
+			-- [[ THE FIX: Force Pity threshold if using a Legendary Clan Vial ]]
+			if isPremium then clanPity += 100 end
+
 			if clanPity >= 100 then
 				local premiumClans = {}
 				for cName, w in pairs(TitanData.ClanWeights) do if w <= 4.0 then table.insert(premiumClans, cName) end end
@@ -97,6 +103,7 @@ GachaRoll.OnServerEvent:Connect(function(player, gType, isPremium)
 				if rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent" then player:SetAttribute("ClanPity", 0) else player:SetAttribute("ClanPity", clanPity + 1) end
 			end
 		end
+
 		player:SetAttribute(gType, resultName)
 		GachaResult:FireClient(player, gType, resultName, rarity)
 	else
