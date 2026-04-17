@@ -810,11 +810,13 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		local RollBtn, rStroke = CreateSharpButton(RollActions, "ROLL (1x " .. labelPrefix .. ")", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
 
 		local PremiumRollBtn, pStroke = CreateSharpButton(RollActions, "N/A", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
+
+		-- [[ THE FIX: Enable Premium Clan Button ]]
+		PremiumRollBtn.Visible = true
 		if gType == "Titan" then 
-			PremiumRollBtn.Visible = true
 			PremiumRollBtn.Text = "PREMIUM (1x Syringe)" 
 		else 
-			PremiumRollBtn.Visible = false
+			PremiumRollBtn.Text = "PREMIUM (1x Leg. Vial)"
 		end
 
 		local AutoRollBtn, aStroke = CreateSharpButton(RollActions, "ROLL TILL LEGENDARY+", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBlack, 10)
@@ -823,7 +825,12 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		autoRollBtns[gType] = AutoRollBtn
 
 		local function DoRoll(isPremium)
-			local countAttr = isPremium and "SpinalFluidSyringeCount" or attrReq
+			-- [[ THE FIX: Map Premium Clan Vial ]]
+			local countAttr = attrReq
+			if isPremium then
+				countAttr = (gType == "Titan") and "SpinalFluidSyringeCount" or "LegendaryClanVialCount"
+			end
+
 			local count = player:GetAttribute(countAttr) or 0
 			if count > 0 then
 				isRolling[gType] = true; currentRollSeq[gType] = currentRollSeq[gType] + 1; local seq = currentRollSeq[gType]
@@ -848,14 +855,12 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 
 		PremiumRollBtn.Activated:Connect(function()
 			if isRolling[gType] or isAutoRolling[gType] then return end
-			if gType == "Titan" then
-				if IsHighTier(gType) then
-					PromptConfirmation("You currently have a Legendary+ Titan. Are you sure you want to spin it away?", function(confirmed)
-						if confirmed then DoRoll(true) end
-					end)
-				else
-					DoRoll(true)
-				end
+			if IsHighTier(gType) then
+				PromptConfirmation("You currently have a Legendary+ " .. gType .. ". Are you sure you want to spin it away?", function(confirmed)
+					if confirmed then DoRoll(true) end
+				end)
+			else
+				DoRoll(true)
 			end
 		end)
 
@@ -916,7 +921,7 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 						if isTitanType then
 							local tData = type(TitanData) == "table" and TitanData.Titans and TitanData.Titans[storedName]; if tData then rarity = tData.Rarity end
 						else
-							if string.find(storedName, "Abyssal", 1, true) or string.find(storedName, "Awakened", 1, true) then rarity = "Transcendent"
+							if string.find(storedName, "Abyssal") or string.find(storedName, "Awakened") then rarity = "Transcendent"
 							else
 								local weight = type(TitanData) == "table" and TitanData.ClanWeights and TitanData.ClanWeights[storedName] or 40
 								if weight <= 1.5 then rarity = "Mythical" elseif weight <= 4.0 then rarity = "Legendary" elseif weight <= 8.0 then rarity = "Epic" elseif weight <= 15.0 then rarity = "Rare" end
@@ -934,8 +939,16 @@ local function BuildInheritanceTab(parentFrame, cachedTooltipMgr)
 		tPity.Text = "PITY: " .. (player:GetAttribute("TitanPity") or 0) .. " / 100"
 		cPity.Text = "PITY: " .. (player:GetAttribute("ClanPity") or 0) .. " / 100"
 		tRoll.Text = "ROLL (x" .. (player:GetAttribute("StandardTitanSerumCount") or 0) .. ")"
-		if tPrem.Visible and tPrem.Text:find("PREMIUM") then tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" end
 		cRoll.Text = "ROLL (x" .. (player:GetAttribute("ClanBloodVialCount") or 0) .. ")"
+
+		-- [[ THE FIX: Updated Premium Counts ]]
+		if tPrem.Visible and tPrem.Text:find("PREMIUM") then 
+			if gType == "Titan" then
+				tPrem.Text = "PREMIUM (x" .. (player:GetAttribute("SpinalFluidSyringeCount") or 0) .. ")" 
+			else
+				cPrem.Text = "PREMIUM (x" .. (player:GetAttribute("LegendaryClanVialCount") or 0) .. ")"
+			end
+		end
 	end
 	player.AttributeChanged:Connect(UpdateUI); UpdateUI()
 
