@@ -45,18 +45,20 @@ local ClanData = {
 			BaseResolveMult = 1.25, AwakenedResolveMult = 1.50, AbyssalResolveMult = 3.50,
 			BaseSurvivals = 1, AwakenedSurvivals = 2, AbyssalSurvivals = 5,
 			SurvivalChance = 75,
-			-- [[ THE FIX: Look for "Founding" instead of "Founding Titan" to catch Fusions ]]
 			TitanSynergies = { ["Founding"] = { HpMult = 0.50, DmgMult = 0.25, ArmorMult = 0.25 } }
 		},
+
+		-- [[ THE FIX: Fritz is now an unstoppable force of nature, especially in Titan form ]]
 		["Fritz"] = {
-			BaseHpMult = 2.00, AwakenedHpMult = 3.00, AbyssalHpMult = 6.00,
-			BaseDmgMult = 1.50, AwakenedDmgMult = 2.00, AbyssalDmgMult = 5.00,
-			BaseArmorMult = 1.50, AwakenedArmorMult = 2.00, AbyssalArmorMult = 5.00,
-			BaseSpdMult = 1.25, AwakenedSpdMult = 1.50, AbyssalSpdMult = 3.50,
-			BaseSurvivals = 2, AwakenedSurvivals = 4, AbyssalSurvivals = 8,
+			BaseHpMult = 2.50, AwakenedHpMult = 5.00, AbyssalHpMult = 10.00,
+			BaseDmgMult = 2.00, AwakenedDmgMult = 3.50, AbyssalDmgMult = 6.00,
+			BaseArmorMult = 2.00, AwakenedArmorMult = 3.50, AbyssalArmorMult = 6.00,
+			BaseSpdMult = 1.25, AwakenedSpdMult = 1.75, AbyssalSpdMult = 3.50,
+			BaseResolveMult = 2.00, AwakenedResolveMult = 4.00, AbyssalResolveMult = 8.00,
+			BaseSurvivals = 3, AwakenedSurvivals = 6, AbyssalSurvivals = 12,
 			SurvivalChance = 100,
-			-- [[ THE FIX: Look for "Founding" instead of "Founding Titan" to catch Fusions ]]
-			TitanSynergies = { ["Founding"] = { DmgMult = 0.50, HpMult = 0.50, ArmorMult = 0.50 } }
+			CritBonus = 15, AbyssalCritBonus = 35,
+			TitanSynergies = { ["Founding"] = { DmgMult = 2.00, HpMult = 2.00, ArmorMult = 2.00, CritBonus = 25 } }
 		}
 	}
 }
@@ -84,6 +86,9 @@ function ClanData.GetClanStats(clanNameStr, isAwakened, titanNameStr, isTransfor
 		stats.Survivals = isAbyssal and (data.AbyssalSurvivals or 0) or (isAwakened and (data.AwakenedSurvivals or 0) or (data.BaseSurvivals or 0))
 		stats.SurvivalChance = data.SurvivalChance or 0
 		stats.DodgeBonus = isAbyssal and (data.AbyssalDodgeBonus or data.DodgeBonus or 0) or (data.DodgeBonus or 0)
+
+		-- [[ THE FIX: Properly extract base Clan Crit Bonuses to combat core ]]
+		stats.CritBonus = isAbyssal and (data.AbyssalCritBonus or data.CritBonus or 0) or (data.CritBonus or 0)
 
 		stats.NapeCritMultiplier = isAbyssal and (data.AbyssalNapeCritMultiplier or data.NapeCritMultiplier or 1.5) or (data.NapeCritMultiplier or 1.5)
 		stats.MomentumDamagePerHit = isAbyssal and (data.AbyssalMomentumDamagePerHit or data.MomentumDamagePerHit or 0) or (data.MomentumDamagePerHit or 0)
