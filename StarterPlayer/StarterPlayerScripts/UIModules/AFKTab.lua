@@ -1,7 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: AFKTab
--- @ScriptType: ModuleScript
 local AFKTab = {}
 
 local Players = game:GetService("Players")
@@ -9,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 local Network = ReplicatedStorage:WaitForChild("Network")
 
 local SharedUI = script.Parent.Parent:WaitForChild("SharedUI")
@@ -62,8 +62,9 @@ local function CreateSharpButton(parent, text, size, font, textSize)
 end
 
 function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
-	-- [[ THE FIX: Clean, Integrated Return Button ]]
-	local ReturnBtn, rStrk = CreateSharpButton(parentFrame, "◀ RETURN TO EXPEDITIONS", UDim2.new(0.55, 0, 0, 35), Enum.Font.GothamBlack, 14)
+	local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+
+	local ReturnBtn, rStrk = CreateSharpButton(parentFrame, "◀ RETURN TO EXPEDITIONS", UDim2.new(isMobile and 1 or 0.55, 0, 0, 35), Enum.Font.GothamBlack, 14)
 	ReturnBtn.Position = UDim2.new(0, 0, 0, 0)
 	ReturnBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
 	rStrk.Color = Color3.fromRGB(255, 85, 85)
@@ -72,14 +73,42 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 		parentFrame.Visible = false
 	end)
 
-	-- Shifted Map down by 45 pixels to perfectly accommodate the Return Button
 	local MapContainer = Instance.new("Frame", parentFrame)
-	MapContainer.Size = UDim2.new(0.55, 0, 0.65, -45)
-	MapContainer.Position = UDim2.new(0, 0, 0, 45)
 	MapContainer.BackgroundColor3 = Color3.fromRGB(15, 18, 15)
+	MapContainer.BorderSizePixel = 0
 
 	local mapStroke = Instance.new("UIStroke", MapContainer); mapStroke.Color = Color3.fromRGB(50, 60, 50); mapStroke.Thickness = 2
-	Instance.new("UICorner", MapContainer).CornerRadius = UDim.new(0, 8)
+
+	local LogContainer = Instance.new("Frame", parentFrame)
+	LogContainer.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+	LogContainer.BorderSizePixel = 0
+	Instance.new("UIStroke", LogContainer).Color = Color3.fromRGB(70, 70, 80)
+
+	local RosterContainer = Instance.new("Frame", parentFrame)
+	RosterContainer.BackgroundTransparency = 1
+	RosterContainer.BorderSizePixel = 0
+
+	-- Automatically stack elements for Mobile users
+	if isMobile then
+		MapContainer.Size = UDim2.new(1, 0, 0.45, 0)
+		MapContainer.Position = UDim2.new(0, 0, 0, 45)
+
+		RosterContainer.Size = UDim2.new(1, 0, 0.55, -55)
+		RosterContainer.Position = UDim2.new(0, 0, 0.45, 50)
+		RosterContainer.AnchorPoint = Vector2.new(0, 0)
+
+		LogContainer.Visible = false 
+	else
+		MapContainer.Size = UDim2.new(0.55, 0, 0.65, -45)
+		MapContainer.Position = UDim2.new(0, 0, 0, 45)
+
+		LogContainer.Size = UDim2.new(0.55, 0, 0.35, -20)
+		LogContainer.Position = UDim2.new(0, 0, 0.65, 20)
+
+		RosterContainer.Size = UDim2.new(0.42, 0, 1, -10)
+		RosterContainer.Position = UDim2.new(1, 0, 0, 0)
+		RosterContainer.AnchorPoint = Vector2.new(1, 0)
+	end
 
 	local MapSquare = Instance.new("Frame", MapContainer)
 	MapSquare.Size = UDim2.new(1, 0, 1, 0); MapSquare.Position = UDim2.new(0.5, 0, 0.5, 0); MapSquare.AnchorPoint = Vector2.new(0.5, 0.5); MapSquare.BackgroundTransparency = 1
@@ -89,19 +118,17 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 	local crossH = Instance.new("Frame", MapSquare); crossH.Size = UDim2.new(0.85, 0, 0, 2); crossH.Position = UDim2.new(0.5, 0, 0.5, 0); crossH.AnchorPoint = Vector2.new(0.5, 0.5); crossH.BackgroundColor3 = Color3.fromRGB(60, 80, 60); crossH.BorderSizePixel = 0
 
 	local function CreateWall(sizeScale, color, name)
-		local wall = Instance.new("Frame", MapSquare); wall.Size = UDim2.new(sizeScale, 0, sizeScale, 0); wall.Position = UDim2.new(0.5, 0, 0.5, 0); wall.AnchorPoint = Vector2.new(0.5, 0.5); wall.BackgroundTransparency = 1
+		local wall = Instance.new("Frame", MapSquare); wall.Size = UDim2.new(sizeScale, 0, sizeScale, 0); wall.Position = UDim2.new(0.5, 0, 0.5, 0); wall.AnchorPoint = Vector2.new(0.5, 0.5); wall.BackgroundTransparency = 1; wall.BorderSizePixel = 0
 		local s = Instance.new("UIStroke", wall); s.Color = color; s.Thickness = 3
-		Instance.new("UICorner", wall).CornerRadius = UDim.new(1, 0)
 		local lbl = UIHelpers.CreateLabel(wall, name, UDim2.new(0, 100, 0, 20), Enum.Font.GothamBlack, color, 12); lbl.Position = UDim2.new(0.5, 0, 0, -10); lbl.AnchorPoint = Vector2.new(0.5, 0.5)
 	end
 	CreateWall(0.85, Color3.fromRGB(100, 120, 100), "WALL MARIA"); CreateWall(0.55, Color3.fromRGB(120, 140, 120), "WALL ROSE"); CreateWall(0.25, Color3.fromRGB(140, 160, 140), "WALL SINA")
 
 	local NodeVisuals = {}
 	for i, pos in ipairs(CONFIG.Nodes) do
-		local node = Instance.new("Frame", MapSquare); node.Size = UDim2.new(0, 45, 0, 45); node.Position = pos; node.AnchorPoint = Vector2.new(0.5, 0.5); node.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-		Instance.new("UICorner", node).CornerRadius = UDim.new(1, 0)
+		local node = Instance.new("Frame", MapSquare); node.Size = UDim2.new(0, 45, 0, 45); node.Position = pos; node.AnchorPoint = Vector2.new(0.5, 0.5); node.BackgroundColor3 = Color3.fromRGB(20, 20, 25); node.BorderSizePixel = 0
 		local nStrk = Instance.new("UIStroke", node); nStrk.Color = Color3.fromRGB(100, 100, 110); nStrk.Thickness = 2
-		local nIcon = Instance.new("ImageLabel", node); nIcon.Size = UDim2.new(1, -6, 1, -6); nIcon.Position = UDim2.new(0.5, 0, 0.5, 0); nIcon.AnchorPoint = Vector2.new(0.5, 0.5); nIcon.BackgroundTransparency = 1; nIcon.ScaleType = Enum.ScaleType.Crop; Instance.new("UICorner", nIcon).CornerRadius = UDim.new(1, 0); nIcon.Visible = false
+		local nIcon = Instance.new("ImageLabel", node); nIcon.Size = UDim2.new(1, -6, 1, -6); nIcon.Position = UDim2.new(0.5, 0, 0.5, 0); nIcon.AnchorPoint = Vector2.new(0.5, 0.5); nIcon.BackgroundTransparency = 1; nIcon.ScaleType = Enum.ScaleType.Crop; nIcon.Visible = false
 		NodeVisuals[i] = {Frame = node, Icon = nIcon, Stroke = nStrk}
 	end
 
@@ -109,10 +136,6 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 		local t = os.clock()
 		for _, nVis in ipairs(NodeVisuals) do if nVis.Icon.Visible then nVis.Icon.Position = UDim2.new(0.5, 0, 0.5, math.sin(t * 2) * 3) end end
 	end)
-
-	local LogContainer = Instance.new("Frame", parentFrame)
-	LogContainer.Size = UDim2.new(0.55, 0, 0.35, -20); LogContainer.Position = UDim2.new(0, 0, 0.65, 20); LogContainer.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-	Instance.new("UIStroke", LogContainer).Color = Color3.fromRGB(70, 70, 80)
 
 	local LogTitle = UIHelpers.CreateLabel(LogContainer, "EXPEDITION LOG", UDim2.new(1, -20, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 14); LogTitle.Position = UDim2.new(0, 10, 0, 5); LogTitle.TextXAlignment = Enum.TextXAlignment.Left
 	local LogScroll = Instance.new("ScrollingFrame", LogContainer); LogScroll.Size = UDim2.new(1, -20, 1, -40); LogScroll.Position = UDim2.new(0, 10, 0, 35); LogScroll.BackgroundTransparency = 1; LogScroll.ScrollBarThickness = 4; LogScroll.BorderSizePixel = 0
@@ -127,8 +150,7 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 		if string.find(msg, "returned!") then AppendLog("<font color='#55FF55'>[" .. os.date("%X") .. "]</font> " .. string.gsub(msg, "\n", " | ")) end
 	end)
 
-	local RosterContainer = Instance.new("Frame", parentFrame); RosterContainer.Size = UDim2.new(0.42, 0, 1, -10); RosterContainer.Position = UDim2.new(1, 0, 0, 0); RosterContainer.AnchorPoint = Vector2.new(1, 0); RosterContainer.BackgroundTransparency = 1
-	local RosterHeader = Instance.new("Frame", RosterContainer); RosterHeader.Size = UDim2.new(1, 0, 0, 45); RosterHeader.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+	local RosterHeader = Instance.new("Frame", RosterContainer); RosterHeader.Size = UDim2.new(1, 0, 0, 45); RosterHeader.BackgroundColor3 = Color3.fromRGB(18, 18, 22); RosterHeader.BorderSizePixel = 0
 	Instance.new("UIStroke", RosterHeader).Color = Color3.fromRGB(70, 70, 80)
 
 	local lblCap = UIHelpers.CreateLabel(RosterHeader, "DEPLOYED: 0 / 2", UDim2.new(0.5, 0, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 12); lblCap.Position = UDim2.new(0, 10, 0, 0); lblCap.TextXAlignment = Enum.TextXAlignment.Left
@@ -160,7 +182,7 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 				local nVis = NodeVisuals[idx]
 				if nVis then
 					nVis.Icon.Visible = false; nVis.Stroke.Color = Color3.fromRGB(100, 100, 110)
-					local dummy = Instance.new("ImageLabel", MapSquare); dummy.Size = UDim2.new(0, 40, 0, 40); dummy.Position = CONFIG.Nodes[idx]; dummy.AnchorPoint = Vector2.new(0.5, 0.5); dummy.BackgroundTransparency = 1; dummy.Image = GetAllyConfig(aName).Icon; dummy.ScaleType = Enum.ScaleType.Crop; Instance.new("UICorner", dummy).CornerRadius = UDim.new(1,0); dummy.ZIndex = 5
+					local dummy = Instance.new("ImageLabel", MapSquare); dummy.Size = UDim2.new(0, 40, 0, 40); dummy.Position = CONFIG.Nodes[idx]; dummy.AnchorPoint = Vector2.new(0.5, 0.5); dummy.BackgroundTransparency = 1; dummy.Image = GetAllyConfig(aName).Icon; dummy.ScaleType = Enum.ScaleType.Crop; dummy.ZIndex = 5
 					local t1 = TweenService:Create(dummy, TweenInfo.new(0.5, Enum.EasingStyle.Cubic, Enum.EasingDirection.In), {Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 0, 0, 0)}); t1:Play(); game.Debris:AddItem(dummy, 0.55)
 				end
 			end
@@ -177,7 +199,7 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 			if nVis then
 				if not DeployedAlliesCache[aName] then
 					nVis.Stroke.Color = UIHelpers.Colors.Gold
-					local dummy = Instance.new("ImageLabel", MapSquare); dummy.Size = UDim2.new(0, 0, 0, 0); dummy.Position = UDim2.new(0.5, 0, 0.5, 0); dummy.AnchorPoint = Vector2.new(0.5, 0.5); dummy.BackgroundTransparency = 1; dummy.Image = config.Icon; dummy.ScaleType = Enum.ScaleType.Crop; Instance.new("UICorner", dummy).CornerRadius = UDim.new(1,0); dummy.ZIndex = 5
+					local dummy = Instance.new("ImageLabel", MapSquare); dummy.Size = UDim2.new(0, 0, 0, 0); dummy.Position = UDim2.new(0.5, 0, 0.5, 0); dummy.AnchorPoint = Vector2.new(0.5, 0.5); dummy.BackgroundTransparency = 1; dummy.Image = config.Icon; dummy.ScaleType = Enum.ScaleType.Crop; dummy.ZIndex = 5
 					local popTween = TweenService:Create(dummy, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 40, 0, 40)}); popTween:Play(); popTween.Completed:Wait()
 					local moveTween = TweenService:Create(dummy, TweenInfo.new(0.6, Enum.EasingStyle.Cubic, Enum.EasingDirection.InOut), {Position = CONFIG.Nodes[nodeIdx]}); moveTween:Play()
 					task.spawn(function() moveTween.Completed:Wait(); if dummy.Parent then nVis.Icon.Image = config.Icon; nVis.Icon.Visible = true; dummy:Destroy() end end)
@@ -194,9 +216,9 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 			local isDeployed = dData[config.Name] ~= nil
 			local lvl = aLevels[config.Name] or 1
 
-			local card = Instance.new("Frame", RosterScroll); card.Size = UDim2.new(1, -10, 0, 65); card.BackgroundColor3 = Color3.fromRGB(22, 22, 26); card.LayoutOrder = i
+			local card = Instance.new("Frame", RosterScroll); card.Size = UDim2.new(1, -10, 0, 65); card.BackgroundColor3 = Color3.fromRGB(22, 22, 26); card.LayoutOrder = i; card.BorderSizePixel = 0
 			local cStrk = Instance.new("UIStroke", card); cStrk.Color = UIHelpers.Colors.BorderMuted
-			local iconBg = Instance.new("Frame", card); iconBg.Size = UDim2.new(0, 45, 0, 45); iconBg.Position = UDim2.new(0, 10, 0.5, 0); iconBg.AnchorPoint = Vector2.new(0, 0.5); iconBg.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+			local iconBg = Instance.new("Frame", card); iconBg.Size = UDim2.new(0, 45, 0, 45); iconBg.Position = UDim2.new(0, 10, 0.5, 0); iconBg.AnchorPoint = Vector2.new(0, 0.5); iconBg.BackgroundColor3 = Color3.fromRGB(15, 15, 18); iconBg.BorderSizePixel = 0
 			local iIcon = Instance.new("ImageLabel", iconBg); iIcon.Size = UDim2.new(1, 0, 1, 0); iIcon.BackgroundTransparency = 1; iIcon.ScaleType = Enum.ScaleType.Crop; iIcon.Image = config.Icon
 			local cName = UIHelpers.CreateLabel(card, config.Name, UDim2.new(0.5, 0, 0, 20), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14); cName.Position = UDim2.new(0, 65, 0, 10); cName.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -236,17 +258,13 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 				local now = os.time()
 				for _, tData in pairs(ActiveTimers) do
 					local elapsed = now - tData.StartTime
-
-					-- Cap visual rewards at 12 Hours (43,200 seconds)
 					local isCapped = false
 					if elapsed >= 43200 then
 						elapsed = 43200
 						isCapped = true
 					end
-
 					local mins = math.floor(elapsed / 60)
 					local secs = elapsed % 60
-
 					if isCapped then
 						tData.Label.Text = string.format("MAX CAPACITY! %02d:%02d", mins, secs)
 						tData.Label.TextColor3 = Color3.fromRGB(255, 200, 50)
