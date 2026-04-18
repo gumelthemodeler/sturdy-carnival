@@ -462,9 +462,6 @@ local function StartBattle(player, encounterType, requestedPartId)
 
 				ActiveBattles[player.UserId].Enemy.HP = ddData.BossHP
 				ActiveBattles[player.UserId].Enemy.MaxHP = ddData.MaxHP or 500000000
-
-				-- [[ THE FIX: Removed the rogue UI 'Update' command from the 2-second background loop so it doesn't force-close the Limb Target Menu! ]]
-
 				task.wait(2) 
 			end
 		end)
@@ -882,7 +879,14 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	end
 
 	local battle = ActiveBattles[player.UserId]
-	if not battle then return end
+
+	if not battle then 
+		-- [[ THE FIX: Fail-safe to force close the Combat UI if desync occurs and the battle no longer exists server-side ]]
+		if actionType == "Attack" then
+			CombatUpdate:FireClient(player, "Fled", {Battle = nil, LogMsg = "<font color='#FF5555'>Battle synchronization lost. Force closing.</font>"})
+		end
+		return 
+	end
 
 	if actionType == "ExecutionComplete" then
 		if not battle.Context.ExecutionTriggered then return end
@@ -950,18 +954,26 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		return
 	end
 
-	if actionType ~= "Attack" or battle.IsProcessing then return end
-
-	local skillName = actionData.SkillName
-
-	if skillName == "Retreat" or skillName == "Flee" then
-		CombatUpdate:FireClient(player, "Fled", {Battle = battle})
-		SafeTriggerPathsShop(player, battle.Context)
-		if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
-		ActiveBattles[player.UserId] = nil
-		return
+	-- [[ THE FIX: Extracted Retreat Check BEFORE IsProcessing Evaluation to guarantee Retreat is never soft-locked ]]
+	if actionType == "Attack" then
+		local skillName = actionData.SkillName
+		if skillName == "Retreat" or skillName == "Flee" then
+			CombatUpdate:FireClient(player, "Fled", {Battle = battle})
+			SafeTriggerPathsShop(player, battle.Context)
+			if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
+			ActiveBattles[player.UserId] = nil
+			return
+		end
 	end
 
+	if actionType ~= "Attack" or battle.IsProcessing then 
+		if actionType == "Attack" and battle.IsProcessing then
+			CombatUpdate:FireClient(player, "Update", {Battle = battle})
+		end
+		return 
+	end
+
+	local skillName = actionData.SkillName
 	local targetLimb = actionData.TargetLimb or "Body" 
 	local skill = SkillData.Skills[skillName]
 	local hasGas, hasHeat = true, true
@@ -1089,284 +1101,289 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	local combatants = { battle.Player, battle.Enemy }
 	table.sort(combatants, function(a, b) return (a.IsPlayer and pRoll or eRoll) > (b.IsPlayer and pRoll or eRoll) end)
 
-	for _, combatant in ipairs(combatants) do
+	-- [[ THE FIX: Thread-Safe Loop wrapping to prevent unrecoverable 'IsProcessing = true' locking. ]]
+	local success, loopErr = pcall(function()
+		for _, combatant in ipairs(combatants) do
 
-		if battle.Enemy.IsBoss and not battle.Enemy.EnragedOnce then
-			local hpRatio = battle.Enemy.HP / battle.Enemy.MaxHP
-			if hpRatio <= 0.30 and battle.Enemy.HP > 0 then
-				battle.Enemy.EnragedOnce = true
-				if not battle.Enemy.Statuses then battle.Enemy.Statuses = {} end
-				battle.Enemy.Statuses["Enraged"] = 999
-				battle.Enemy.Statuses["Stun"] = nil
-				battle.Enemy.Statuses["Bleed"] = nil
-				battle.Enemy.Statuses["Burn"] = nil
-				battle.Enemy.Statuses["Blinded"] = nil
-				battle.Enemy.Statuses["TrueBlind"] = nil
-				battle.Enemy.Statuses["Crippled"] = nil
-				battle.Enemy.Statuses["Weakened"] = nil
-				battle.Enemy.Statuses["Debuff_Defense"] = nil
-				battle.Enemy.Statuses["Telegraphing"] = nil
+			if battle.Enemy.IsBoss and not battle.Enemy.EnragedOnce then
+				local hpRatio = battle.Enemy.HP / battle.Enemy.MaxHP
+				if hpRatio <= 0.30 and battle.Enemy.HP > 0 then
+					battle.Enemy.EnragedOnce = true
+					if not battle.Enemy.Statuses then battle.Enemy.Statuses = {} end
+					battle.Enemy.Statuses["Enraged"] = 999
+					battle.Enemy.Statuses["Stun"] = nil
+					battle.Enemy.Statuses["Bleed"] = nil
+					battle.Enemy.Statuses["Burn"] = nil
+					battle.Enemy.Statuses["Blinded"] = nil
+					battle.Enemy.Statuses["TrueBlind"] = nil
+					battle.Enemy.Statuses["Crippled"] = nil
+					battle.Enemy.Statuses["Weakened"] = nil
+					battle.Enemy.Statuses["Debuff_Defense"] = nil
+					battle.Enemy.Statuses["Telegraphing"] = nil
 
-				battle.Enemy.HP = math.floor(battle.Enemy.MaxHP * 0.5)
-				if battle.Enemy.MaxGateHP and battle.Enemy.MaxGateHP > 0 then
-					battle.Enemy.GateHP = battle.Enemy.MaxGateHP
-				end
-
-				local enrageMsg = "<font color='#FF0000'><b>[CRITICAL WARNING]</b></font>\n<font color='#FFAA00'>" .. battle.Enemy.Name .. " roars in absolute fury! All debuffs cleansed! HP Restored to 50%! Armor Regenerated! Damage & Speed massively increased!</font>"
-
-				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = enrageMsg, DidHit = false, ShakeType = "Heavy", EnrageTrigger = true})
-				task.wait(turnDelay)
-			end
-		end
-
-		if battle.Player.HP < 1 or battle.Enemy.HP < 1 then break end
-		if combatant.HP < 1 then continue end
-
-		-- Cache incapacitation BEFORE TickStatuses removes it when duration hits 0 
-		local wasIncapacitated = false
-		if combatant.Statuses and (combatant.Statuses["Blinded"] or combatant.Statuses["TrueBlind"] or combatant.Statuses["Stun"]) then
-			wasIncapacitated = true
-		end
-
-		local dotDamage, dotLog = CombatCore.TickStatuses(combatant)
-
-		if dotDamage > 0 then
-			local targetName = combatant.IsPlayer and "You" or combatant.Name
-			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = targetName .. " took damage from status effects!" .. dotLog, DidHit = false, ShakeType = "None"})
-			task.wait(0.2)
-			if combatant.HP < 1 then continue end 
-		end
-
-		if combatant.IsDoomsdayBoss then
-			battle.Context.DoomsdayTurn = (battle.Context.DoomsdayTurn or 0) + 1
-			local turn = battle.Context.DoomsdayTurn
-			local msg = "<font color='#FF5555'>The Doomsday Titan continues its apocalyptic march... DEAL AS MUCH DAMAGE AS POSSIBLE!</font>"
-
-			if turn % 8 == 0 then
-				combatant.GateType = "Steam"
-				combatant.MaxGateHP = 5
-				combatant.GateHP = 5
-				msg = "<font color='#FFAA00'><b>[PHASE SHIFT: STEAM]</b> The Doomsday Titan vents Colossal Steam to repel your attacks!</font>"
-			elseif turn % 8 == 4 then
-				combatant.GateType = "Reinforced Skin"
-				local newGate = math.floor(battle.Player.TotalStrength * 12) 
-				combatant.MaxGateHP = newGate
-				combatant.GateHP = newGate
-				msg = "<font color='#AAAAAA'><b>[PHASE SHIFT: ARMOR]</b> The Doomsday Titan hardens its skeletal structure! Break it!</font>"
-			elseif turn % 8 == 1 and turn > 1 then
-				combatant.GateType = nil
-				combatant.MaxGateHP = 0
-				combatant.GateHP = 0
-				msg = "<font color='#55FF55'><b>[PHASE SHIFT: EXPOSED]</b> The Doomsday Titan's defenses drop! Unleash everything!</font>"
-			end
-
-			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = msg, DidHit = false, ShakeType = "Light"})
-			task.wait(turnDelay)
-
-			-- SKIPS ENEMY COMBAT AI SO HE NEVER ATTACKS YOU
-			continue 
-		end
-
-		-- Evaluates the cached incapacitated state
-		if wasIncapacitated then
-			if combatant.IsBoss and combatant.Statuses and combatant.Statuses["Telegraphing"] then
-				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF0000'><b>" .. combatant.Name .. " shrugs off the crowd control and continues charging!</b></font>", DidHit = false, ShakeType = "None"})
-				task.wait(0.4)
-			else
-				if combatant.Statuses and combatant.Statuses["Telegraphing"] then
-					combatant.Statuses["Telegraphing"] = nil 
-					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#55FF55'><b>" .. combatant.Name .. "'s charge up was INTERRUPTED!</b></font>", DidHit = false, ShakeType = "Heavy"})
-					task.wait(0.4)
-				end
-
-				local denyMsg = combatant.IsPlayer and "<font color='#555555'>You are INCAPACITATED and lost your turn!</font>" or "<font color='#555555'>" .. combatant.Name .. " is INCAPACITATED and lost their turn!</font>"
-				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = denyMsg, DidHit = false, ShakeType = "None"})
-				task.wait(0.4)
-
-				if not combatant.IsPlayer and not combatant.IsHuman then
-					if not (combatant.Statuses and combatant.Statuses["Burn"]) then
-						local regenAmt = math.min(math.floor(combatant.MaxHP * 0.05), 100)
-						combatant.HP = math.min(combatant.MaxHP, combatant.HP + regenAmt)
-					end
-				end
-				continue
-			end
-		end
-
-		if combatant.IsPlayer then
-			DispatchStrike(battle.Player, battle.Enemy, skillName, targetLimb)
-		else
-			local pRatio = (battle.Player.HP or 0) / (battle.Player.MaxHP or 100)
-			if pRatio <= 0.30 and not battle.Context.AllyIntervened then
-				local intChance = 35
-				if string.find(battle.Enemy.Name, "Founding Titan") or string.find(battle.Enemy.Name, "Ymir") or string.find(battle.Enemy.Name, "Doomsday") then
-					intChance = 75 
-				end
-
-				if math.random(1, 100) <= intChance then
-					battle.Context.AllyIntervened = true
-					local getPartyFunc = Network:FindFirstChild("GetPlayerParty")
-					local partyData = getPartyFunc and getPartyFunc:Invoke(player) or {Members = {}}
-
-					local friends = {}
-					for _, mem in ipairs(partyData.Members) do
-						if mem.UserId ~= player.UserId then table.insert(friends, mem) end
+					battle.Enemy.HP = math.floor(battle.Enemy.MaxHP * 0.5)
+					if battle.Enemy.MaxGateHP and battle.Enemy.MaxGateHP > 0 then
+						battle.Enemy.GateHP = battle.Enemy.MaxGateHP
 					end
 
-					local allyName, allyQuote, allySkill, allyUserId, chunkDmg
+					local enrageMsg = "<font color='#FF0000'><b>[CRITICAL WARNING]</b></font>\n<font color='#FFAA00'>" .. battle.Enemy.Name .. " roars in absolute fury! All debuffs cleansed! HP Restored to 50%! Armor Regenerated! Damage & Speed massively increased!</font>"
 
-					if #friends > 0 then
-						local savior = friends[math.random(1, #friends)]
-						allyName = savior.Name
-						allyUserId = savior.UserId
-						allyQuote = "I've got your back, " .. player.Name .. "!"
-						allySkill = "Team Takedown"
-
-						local fStr = (savior:GetAttribute("Strength") or 10)
-						chunkDmg = math.max(fStr * 15, math.floor((battle.Enemy.MaxHP or 1000) * 0.15))
-					else
-						local allyKeys = {}
-						for k, _ in pairs(EnemyData.Allies) do table.insert(allyKeys, k) end
-						local allyKey = allyKeys[math.random(1, #allyKeys)]
-						local allyData = EnemyData.Allies[allyKey]
-
-						allyName = allyData.Name
-
-						local validAllySkills = {}
-						if allyData.Skills then
-							for _, s in ipairs(allyData.Skills) do
-								local lowerSkill = s:lower()
-								local sd = SkillData.Skills[s]
-								if (not sd or (sd.Effect ~= "Heal" and sd.Effect ~= "Buff" and sd.Effect ~= "Block")) and 
-									not string.match(lowerSkill, "recover") and not string.match(lowerSkill, "heal") and not string.match(lowerSkill, "fortify") then
-									table.insert(validAllySkills, s)
-								end
-							end
-						end
-						allySkill = #validAllySkills > 0 and validAllySkills[math.random(1, #validAllySkills)] or "Basic Slash"
-						chunkDmg = math.max(allyData.Strength * 10, math.floor((battle.Enemy.MaxHP or 1000) * 0.15))
-
-						local allyQuotes = {
-							["Levi Ackerman"] = "Tch. Try not to die on me, brat.",
-							["Mikasa Ackerman"] = "I won't let you die. Not here.",
-							["Erwin Smith"] = "Advance! Dedicate your heart!",
-							["Hange Zoe"] = "Ooh, a new test subject! Leave it to me!",
-							["Armin Arlert"] = "I'll cover you! Strike now!"
-						}
-						allyQuote = allyQuotes[allyData.Name] or "I've got your back!"
-					end
-
-					local _, hitGate, gateBroken, actualDmg, gateName = CombatCore.TakeDamage(battle.Enemy, chunkDmg, "Ultrahard Steel Blades")
-
-					local hitMsg = "<font color='#55FFFF'><b>[ALLY INTERVENTION!]</b></font>\n<font color='#55FFFF'>" .. allyName .. "</font> swooped in to assist you!\n<font color='#55FFFF'>" .. allyName .. "</font> used <b>" .. allySkill .. "</b> on " .. battle.Enemy.Name .. " for " .. actualDmg .. " dmg!"
-					if hitGate then hitMsg = hitMsg .. " <font color='#DDDDDD'>[Hit " .. tostring(gateName) .. "!]</font>" end
-					if gateBroken then hitMsg = hitMsg .. " <font color='#FFFFFF'><b>[" .. tostring(gateName):upper() .. " SHATTERED!]</b></font>" end
-
-					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = hitMsg, DidHit = true, ShakeType = "Heavy", SkillUsed = allySkill, IsPlayerAttacking = true, AllyIntervention = allyName, AllyQuote = allyQuote, AllyUserId = allyUserId})
+					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = enrageMsg, DidHit = false, ShakeType = "Heavy", EnrageTrigger = true})
 					task.wait(turnDelay)
+				end
+			end
 
-					if battle.Enemy.HP < 1 then break end 
+			if battle.Player.HP < 1 or battle.Enemy.HP < 1 then break end
+			if combatant.HP < 1 then continue end
 
-					if battle.Enemy.Statuses and battle.Enemy.Statuses["Telegraphing"] then
-						battle.Enemy.Statuses["Telegraphing"] = nil 
-						CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#55FF55'><b>" .. battle.Enemy.Name .. "'s charge up was INTERRUPTED!</b></font>", DidHit = false, ShakeType = "Heavy"})
+			local wasIncapacitated = false
+			if combatant.Statuses and (combatant.Statuses["Blinded"] or combatant.Statuses["TrueBlind"] or combatant.Statuses["Stun"]) then
+				wasIncapacitated = true
+			end
+
+			local dotDamage, dotLog = CombatCore.TickStatuses(combatant)
+
+			if dotDamage > 0 then
+				local targetName = combatant.IsPlayer and "You" or combatant.Name
+				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = targetName .. " took damage from status effects!" .. dotLog, DidHit = false, ShakeType = "None"})
+				task.wait(0.2)
+				if combatant.HP < 1 then continue end 
+			end
+
+			if combatant.IsDoomsdayBoss then
+				battle.Context.DoomsdayTurn = (battle.Context.DoomsdayTurn or 0) + 1
+				local turn = battle.Context.DoomsdayTurn
+				local msg = "<font color='#FF5555'>The Doomsday Titan continues its apocalyptic march... DEAL AS MUCH DAMAGE AS POSSIBLE!</font>"
+
+				if turn % 8 == 0 then
+					combatant.GateType = "Steam"
+					combatant.MaxGateHP = 5
+					combatant.GateHP = 5
+					msg = "<font color='#FFAA00'><b>[PHASE SHIFT: STEAM]</b> The Doomsday Titan vents Colossal Steam to repel your attacks!</font>"
+				elseif turn % 8 == 4 then
+					combatant.GateType = "Reinforced Skin"
+					local newGate = math.floor(battle.Player.TotalStrength * 12) 
+					combatant.MaxGateHP = newGate
+					combatant.GateHP = newGate
+					msg = "<font color='#AAAAAA'><b>[PHASE SHIFT: ARMOR]</b> The Doomsday Titan hardens its skeletal structure! Break it!</font>"
+				elseif turn % 8 == 1 and turn > 1 then
+					combatant.GateType = nil
+					combatant.MaxGateHP = 0
+					combatant.GateHP = 0
+					msg = "<font color='#55FF55'><b>[PHASE SHIFT: EXPOSED]</b> The Doomsday Titan's defenses drop! Unleash everything!</font>"
+				end
+
+				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = msg, DidHit = false, ShakeType = "Light"})
+				task.wait(turnDelay)
+				continue 
+			end
+
+			if wasIncapacitated then
+				if combatant.IsBoss and combatant.Statuses and combatant.Statuses["Telegraphing"] then
+					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF0000'><b>" .. combatant.Name .. " shrugs off the crowd control and continues charging!</b></font>", DidHit = false, ShakeType = "None"})
+					task.wait(0.4)
+				else
+					if combatant.Statuses and combatant.Statuses["Telegraphing"] then
+						combatant.Statuses["Telegraphing"] = nil 
+						CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#55FF55'><b>" .. combatant.Name .. "'s charge up was INTERRUPTED!</b></font>", DidHit = false, ShakeType = "Heavy"})
 						task.wait(0.4)
 					end
 
-					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#AAAAAA'>" .. battle.Enemy.Name .. " is reeling from the surprise attack and loses their turn!</font>", DidHit = false, ShakeType = "None"})
+					local denyMsg = combatant.IsPlayer and "<font color='#555555'>You are INCAPACITATED and lost your turn!</font>" or "<font color='#555555'>" .. combatant.Name .. " is INCAPACITATED and lost their turn!</font>"
+					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = denyMsg, DidHit = false, ShakeType = "None"})
 					task.wait(0.4)
-					continue
-				end
-			end
 
-			if not combatant.AIPoints then combatant.AIPoints = 0 end
-			combatant.AIPoints += 1 
-
-			local validAiSkills = {}
-			local hasTelegraphed = false
-
-			for _, s in ipairs(combatant.Skills) do
-				local sd = SkillData.Skills[s]
-				local isReady = not combatant.Cooldowns or not combatant.Cooldowns[s] or combatant.Cooldowns[s] <= 0
-				local inRange = true
-				if sd and sd.Range and sd.Range ~= "Any" then
-					inRange = (sd.Range == battle.Context.Range)
-				end
-
-				if isReady and inRange then
-					if sd and sd.Telegraphed then
-						if combatant.AIPoints >= 3 then 
-							table.insert(validAiSkills, s)
-							hasTelegraphed = true
+					if not combatant.IsPlayer and not combatant.IsHuman then
+						if not (combatant.Statuses and combatant.Statuses["Burn"]) then
+							local regenAmt = math.min(math.floor(combatant.MaxHP * 0.05), 100)
+							combatant.HP = math.min(combatant.MaxHP, combatant.HP + regenAmt)
 						end
-					elseif sd and (sd.Mult or 1) >= 1.8 then
-						if combatant.AIPoints >= 2 then table.insert(validAiSkills, s) end
-					else
-						table.insert(validAiSkills, s)
 					end
+					continue
 				end
 			end
 
-			battle.Context.TurnCount = (battle.Context.TurnCount or 0) + 1
-			local aiSkill = "Brutal Swipe"
-
-			if combatant.Statuses and combatant.Statuses["Telegraphing"] then
-				aiSkill = combatant.Statuses["Telegraphing"]; combatant.Statuses["Telegraphing"] = nil
-				local sd = SkillData.Skills[aiSkill]
-				if sd and sd.Range and sd.Range ~= "Any" and sd.Range ~= battle.Context.Range then
-					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#AAAAAA'>" .. combatant.Name .. " attempted to use <b>" .. aiSkill .. "</b>, but you changed range! The attack missed entirely!</font>", DidHit = false, ShakeType = "None"})
-					task.wait(0.4)
-					continue
-				end
+			if combatant.IsPlayer then
+				DispatchStrike(battle.Player, battle.Enemy, skillName, targetLimb)
 			else
-				if hasTelegraphed then
-					for _, s in ipairs(validAiSkills) do
-						if SkillData.Skills[s].Telegraphed then aiSkill = s break end
+				local pRatio = (battle.Player.HP or 0) / (battle.Player.MaxHP or 100)
+				if pRatio <= 0.30 and not battle.Context.AllyIntervened then
+					local intChance = 35
+					if string.find(battle.Enemy.Name, "Founding Titan") or string.find(battle.Enemy.Name, "Ymir") or string.find(battle.Enemy.Name, "Doomsday") then
+						intChance = 75 
 					end
-					combatant.AIPoints = 0 
-				else
-					if #validAiSkills > 0 then aiSkill = validAiSkills[math.random(1, #validAiSkills)] end
-					if SkillData.Skills[aiSkill] and (SkillData.Skills[aiSkill].Mult or 1) >= 1.8 then
-						combatant.AIPoints = math.max(0, combatant.AIPoints - 2) 
-					end
-				end
 
-				if SkillData.Skills[aiSkill] and SkillData.Skills[aiSkill].Telegraphed then
-					if not combatant.Statuses then combatant.Statuses = {} end
-					combatant.Statuses["Telegraphing"] = aiSkill
+					if math.random(1, 100) <= intChance then
+						battle.Context.AllyIntervened = true
+						local getPartyFunc = Network:FindFirstChild("GetPlayerParty")
+						local partyData = getPartyFunc and getPartyFunc:Invoke(player) or {Members = {}}
 
-					local hintStr = ""
-					if SkillData.Skills[aiSkill].Unavoidable then
-						if SkillData.Skills[aiSkill].Range == "Any" then
-							hintStr = "\n<font color='#FF3333'><b>⚠️ MASSIVE AREA ATTACK! USE A HEAVY SKILL TO CLASH OR 'BLOCK'! ⚠️</b></font>"
+						local friends = {}
+						for _, mem in ipairs(partyData.Members) do
+							if mem.UserId ~= player.UserId then table.insert(friends, mem) end
+						end
+
+						local allyName, allyQuote, allySkill, allyUserId, chunkDmg
+
+						if #friends > 0 then
+							local savior = friends[math.random(1, #friends)]
+							allyName = savior.Name
+							allyUserId = savior.UserId
+							allyQuote = "I've got your back, " .. player.Name .. "!"
+							allySkill = "Team Takedown"
+
+							local fStr = (savior:GetAttribute("Strength") or 10)
+							chunkDmg = math.max(fStr * 15, math.floor((battle.Enemy.MaxHP or 1000) * 0.15))
 						else
-							hintStr = "\n<font color='#FF3333'><b>⚠️ UNAVOIDABLE CLOSE ATTACK! CLASH, 'FALL BACK', OR 'BLOCK'! ⚠️</b></font>"
+							local allyKeys = {}
+							for k, _ in pairs(EnemyData.Allies) do table.insert(allyKeys, k) end
+							local allyKey = allyKeys[math.random(1, #allyKeys)]
+							local allyData = EnemyData.Allies[allyKey]
+
+							allyName = allyData.Name
+
+							local validAllySkills = {}
+							if allyData.Skills then
+								for _, s in ipairs(allyData.Skills) do
+									local lowerSkill = s:lower()
+									local sd = SkillData.Skills[s]
+									if (not sd or (sd.Effect ~= "Heal" and sd.Effect ~= "Buff" and sd.Effect ~= "Block")) and 
+										not string.match(lowerSkill, "recover") and not string.match(lowerSkill, "heal") and not string.match(lowerSkill, "fortify") then
+										table.insert(validAllySkills, s)
+									end
+								end
+							end
+							allySkill = #validAllySkills > 0 and validAllySkills[math.random(1, #validAllySkills)] or "Basic Slash"
+							chunkDmg = math.max(allyData.Strength * 10, math.floor((battle.Enemy.MaxHP or 1000) * 0.15))
+
+							local allyQuotes = {
+								["Levi Ackerman"] = "Tch. Try not to die on me, brat.",
+								["Mikasa Ackerman"] = "I won't let you die. Not here.",
+								["Erwin Smith"] = "Advance! Dedicate your heart!",
+								["Hange Zoe"] = "Ooh, a new test subject! Leave it to me!",
+								["Armin Arlert"] = "I'll cover you! Strike now!"
+							}
+							allyQuote = allyQuotes[allyData.Name] or "I've got your back!"
 						end
-					else
-						hintStr = "\n<font color='#55FF55'>[HINT: USE EVASIVE MANEUVER OR BLOCK!]</font>"
+
+						local _, hitGate, gateBroken, actualDmg, gateName = CombatCore.TakeDamage(battle.Enemy, chunkDmg, "Ultrahard Steel Blades")
+
+						local hitMsg = "<font color='#55FFFF'><b>[ALLY INTERVENTION!]</b></font>\n<font color='#55FFFF'>" .. allyName .. "</font> swooped in to assist you!\n<font color='#55FFFF'>" .. allyName .. "</font> used <b>" .. allySkill .. "</b> on " .. battle.Enemy.Name .. " for " .. actualDmg .. " dmg!"
+						if hitGate then hitMsg = hitMsg .. " <font color='#DDDDDD'>[Hit " .. tostring(gateName) .. "!]</font>" end
+						if gateBroken then hitMsg = hitMsg .. " <font color='#FFFFFF'><b>[" .. tostring(gateName):upper() .. " SHATTERED!]</b></font>" end
+
+						CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = hitMsg, DidHit = true, ShakeType = "Heavy", SkillUsed = allySkill, IsPlayerAttacking = true, AllyIntervention = allyName, AllyQuote = allyQuote, AllyUserId = allyUserId})
+						task.wait(turnDelay)
+
+						if battle.Enemy.HP < 1 then break end 
+
+						if battle.Enemy.Statuses and battle.Enemy.Statuses["Telegraphing"] then
+							battle.Enemy.Statuses["Telegraphing"] = nil 
+							CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#55FF55'><b>" .. battle.Enemy.Name .. "'s charge up was INTERRUPTED!</b></font>", DidHit = false, ShakeType = "Heavy"})
+							task.wait(0.4)
+						end
+
+						CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#AAAAAA'>" .. battle.Enemy.Name .. " is reeling from the surprise attack and loses their turn!</font>", DidHit = false, ShakeType = "None"})
+						task.wait(0.4)
+						continue
+					end
+				end
+
+				if not combatant.AIPoints then combatant.AIPoints = 0 end
+				combatant.AIPoints += 1 
+
+				local validAiSkills = {}
+				local hasTelegraphed = false
+
+				for _, s in ipairs(combatant.Skills) do
+					local sd = SkillData.Skills[s]
+					local isReady = not combatant.Cooldowns or not combatant.Cooldowns[s] or combatant.Cooldowns[s] <= 0
+					local inRange = true
+					if sd and sd.Range and sd.Range ~= "Any" then
+						inRange = (sd.Range == battle.Context.Range)
 					end
 
-					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<b><font color='#FFAA00'>WARNING: " .. combatant.Name .. " is charging up " .. aiSkill:upper() .. "!</font></b>" .. hintStr, DidHit = false, ShakeType = "Heavy"})
-					PlayVFX:FireClient(player, "TitanRoar", "Enemy")
-					task.wait(0.6)
-					continue
+					if isReady and inRange then
+						if sd and sd.Telegraphed then
+							if combatant.AIPoints >= 3 then 
+								table.insert(validAiSkills, s)
+								hasTelegraphed = true
+							end
+						elseif sd and (sd.Mult or 1) >= 1.8 then
+							if combatant.AIPoints >= 2 then table.insert(validAiSkills, s) end
+						else
+							table.insert(validAiSkills, s)
+						end
+					end
+				end
+
+				battle.Context.TurnCount = (battle.Context.TurnCount or 0) + 1
+				local aiSkill = "Brutal Swipe"
+
+				if combatant.Statuses and combatant.Statuses["Telegraphing"] then
+					aiSkill = combatant.Statuses["Telegraphing"]; combatant.Statuses["Telegraphing"] = nil
+					local sd = SkillData.Skills[aiSkill]
+					if sd and sd.Range and sd.Range ~= "Any" and sd.Range ~= battle.Context.Range then
+						CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#AAAAAA'>" .. combatant.Name .. " attempted to use <b>" .. aiSkill .. "</b>, but you changed range! The attack missed entirely!</font>", DidHit = false, ShakeType = "None"})
+						task.wait(0.4)
+						continue
+					end
+				else
+					if hasTelegraphed then
+						for _, s in ipairs(validAiSkills) do
+							if SkillData.Skills[s].Telegraphed then aiSkill = s break end
+						end
+						combatant.AIPoints = 0 
+					else
+						if #validAiSkills > 0 then aiSkill = validAiSkills[math.random(1, #validAiSkills)] end
+						if SkillData.Skills[aiSkill] and (SkillData.Skills[aiSkill].Mult or 1) >= 1.8 then
+							combatant.AIPoints = math.max(0, combatant.AIPoints - 2) 
+						end
+					end
+
+					if SkillData.Skills[aiSkill] and SkillData.Skills[aiSkill].Telegraphed then
+						if not combatant.Statuses then combatant.Statuses = {} end
+						combatant.Statuses["Telegraphing"] = aiSkill
+
+						local hintStr = ""
+						if SkillData.Skills[aiSkill].Unavoidable then
+							if SkillData.Skills[aiSkill].Range == "Any" then
+								hintStr = "\n<font color='#FF3333'><b>⚠️ MASSIVE AREA ATTACK! USE A HEAVY SKILL TO CLASH OR 'BLOCK'! ⚠️</b></font>"
+							else
+								hintStr = "\n<font color='#FF3333'><b>⚠️ UNAVOIDABLE CLOSE ATTACK! CLASH, 'FALL BACK', OR 'BLOCK'! ⚠️</b></font>"
+							end
+						else
+							hintStr = "\n<font color='#55FF55'>[HINT: USE EVASIVE MANEUVER OR BLOCK!]</font>"
+						end
+
+						CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<b><font color='#FFAA00'>WARNING: " .. combatant.Name .. " is charging up " .. aiSkill:upper() .. "!</font></b>" .. hintStr, DidHit = false, ShakeType = "Heavy"})
+						PlayVFX:FireClient(player, "TitanRoar", "Enemy")
+						task.wait(0.6)
+						continue
+					end
+				end
+
+				if aiSkill == "Idle" then
+					CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#AAAAAA'>" .. combatant.Name .. " stands completely still.</font>", DidHit = false, ShakeType = "None"})
+					task.wait(0.4)
+				else
+					local aiTargets = {"Body", "Body", "Arms", "Legs", "Nape"}
+					DispatchStrike(battle.Enemy, battle.Player, aiSkill, aiTargets[math.random(1, #aiTargets)])
 				end
 			end
 
-			if aiSkill == "Idle" then
-				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#AAAAAA'>" .. combatant.Name .. " stands completely still.</font>", DidHit = false, ShakeType = "None"})
-				task.wait(0.4)
-			else
-				local aiTargets = {"Body", "Body", "Arms", "Legs", "Nape"}
-				DispatchStrike(battle.Enemy, battle.Player, aiSkill, aiTargets[math.random(1, #aiTargets)])
+			if battle.Player.Statuses and battle.Player.Statuses["Transformed"] and (tonumber(battle.Player.TitanEnergy) or 0) <= 0 then
+				battle.Player.Statuses["Transformed"] = nil
+				CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF5555'><b>[HEAT DEPLETED]</b> Your Titan body evaporates into steam! You are forced back into human form!</font>", DidHit = false, ShakeType = "None"})
+				task.wait(turnDelay)
 			end
 		end
+	end)
 
-		if battle.Player.Statuses and battle.Player.Statuses["Transformed"] and (tonumber(battle.Player.TitanEnergy) or 0) <= 0 then
-			battle.Player.Statuses["Transformed"] = nil
-			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF5555'><b>[HEAT DEPLETED]</b> Your Titan body evaporates into steam! You are forced back into human form!</font>", DidHit = false, ShakeType = "None"})
-			task.wait(turnDelay)
-		end
+	if not success then
+		warn("[Combat Server Error]: " .. tostring(loopErr))
+		CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF0000'>SERVER LOGIC ERROR. State safely recovered.</font>", DidHit = false, ShakeType = "None"})
+		task.wait(1.0)
 	end
 
 	if battle.Player.HP < 1 then
