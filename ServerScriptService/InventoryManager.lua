@@ -120,7 +120,8 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 
 			elseif itemInfo.Action == "AwakenClan" then
 				local currentClan = player:GetAttribute("Clan") or "None"
-				if currentClan ~= "None" and not string.find(currentClan, "Awakened") and not string.find(currentClan, "Abyssal") then
+				-- [[ THE FIX: Explicitly prevents Fritz from being awakened ]]
+				if currentClan ~= "None" and currentClan ~= "Fritz" and not string.find(currentClan, "Awakened") and not string.find(currentClan, "Abyssal") then
 					player:SetAttribute("Clan", "Awakened " .. currentClan)
 					NotificationEvent:FireClient(player, "Your Clan bloodline has awakened to its true power!", "Success")
 				else
