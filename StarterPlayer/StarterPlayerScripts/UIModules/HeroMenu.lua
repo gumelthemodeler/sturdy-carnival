@@ -382,6 +382,17 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		end
 		if UIAuraManager and type(UIAuraManager.ApplyAura) == "function" and resolvedAuraData then UIAuraManager.ApplyAura(AvatarAuraGlow, resolvedAuraData, AvatarBox) end
 
+		-- [[ THE FIX: Sync Identity Tab Active Loadout ]]
+		for i, lbl in ipairs(SkillSlotLabels) do
+			local rawName = player:GetAttribute("EquippedSkill_" .. i)
+			if not rawName or rawName == "" or rawName == "None" then
+				local defaults = {"BASIC SLASH", "HEAVY SLASH", "MANEUVER", "RECOVER"}
+				lbl.Text = defaults[i]
+			else
+				lbl.Text = string.upper(rawName)
+			end
+		end
+
 		for _, child in ipairs(InvGrid:GetChildren()) do if child.Name == "ItemCard" then child:Destroy() end end
 
 		local inventoryItems = {}; local currentSlotsUsed = 0
@@ -438,7 +449,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			btnCover.MouseLeave:Connect(function() if cachedTooltipMgr and type(cachedTooltipMgr.Hide) == "function" then cachedTooltipMgr.Hide() end end)
 
 			local ActionsOverlay = Instance.new("Frame", card); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.05; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
-			local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.FillDirection = Enum.FillDirection.Vertical; actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+			local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
 			local buttonConsumed = false
 			local function MakeOverlayBtn(text)
@@ -681,8 +692,32 @@ local function BuildAttributesTab(parentFrame)
 			elseif not isTitan and humanCombo > 0 then humanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if humanCombo == 0 then comboLbl.Visible = false end end) end
 		end)
 
-		-- [[ THE FIX: Removed Auto-Train manual toggle from here, completely deferring logic to Settings Tab ]]
+		if player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397 then
+			local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11)
+			autoBtn.Position = UDim2.new(1, -100, 0, 12)
+			autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+			autoBtn.ZIndex = 5
 
+			autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
+			player:GetAttributeChangedSignal("HasAutoTrain"):Connect(function()
+				autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
+			end)
+
+			local isAutoTraining = false
+			autoBtn.MouseButton1Click:Connect(function()
+				isAutoTraining = not isAutoTraining
+				autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"
+				autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255)
+				if isAutoTraining then
+					task.spawn(function()
+						while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do
+							if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end
+							task.wait(0.6)
+						end
+					end)
+				end
+			end)
+		end
 		return box
 	end
 	local soldierBox = CreateTrainBox(false); local titanBox = CreateTrainBox(true)
@@ -937,6 +972,7 @@ local function BuildPrestigeTab(parentFrame)
 	local DReq = CreateSharpLabel(DetailPanel, "", UDim2.new(0.5, 0, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.Border, 14); DReq.Position = UDim2.new(0, 20, 1, -30); DReq.TextXAlignment = Enum.TextXAlignment.Left
 
 	local UnlockBtn, UBtnStroke = CreateSharpButton(DetailPanel, "UNLOCK", UDim2.new(0.25, 0, 0, 45), Enum.Font.GothamBlack, 16); UnlockBtn.Position = UDim2.new(0.98, 0, 1, -55); UnlockBtn.AnchorPoint = Vector2.new(1, 0)
+
 	UnlockBtn.MouseButton1Click:Connect(function() if SelectedNodeId then Network:WaitForChild("UnlockPrestigeNode"):FireServer(SelectedNodeId) end end)
 
 	local function UpdateUI()
