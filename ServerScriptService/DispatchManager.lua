@@ -1,8 +1,10 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- @ScriptType: Script
 -- Name: DispatchManager
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
+local LootManager = require(script.Parent:WaitForChild("LootManager"))
 
 local RemotesFolder = ReplicatedStorage:WaitForChild("Network")
 
@@ -143,8 +145,7 @@ RemotesFolder:WaitForChild("DispatchAction").OnServerEvent:Connect(function(play
 
 		local dropLog = randEvent.Msg .. "\nCollected: " .. dewsGained .. " Dews, " .. xpGained .. " XP."
 		for _, item in ipairs(itemsFound) do
-			local safeName = item:gsub("[^%w]", "") .. "Count"
-			player:SetAttribute(safeName, (player:GetAttribute(safeName) or 0) + 1)
+			LootManager.GiveOrAutoSellItem(player, item, 1)
 			dropLog = dropLog .. "\nFound: " .. item
 		end
 
@@ -226,8 +227,7 @@ RemotesFolder:WaitForChild("DispatchAction").OnServerEvent:Connect(function(play
 		player.leaderstats.Dews.Value += dewsGained
 		local dropLog = log .. "\nSecured: " .. dewsGained .. " Dews."
 		for _, item in ipairs(itemsFound) do
-			local safeName = item:gsub("[^%w]", "") .. "Count"
-			player:SetAttribute(safeName, (player:GetAttribute(safeName) or 0) + 1)
+			LootManager.GiveOrAutoSellItem(player, item, 1)
 			dropLog = dropLog .. "\nFound: " .. item
 		end
 
