@@ -10,7 +10,7 @@ local SellValues = { Common = 10, Uncommon = 25, Rare = 75, Epic = 200, Legendar
 
 local function GetUniqueSlotCount(plr)
 	local count = 0
-	-- [[ THE FIX: Consumables no longer trigger the Inventory Full logic ]]
+	-- Consumables no longer trigger the Inventory Full logic
 	for iName, _ in pairs(ItemData.Equipment) do
 		if (plr:GetAttribute(iName:gsub("[^%w]", "") .. "Count") or 0) > 0 then count += 1 end
 	end
@@ -25,8 +25,12 @@ function LootManager.GiveOrAutoSellItem(player, itemName, amount)
 	local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
 	local isProtected = (rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent")
 
+	-- Applies Double Drops consistently to manual grants to sync with UI notifications
+	local dropMultiplier = player:GetAttribute("HasDoubleDrops") and 2 or 1
+	local finalAmount = amount * dropMultiplier
+
 	if isAutoSellEnabled and not isProtected then
-		local sellValue = (SellValues[rarity] or 10) * amount
+		local sellValue = (SellValues[rarity] or 10) * finalAmount
 		player.leaderstats.Dews.Value += sellValue
 		local NotificationEvent = Network:FindFirstChild("NotificationEvent")
 		if NotificationEvent then
@@ -35,7 +39,7 @@ function LootManager.GiveOrAutoSellItem(player, itemName, amount)
 	else
 		local safeName = itemName:gsub("[^%w]", "") .. "Count"
 		local currentAmt = player:GetAttribute(safeName) or 0
-		player:SetAttribute(safeName, currentAmt + amount)
+		player:SetAttribute(safeName, currentAmt + finalAmount)
 	end
 end
 
@@ -58,7 +62,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 		luckBoost = luckBoost * 1.15
 	end
 
-	-- [[ THE FIX: Applies Squad Drop Rate Upgrade ]]
 	local squadUpgradesRaw = player:GetAttribute("SquadUpgrades")
 	if squadUpgradesRaw and squadUpgradesRaw ~= "" then
 		local succ, sqUp = pcall(function() return game:GetService("HttpService"):JSONDecode(squadUpgradesRaw) end)
@@ -93,7 +96,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 				local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
 				local isEquipment = ItemData.Equipment[itemName] ~= nil
 
-				-- [[ THE FIX: Hard-blocks Legendary+ items from ever being auto-sold or deleted ]]
 				local isProtected = (rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent")
 
 				if isAutoSellEnabled and not isProtected then
