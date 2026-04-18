@@ -1,6 +1,5 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
--- @ScriptType: Script
 -- Name: CombatManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -137,6 +136,13 @@ end
 
 local function StartBattle(player, encounterType, requestedPartId)
 	if ActiveBattles[player.UserId] then return end 
+
+	-- [[ THE FIX: Auto-Battling / Random Encounters in Menu Issue ]]
+	-- If the player has opened their Main Menu, do not trigger combat encounters.
+	if player:GetAttribute("InMenu") == true or player:GetAttribute("AFK") == true then return end
+
+	-- Tag player as being in combat explicitly
+	player:SetAttribute("InCombat", true)
 
 	local currentPart = player:GetAttribute("CurrentPart") or 1
 	local eTemplate, logFlavor
@@ -458,6 +464,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 						CombatUpdate:FireClient(player, "Fled", {Battle = b, LogMsg = "<font color='#AAAAAA'>The Doomsday Titan vanished into the steam...</font>"})
 					end
 					ActiveBattles[player.UserId] = nil
+					player:SetAttribute("InCombat", false)
 					break
 				end
 
@@ -808,6 +815,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 
 		CombatUpdate:FireClient(player, "Victory", {Battle = battle, XP = xpGain, Dews = dewsGain, Items = droppedItems, ExtraLog = killMsg})
 		ActiveBattles[player.UserId] = nil
+		player:SetAttribute("InCombat", false)
 	end
 end
 
@@ -933,6 +941,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				SafeTriggerPathsShop(player, battle.Context)
 				if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
 				ActiveBattles[player.UserId] = nil
+				player:SetAttribute("InCombat", false)
 			elseif battle.Enemy.HP < 1 then
 				ProcessEnemyDeath(player, battle)
 			else
@@ -949,6 +958,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 				SafeTriggerPathsShop(player, battle.Context)
 				if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
 				ActiveBattles[player.UserId] = nil 
+				player:SetAttribute("InCombat", false)
 			end
 		end
 		return
@@ -962,6 +972,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			SafeTriggerPathsShop(player, battle.Context)
 			if battle.Context.IsLabyrinth then LabyrinthManager.OnCombatLoss(player) end
 			ActiveBattles[player.UserId] = nil
+			player:SetAttribute("InCombat", false)
 			return
 		end
 	end
@@ -1394,6 +1405,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		end
 
 		ActiveBattles[player.UserId] = nil
+		player:SetAttribute("InCombat", false)
 	elseif battle.Enemy.HP < 1 then
 		ProcessEnemyDeath(player, battle)
 	else
@@ -1406,4 +1418,6 @@ labEvent.Event:Connect(function(player, floor)
 	StartBattle(player, "EngageLabyrinth", floor)
 end)
 
-Players.PlayerRemoving:Connect(function(player) ActiveBattles[player.UserId] = nil end)
+Players.PlayerRemoving:Connect(function(player) 
+	ActiveBattles[player.UserId] = nil 
+end)
