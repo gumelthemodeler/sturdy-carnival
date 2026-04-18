@@ -224,7 +224,6 @@ function SquadsTab.Initialize(parentFrame)
 			local isLeader = (myRole == "Leader")
 			local isOfficer = (myRole == "Officer" or isLeader)
 
-			-- [[ THE FIX: Dynamic Visual Level Integration ]]
 			local sqLevel = player:GetAttribute("SquadLevel") or 1
 			SquadNameLbl.RichText = true
 			local lvlColor = "#AAAAAA"
@@ -314,7 +313,6 @@ function SquadsTab.Initialize(parentFrame)
 					end
 				end)
 
-				-- [[ THE FIX: Expose Exponential Dews Level-Up Button to Leaders ]]
 				local cost = math.floor(math.pow(sqLevel, 2.3) * 500000)
 				local btnText = sqLevel >= 50 and "MAX LEVEL" or ("LEVEL UP\n(" .. AbbreviateNumber(cost) .. ")")
 				local LvlUpBtn, lvlStroke = CreateSharpButton(InSquadView, btnText, UDim2.new(0, 90, 0, 30), Enum.Font.GothamBlack, 9)
@@ -379,7 +377,6 @@ function SquadsTab.Initialize(parentFrame)
 				local rawUp = player:GetAttribute("SquadUpgrades")
 				if rawUp and rawUp ~= "" then pcall(function() sqUpgrades = HttpService:JSONDecode(rawUp) end) end
 
-				-- [[ THE FIX: Added Visual 'Prestige' Tier & Level Requirements ]]
 				local perksData = {
 					{Id = "Capacity", Name = "Logistics", Desc = "+5 Max Members / Lvl", Max = 5, BaseCost = 250000, ReqScale = 5},
 					{Id = "Wealth", Name = "Treasury", Desc = "+5% Bounty Dews / Lvl", Max = 10, BaseCost = 100000, ReqScale = 5},
@@ -445,17 +442,46 @@ function SquadsTab.Initialize(parentFrame)
 		end
 	end
 
-	task.spawn(function()
-		for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
-		local lbData = Network:WaitForChild("GetSquadLeaderboard"):InvokeServer()
-		if lbData then
-			for i, data in ipairs(lbData) do
-				local rankCard, _ = CreateGrimPanel(LbScroll); rankCard.Size = UDim2.new(1, -10, 0, 35)
+	-- [[ THE FIX: Intelligent Patching for the Global Squad Leaderboard to prevent scrolling resets ]]
+	local cachedSquadLeaderboard = {}
+
+	local function RenderSquadLeaderboard(lbData)
+		if not lbData then return end
+		local existingFrames = {}
+		for _, c in ipairs(LbScroll:GetChildren()) do if c:IsA("Frame") then existingFrames[c.Name] = c end end
+
+		for i, data in ipairs(lbData) do
+			local frameName = "Rank_" .. i
+			local rankCard = existingFrames[frameName]
+
+			if not rankCard then
+				rankCard, _ = CreateGrimPanel(LbScroll)
+				rankCard.Name = frameName
+				rankCard.Size = UDim2.new(1, -10, 0, 35)
+
 				local cColor = (i==1) and UIHelpers.Colors.Gold or ((i==2) and Color3.fromRGB(200, 200, 200) or UIHelpers.Colors.TextWhite)
-				local rNum = UIHelpers.CreateLabel(rankCard, "#" .. data.Rank, UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, cColor, 14); rNum.Position = UDim2.new(0, 10, 0, 0)
-				local sName = UIHelpers.CreateLabel(rankCard, data.Name, UDim2.new(0.5, 0, 1, 0), Enum.Font.GothamBold, cColor, 14); sName.Position = UDim2.new(0, 50, 0, 0); sName.TextXAlignment = Enum.TextXAlignment.Left
-				local sCp = UIHelpers.CreateLabel(rankCard, tostring(data.SP) .. " SP", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12); sCp.Position = UDim2.new(0.7, -10, 0, 0); sCp.TextXAlignment = Enum.TextXAlignment.Right
+				local rNum = UIHelpers.CreateLabel(rankCard, "#" .. data.Rank, UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, cColor, 14); rNum.Name = "RankNum"; rNum.Position = UDim2.new(0, 10, 0, 0)
+				local sName = UIHelpers.CreateLabel(rankCard, data.Name, UDim2.new(0.5, 0, 1, 0), Enum.Font.GothamBold, cColor, 14); sName.Name = "SquadName"; sName.Position = UDim2.new(0, 50, 0, 0); sName.TextXAlignment = Enum.TextXAlignment.Left
+				local sCp = UIHelpers.CreateLabel(rankCard, tostring(data.SP) .. " SP", UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12); sCp.Name = "SquadSP"; sCp.Position = UDim2.new(0.7, -10, 0, 0); sCp.TextXAlignment = Enum.TextXAlignment.Right
+			else
+				local cColor = (i==1) and UIHelpers.Colors.Gold or ((i==2) and Color3.fromRGB(200, 200, 200) or UIHelpers.Colors.TextWhite)
+				rankCard.RankNum.Text = "#" .. data.Rank
+				rankCard.SquadName.Text = data.Name
+				rankCard.SquadSP.Text = tostring(data.SP) .. " SP"
+				rankCard.RankNum.TextColor3 = cColor
+				rankCard.SquadName.TextColor3 = cColor
 			end
+			existingFrames[frameName] = nil 
+		end
+
+		for _, oldFrame in pairs(existingFrames) do oldFrame:Destroy() end
+	end
+
+	task.spawn(function()
+		while true do
+			local lbData = Network:WaitForChild("GetSquadLeaderboard"):InvokeServer()
+			if lbData then RenderSquadLeaderboard(lbData) end
+			task.wait(30) 
 		end
 	end)
 
