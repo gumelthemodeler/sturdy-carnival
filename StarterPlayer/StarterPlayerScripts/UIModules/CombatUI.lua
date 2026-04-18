@@ -1272,6 +1272,9 @@ function CombatUI.Initialize(masterScreenGui)
 				end
 
 			elseif action == "Defeat" or action == "PathsDeath" then
+				-- FIX: Prevents Auto-Flee/Defeat desync if battle UI is closed
+				if not GUI.CombatWindow or not GUI.CombatWindow.Visible then return end
+
 				local wasPaths = data.Battle and data.Battle.Context and data.Battle.Context.IsPaths
 
 				HideAlly()
@@ -1302,6 +1305,9 @@ function CombatUI.Initialize(masterScreenGui)
 				end
 
 			elseif action == "Fled" then
+				-- FIX: Prevents Auto-Flee desync if battle UI is closed
+				if not GUI.CombatWindow or not GUI.CombatWindow.Visible then return end
+
 				local wasPaths = data.Battle and data.Battle.Context and data.Battle.Context.IsPaths
 
 				HideAlly()
