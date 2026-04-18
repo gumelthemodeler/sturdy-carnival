@@ -207,7 +207,6 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 		for name, frame in pairs(Pages) do frame.Visible = (name == pageName) end
 		Title.Text = titleText; BackBtn.Visible = (pageName ~= "Main")
 
-		-- [[ THE FIX: Automatically hide the Create Team panel when entering a Sub-Page! ]]
 		if pageName == "Main" then
 			BottomContainer.Visible = true
 			TopContainer.Size = UDim2.new(1, 0, 1, -120)
@@ -261,9 +260,11 @@ function MobileExpeditionsTab.Initialize(parentFrame)
 	local LabyrinthPage = CreateSubPage("Labyrinth")
 	MobileLabyrinthUI.Initialize(LabyrinthPage)
 
+	-- [[ THE FIX: Safely retrieve ScreenGui and pass it into LabyrinthUI.Open ]]
 	CreateModeCard(GridContainer, "THE LABYRINTH", "Navigate a dark, shifting maze. Secure loot caches and escape, or die and lose everything.", CONFIG.Decals.Labyrinth, 4, function() 
 		ShowPage("Labyrinth", "THE LABYRINTH")
-		MobileLabyrinthUI.Open() 
+		local masterScreenGui = parentFrame:FindFirstAncestorOfClass("ScreenGui")
+		MobileLabyrinthUI.Open(masterScreenGui) 
 	end, Color3.fromRGB(255, 85, 85))
 
 	CreateModeCard(GridContainer, "MULTIPLAYER RAIDS", "Deploy your party to take down Colossal threats.", CONFIG.Decals.Raid, 5, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
