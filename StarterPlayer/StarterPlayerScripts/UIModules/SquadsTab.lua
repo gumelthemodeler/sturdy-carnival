@@ -14,6 +14,15 @@ local UIHelpers = require(SharedUI:WaitForChild("UIHelpers"))
 
 local player = Players.LocalPlayer
 
+local Suffixes = {"", "K", "M", "B", "T", "Qa", "Qi", "Sx"}
+local function AbbreviateNumber(n)
+	if not n then return "0" end; n = tonumber(n) or 0
+	if n < 1000 then return tostring(math.floor(n)) end
+	local suffixIndex = math.floor(math.log10(n) / 3); local value = n / (10 ^ (suffixIndex * 3))
+	local str = string.format("%.1f", value); str = str:gsub("%.0$", "")
+	return str .. (Suffixes[suffixIndex + 1] or "")
+end
+
 local function CreateGrimPanel(parent)
 	local frame = Instance.new("Frame", parent)
 	frame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
@@ -27,26 +36,15 @@ end
 
 local function CreateSharpButton(parent, text, size, font, textSize)
 	local btn = Instance.new("TextButton", parent)
-	btn.Size = size
-	btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-	btn.BorderSizePixel = 0
-	btn.AutoButtonColor = false
-	btn.Font = font
-	btn.TextColor3 = Color3.fromRGB(245, 245, 245)
-	btn.TextSize = textSize
-	btn.Text = text
-
+	btn.Size = size; btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34); btn.BorderSizePixel = 0; btn.AutoButtonColor = false
+	btn.Font = font; btn.TextColor3 = Color3.fromRGB(245, 245, 245); btn.TextSize = textSize; btn.Text = text
 	local stroke = Instance.new("UIStroke", btn)
-	stroke.Color = Color3.fromRGB(70, 70, 80)
-	stroke.Thickness = 2
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Color = Color3.fromRGB(70, 70, 80); stroke.Thickness = 2; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 	btn.MouseEnter:Connect(function() 
 		if btn.Active then 
-			btn:SetAttribute("OrigColor", btn.TextColor3)
-			btn:SetAttribute("OrigStroke", stroke.Color)
-			stroke.Color = UIHelpers.Colors.Gold
-			btn.TextColor3 = UIHelpers.Colors.Gold 
+			btn:SetAttribute("OrigColor", btn.TextColor3); btn:SetAttribute("OrigStroke", stroke.Color)
+			stroke.Color = UIHelpers.Colors.Gold; btn.TextColor3 = UIHelpers.Colors.Gold 
 		end
 	end)
 	btn.MouseLeave:Connect(function() 
@@ -60,17 +58,10 @@ end
 
 local function CreateInput(parent, placeholder, size, pos)
 	local input = Instance.new("TextBox", parent)
-	input.Size = size
-	input.Position = pos
-	input.AnchorPoint = Vector2.new(0.5, 0)
-	input.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-	input.TextColor3 = UIHelpers.Colors.TextWhite
-	input.Font = Enum.Font.GothamMedium
-	input.TextSize = 14
-	input.PlaceholderText = placeholder
-	input.Text = ""
-	local stroke = Instance.new("UIStroke", input)
-	stroke.Color = UIHelpers.Colors.BorderMuted
+	input.Size = size; input.Position = pos; input.AnchorPoint = Vector2.new(0.5, 0)
+	input.BackgroundColor3 = Color3.fromRGB(15, 15, 18); input.TextColor3 = UIHelpers.Colors.TextWhite
+	input.Font = Enum.Font.GothamMedium; input.TextSize = 14; input.PlaceholderText = placeholder; input.Text = ""
+	local stroke = Instance.new("UIStroke", input); stroke.Color = UIHelpers.Colors.BorderMuted
 	return input
 end
 
@@ -95,7 +86,6 @@ function SquadsTab.Initialize(parentFrame)
 	for i, tabName in ipairs(subTabs) do
 		local btn, stroke = CreateSharpButton(SubNav, tabName, UDim2.new(0, 160, 0, 30), Enum.Font.GothamBold, 12)
 		btn.TextColor3 = UIHelpers.Colors.TextMuted; stroke.Color = UIHelpers.Colors.BorderMuted
-
 		local subFrame = Instance.new("Frame", ContentArea); subFrame.Name = tabName; subFrame.Size = UDim2.new(1, 0, 1, 0); subFrame.BackgroundTransparency = 1; subFrame.Visible = (i == 1)
 		activeSubFrames[tabName] = subFrame; subBtns[tabName] = {Btn = btn, Stroke = stroke}
 
@@ -104,7 +94,6 @@ function SquadsTab.Initialize(parentFrame)
 			for name, bData in pairs(subBtns) do bData.Btn.TextColor3 = (name == tabName) and UIHelpers.Colors.Gold or UIHelpers.Colors.TextMuted; bData.Stroke.Color = (name == tabName) and UIHelpers.Colors.Gold or UIHelpers.Colors.BorderMuted end
 		end)
 	end
-
 	subBtns["MY SQUAD"].Btn.TextColor3 = UIHelpers.Colors.Gold; subBtns["MY SQUAD"].Stroke.Color = UIHelpers.Colors.Gold
 
 	local ConfirmOverlay = Instance.new("Frame", parentFrame.Parent)
@@ -135,9 +124,7 @@ function SquadsTab.Initialize(parentFrame)
 
 	local activeVaultSlot = 1
 	local function OpenInventorySelection(slotId)
-		activeVaultSlot = slotId; InvOverlay.Visible = true
-		invTitle.Text = "DEPOSIT ITEM"
-		noItemsLbl.Visible = true
+		activeVaultSlot = slotId; InvOverlay.Visible = true; invTitle.Text = "DEPOSIT ITEM"; noItemsLbl.Visible = true
 		for _, c in ipairs(InvScroll:GetChildren()) do if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end end
 		local foundAny = false
 		local function ScanItems(dictionary)
@@ -151,8 +138,7 @@ function SquadsTab.Initialize(parentFrame)
 				end
 			end
 		end
-		ScanItems(ItemData.Equipment or {}); ScanItems(ItemData.Consumables or {})
-		noItemsLbl.Visible = not foundAny
+		ScanItems(ItemData.Equipment or {}); ScanItems(ItemData.Consumables or {}); noItemsLbl.Visible = not foundAny
 	end
 
 	-- MY SQUAD TAB
@@ -186,14 +172,15 @@ function SquadsTab.Initialize(parentFrame)
 	local rlLayout = Instance.new("UIListLayout", RosterList); rlLayout.Padding = UDim.new(0, 8); rlLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() RosterList.CanvasSize = UDim2.new(0,0,0, rlLayout.AbsoluteContentSize.Y + 10) end)
 
 	local RightPanel = Instance.new("Frame", SplitContainer); RightPanel.Size = UDim2.new(0.45, -20, 1, 0); RightPanel.BackgroundTransparency = 1
-	local LbContainer, _ = CreateGrimPanel(RightPanel); LbContainer.Size = UDim2.new(1, 0, 0.6, 0)
+	local LbContainer, _ = CreateGrimPanel(RightPanel); LbContainer.Size = UDim2.new(1, 0, 0.45, 0)
 	local lbTitle = UIHelpers.CreateLabel(LbContainer, "GLOBAL SQUAD LEADERBOARD", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 18)
 	local LbScroll = Instance.new("ScrollingFrame", LbContainer); LbScroll.Size = UDim2.new(1, -20, 1, -50); LbScroll.Position = UDim2.new(0, 10, 0, 40); LbScroll.BackgroundTransparency = 1; LbScroll.ScrollBarThickness = 4; LbScroll.BorderSizePixel = 0
 	local lsLayout = Instance.new("UIListLayout", LbScroll); lsLayout.Padding = UDim.new(0, 8); lsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() LbScroll.CanvasSize = UDim2.new(0,0,0, lsLayout.AbsoluteContentSize.Y + 10) end)
 
-	local PerksContainer, _ = CreateGrimPanel(RightPanel); PerksContainer.Size = UDim2.new(1, 0, 0.35, 0); PerksContainer.Position = UDim2.new(0, 0, 0.65, 0)
-	local pkTitle = UIHelpers.CreateLabel(PerksContainer, "ACTIVE SQUAD PERKS", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16)
-	local pkDesc = UIHelpers.CreateLabel(PerksContainer, "Logistics II: Max Members +10\nTreasury I: Bounty Dews +10%\nArmory I: Vault Capacity +5\nAcademy I: Auto-Train Efficiency +5%", UDim2.new(1, -40, 1, -40), Enum.Font.GothamMedium, Color3.fromRGB(85, 255, 85), 13); pkDesc.Position = UDim2.new(0, 20, 0, 30); pkDesc.TextXAlignment = Enum.TextXAlignment.Left; pkDesc.TextYAlignment = Enum.TextYAlignment.Top
+	local PerksContainer, _ = CreateGrimPanel(RightPanel); PerksContainer.Size = UDim2.new(1, 0, 0.5, 0); PerksContainer.Position = UDim2.new(0, 0, 0.5, 0)
+	local pkTitle = UIHelpers.CreateLabel(PerksContainer, "SQUAD UPGRADES", UDim2.new(1, 0, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 16)
+	local PerksList = Instance.new("ScrollingFrame", PerksContainer); PerksList.Size = UDim2.new(1, -20, 1, -40); PerksList.Position = UDim2.new(0, 10, 0, 35); PerksList.BackgroundTransparency = 1; PerksList.ScrollBarThickness = 4; PerksList.BorderSizePixel = 0
+	local pksLayout = Instance.new("UIListLayout", PerksList); pksLayout.Padding = UDim.new(0, 8); pksLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() PerksList.CanvasSize = UDim2.new(0,0,0, pksLayout.AbsoluteContentSize.Y + 10) end)
 
 	-- ==========================================
 	-- SQUAD VAULT TAB
@@ -206,7 +193,7 @@ function SquadsTab.Initialize(parentFrame)
 	local VaultPanel, _ = CreateGrimPanel(VaultActiveView); VaultPanel.Size = UDim2.new(0.8, 0, 0.8, 0); VaultPanel.Position = UDim2.new(0.5, 0, 0.5, 0); VaultPanel.AnchorPoint = Vector2.new(0.5, 0.5)
 
 	local VaultHeader = UIHelpers.CreateLabel(VaultPanel, "SQUAD VAULT", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 22); VaultHeader.Position = UDim2.new(0, 0, 0, 10)
-	local VaultDesc = UIHelpers.CreateLabel(VaultPanel, "Click on a slot to deposit or withdraw items. The bottom row is locked unless your Squad ranks #1 globally.", UDim2.new(1, 0, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 14); VaultDesc.Position = UDim2.new(0, 0, 0, 45)
+	local VaultDesc = UIHelpers.CreateLabel(VaultPanel, "Click on a slot to deposit or withdraw items. The bottom row is completely sealed unless your Squad ranks #1 globally.", UDim2.new(1, 0, 0, 40), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 14); VaultDesc.Position = UDim2.new(0, 0, 0, 40); VaultDesc.TextWrapped = true
 
 	local VaultGrid = Instance.new("Frame", VaultPanel)
 	VaultGrid.Size = UDim2.new(0.8, 0, 0.7, 0); VaultGrid.Position = UDim2.new(0.5, 0, 0.55, 0); VaultGrid.AnchorPoint = Vector2.new(0.5, 0.5); VaultGrid.BackgroundTransparency = 1
@@ -233,22 +220,34 @@ function SquadsTab.Initialize(parentFrame)
 			NotInSquadView.Visible = false; InSquadView.Visible = true
 			VaultNoSquad.Visible = false; VaultActiveView.Visible = true
 
+			local myRole = player:GetAttribute("SquadRole") or "Member"
+			local isLeader = (myRole == "Leader")
+			local isOfficer = (myRole == "Officer" or isLeader)
+
+			-- [[ THE FIX: Dynamic Visual Level Integration ]]
+			local sqLevel = player:GetAttribute("SquadLevel") or 1
+			SquadNameLbl.RichText = true
+			local lvlColor = "#AAAAAA"
+			if sqLevel >= 50 then lvlColor = "#FF55FF"
+			elseif sqLevel >= 40 then lvlColor = "#FFD700"
+			elseif sqLevel >= 25 then lvlColor = "#55AAFF"
+			elseif sqLevel >= 10 then lvlColor = "#55FF55" end
+
 			local isFavored = player:GetAttribute("YmirFavored")
 			if isFavored then
-				SquadNameLbl.Text = "👑 " .. mySquad .. " [YMIR'S FAVORED]"
-				SquadNameLbl.TextColor3 = Color3.fromRGB(170, 85, 255)
+				SquadNameLbl.Text = "👑 " .. mySquad .. " <font color='"..lvlColor.."'>[Lv. " .. sqLevel .. "]</font> <font color='#AA55FF'>[YMIR'S FAVORED]</font>"
 			else
-				SquadNameLbl.Text = mySquad
-				SquadNameLbl.TextColor3 = UIHelpers.Colors.Gold
+				SquadNameLbl.Text = mySquad .. " <font color='"..lvlColor.."'>[Lv. " .. sqLevel .. "]</font>"
 			end
+			SquadNameLbl.TextColor3 = UIHelpers.Colors.TextWhite
 
 			SquadDescLbl.Text = player:GetAttribute("SquadDesc") or "No description set."
 			local rawLogo = player:GetAttribute("SquadLogo") or ""
 			if rawLogo ~= "" then SquadLogo.Image = string.match(rawLogo, "rbxassetid") and rawLogo or "rbxassetid://" .. rawLogo:match("%d+") end
 			SpLabel.Text = "TOTAL SP: " .. (player:GetAttribute("SquadSP") or 0)
 
-			local isLeader = player:GetAttribute("SquadIsLeader")
 			if InSquadView:FindFirstChild("ManageReqsBtn") then InSquadView.ManageReqsBtn:Destroy() end
+			if InSquadView:FindFirstChild("LvlUpBtn") then InSquadView.LvlUpBtn:Destroy() end
 
 			if isLeader then
 				LeaveDisbandBtn.Text = "DISBAND SQUAD"
@@ -258,7 +257,17 @@ function SquadsTab.Initialize(parentFrame)
 						Network:WaitForChild("SquadAction"):FireServer("Disband")
 					end)
 				end)
+			else
+				LeaveDisbandBtn.Text = "LEAVE SQUAD"
+				if _G.LeaveConn then _G.LeaveConn:Disconnect() end
+				_G.LeaveConn = LeaveDisbandBtn.MouseButton1Click:Connect(function()
+					ShowConfirm("LEAVE SQUAD", "Are you sure you want to leave your squad?", function()
+						Network:WaitForChild("SquadAction"):FireServer("Leave")
+					end)
+				end)
+			end
 
+			if isOfficer then
 				local reqBtn, rStrk = CreateSharpButton(InSquadView, "VIEW REQUESTS", UDim2.new(0, 120, 0, 30), Enum.Font.GothamBlack, 10)
 				reqBtn.Name = "ManageReqsBtn"
 				reqBtn.Position = UDim2.new(1, -150, 0, 20)
@@ -304,13 +313,26 @@ function SquadsTab.Initialize(parentFrame)
 						end)
 					end
 				end)
-			else
-				LeaveDisbandBtn.Text = "LEAVE SQUAD"
-				LeaveDisbandBtn.MouseButton1Click:Connect(function()
-					ShowConfirm("LEAVE SQUAD", "Are you sure you want to leave your squad?", function()
-						Network:WaitForChild("SquadAction"):FireServer("Leave")
+
+				-- [[ THE FIX: Expose Exponential Dews Level-Up Button to Leaders ]]
+				local cost = math.floor(math.pow(sqLevel, 2.3) * 500000)
+				local btnText = sqLevel >= 50 and "MAX LEVEL" or ("LEVEL UP\n(" .. AbbreviateNumber(cost) .. ")")
+				local LvlUpBtn, lvlStroke = CreateSharpButton(InSquadView, btnText, UDim2.new(0, 90, 0, 30), Enum.Font.GothamBlack, 9)
+				LvlUpBtn.Name = "LvlUpBtn"
+				LvlUpBtn.Position = UDim2.new(1, -280, 0, 20)
+				LvlUpBtn.AnchorPoint = Vector2.new(1, 0)
+
+				if sqLevel >= 50 then
+					LvlUpBtn.TextColor3 = UIHelpers.Colors.BorderMuted; lvlStroke.Color = UIHelpers.Colors.BorderMuted
+					LvlUpBtn.Active = false
+				else
+					LvlUpBtn.TextColor3 = Color3.fromRGB(85, 255, 85); lvlStroke.Color = Color3.fromRGB(85, 255, 85)
+					LvlUpBtn.MouseButton1Click:Connect(function()
+						ShowConfirm("LEVEL UP SQUAD", "Spend " .. AbbreviateNumber(cost) .. " Dews to reach Level " .. (sqLevel + 1) .. "?", function()
+							Network:WaitForChild("SquadAction"):FireServer("LevelUp")
+						end)
 					end)
-				end)
+				end
 			end
 
 			task.spawn(function()
@@ -319,21 +341,81 @@ function SquadsTab.Initialize(parentFrame)
 				if rosterData then
 					for _, member in ipairs(rosterData) do
 						local mCard, _ = CreateGrimPanel(RosterList); mCard.Size = UDim2.new(1, -10, 0, 40)
-						local mName = UIHelpers.CreateLabel(mCard, member.Name, UDim2.new(0.6, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14); mName.Position = UDim2.new(0, 15, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
-						local mRole = UIHelpers.CreateLabel(mCard, member.Role, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12); mRole.Position = UDim2.new(0.7, -15, 0, 0); mRole.TextXAlignment = Enum.TextXAlignment.Right
+						local mName = UIHelpers.CreateLabel(mCard, member.Name, UDim2.new(0.3, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14); mName.Position = UDim2.new(0, 15, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
+						local mSp = UIHelpers.CreateLabel(mCard, member.SP .. " SP", UDim2.new(0.2, 0, 1, 0), Enum.Font.GothamBold, Color3.fromRGB(85, 170, 255), 14); mSp.Position = UDim2.new(0.35, 0, 0, 0); mSp.TextXAlignment = Enum.TextXAlignment.Left
+						local mRoleLbl = UIHelpers.CreateLabel(mCard, member.Role, UDim2.new(0.2, 0, 1, 0), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12); mRoleLbl.Position = UDim2.new(0.55, 0, 0, 0); mRoleLbl.TextXAlignment = Enum.TextXAlignment.Left
 
-						if isLeader and member.Role ~= "Leader" then
-							mRole.Position = UDim2.new(0.7, -80, 0, 0) 
-							local kickBtn, kStrk = CreateSharpButton(mCard, "KICK", UDim2.new(0, 60, 0, 26), Enum.Font.GothamBlack, 11)
-							kickBtn.Position = UDim2.new(1, -10, 0.5, 0); kickBtn.AnchorPoint = Vector2.new(1, 0.5)
-							kickBtn.TextColor3 = Color3.fromRGB(255, 85, 85); kStrk.Color = Color3.fromRGB(255, 85, 85)
-							kickBtn.MouseButton1Click:Connect(function()
-								ShowConfirm("KICK MEMBER", "Are you sure you want to kick " .. member.Name .. "?", function()
-									Network:WaitForChild("SquadAction"):FireServer("KickMember", member.UserId)
-									task.wait(0.5)
-									UpdateSquadUI()
+						if isOfficer and member.Role ~= "Leader" then
+							if isLeader or member.Role == "Member" then
+								local kickBtn, kStrk = CreateSharpButton(mCard, "KICK", UDim2.new(0, 60, 0, 26), Enum.Font.GothamBlack, 11)
+								kickBtn.Position = UDim2.new(1, -10, 0.5, 0); kickBtn.AnchorPoint = Vector2.new(1, 0.5)
+								kickBtn.TextColor3 = Color3.fromRGB(255, 85, 85); kStrk.Color = Color3.fromRGB(255, 85, 85)
+								kickBtn.MouseButton1Click:Connect(function()
+									ShowConfirm("KICK MEMBER", "Are you sure you want to kick " .. member.Name .. "?", function()
+										Network:WaitForChild("SquadAction"):FireServer("KickMember", member.UserId)
+										task.wait(0.5); UpdateSquadUI()
+									end)
 								end)
-							end)
+
+								if isLeader then
+									local promText = member.Role == "Officer" and "DEMOTE" or "PROMOTE"
+									local promBtn, _ = CreateSharpButton(mCard, promText, UDim2.new(0, 70, 0, 26), Enum.Font.GothamBlack, 10)
+									promBtn.Position = UDim2.new(1, -80, 0.5, 0); promBtn.AnchorPoint = Vector2.new(1, 0.5)
+									promBtn.TextColor3 = UIHelpers.Colors.Gold
+									promBtn.MouseButton1Click:Connect(function()
+										Network:WaitForChild("SquadAction"):FireServer("SetRole", {TargetId = member.UserId, Role = member.Role == "Officer" and "Member" or "Officer"})
+										task.wait(0.5); UpdateSquadUI()
+									end)
+								end
+							end
+						end
+					end
+				end
+			end)
+
+			task.spawn(function()
+				for _, c in ipairs(PerksList:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+				local sqUpgrades = {Capacity = 0, Wealth = 0, Training = 0, Luck = 0, Prestige = 0}
+				local rawUp = player:GetAttribute("SquadUpgrades")
+				if rawUp and rawUp ~= "" then pcall(function() sqUpgrades = HttpService:JSONDecode(rawUp) end) end
+
+				-- [[ THE FIX: Added Visual 'Prestige' Tier & Level Requirements ]]
+				local perksData = {
+					{Id = "Capacity", Name = "Logistics", Desc = "+5 Max Members / Lvl", Max = 5, BaseCost = 250000, ReqScale = 5},
+					{Id = "Wealth", Name = "Treasury", Desc = "+5% Bounty Dews / Lvl", Max = 10, BaseCost = 100000, ReqScale = 5},
+					{Id = "Training", Name = "Academy", Desc = "+5% Combat XP / Lvl", Max = 10, BaseCost = 100000, ReqScale = 5},
+					{Id = "Luck", Name = "Scavenger", Desc = "+5% Drops / Lvl", Max = 10, BaseCost = 150000, ReqScale = 5},
+					{Id = "Prestige", Name = "Aesthetics", Desc = "Unlocks Visual Auras & Tags", Max = 5, BaseCost = 500000, ReqScale = 10}
+				}
+
+				for _, pData in ipairs(perksData) do
+					local curlvl = sqUpgrades[pData.Id] or 0
+					local pCard, _ = CreateGrimPanel(PerksList); pCard.Size = UDim2.new(1, -10, 0, 50)
+					local pName = UIHelpers.CreateLabel(pCard, pData.Name .. " (Lv. " .. curlvl .. "/" .. pData.Max .. ")", UDim2.new(0.5, 0, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14); pName.Position = UDim2.new(0, 10, 0, 5); pName.TextXAlignment = Enum.TextXAlignment.Left
+					local pDesc = UIHelpers.CreateLabel(pCard, pData.Desc, UDim2.new(0.5, 0, 0, 20), Enum.Font.GothamMedium, Color3.fromRGB(85, 255, 85), 11); pDesc.Position = UDim2.new(0, 10, 0, 25); pDesc.TextXAlignment = Enum.TextXAlignment.Left
+
+					if isOfficer then
+						if curlvl < pData.Max then
+							local reqLvl = (curlvl + 1) * pData.ReqScale
+							if sqLevel >= reqLvl then
+								local upCost = pData.BaseCost * (curlvl + 1)
+								local upBtn, _ = CreateSharpButton(pCard, "UPGRADE\n(" .. AbbreviateNumber(upCost) .. ")", UDim2.new(0, 80, 0, 36), Enum.Font.GothamBlack, 10)
+								upBtn.Position = UDim2.new(1, -10, 0.5, 0); upBtn.AnchorPoint = Vector2.new(1, 0.5)
+								upBtn.TextColor3 = UIHelpers.Colors.Gold
+								upBtn.MouseButton1Click:Connect(function()
+									ShowConfirm("UPGRADE SQUAD", "Spend " .. AbbreviateNumber(upCost) .. " Dews to upgrade " .. pData.Name .. "?", function()
+										Network:WaitForChild("SquadAction"):FireServer("UpgradePerk", {Perk = pData.Id})
+									end)
+								end)
+							else
+								local upBtn, _ = CreateSharpButton(pCard, "REQ. LVL " .. reqLvl, UDim2.new(0, 80, 0, 36), Enum.Font.GothamBlack, 10)
+								upBtn.Position = UDim2.new(1, -10, 0.5, 0); upBtn.AnchorPoint = Vector2.new(1, 0.5)
+								upBtn.TextColor3 = Color3.fromRGB(255, 100, 100); upBtn.Active = false
+							end
+						else
+							local upBtn, _ = CreateSharpButton(pCard, "MAX LEVEL", UDim2.new(0, 80, 0, 36), Enum.Font.GothamBlack, 10)
+							upBtn.Position = UDim2.new(1, -10, 0.5, 0); upBtn.AnchorPoint = Vector2.new(1, 0.5)
+							upBtn.TextColor3 = UIHelpers.Colors.BorderMuted; upBtn.Active = false
 						end
 					end
 				end
@@ -347,17 +429,10 @@ function SquadsTab.Initialize(parentFrame)
 				local storedItem = squadVault[i] or "None"
 
 				if i > 6 and not isFavored then
-					if storedItem ~= "None" then
-						btn.Active = true
-						btn.Text = storedItem .. "\n(TAP TO RECOVER)"
-						btn.TextColor3 = Color3.fromRGB(255, 100, 100)
-						storeObj.Stroke.Color = Color3.fromRGB(255, 100, 100)
-					else
-						btn.Text = "LOCKED\n(#1 Squad)"
-						btn.TextColor3 = Color3.fromRGB(150, 50, 50)
-						storeObj.Stroke.Color = Color3.fromRGB(150, 50, 50)
-						btn.Active = false
-					end
+					btn.Text = "LOCKED\n(#1 Squad)"
+					btn.TextColor3 = Color3.fromRGB(150, 50, 50)
+					storeObj.Stroke.Color = Color3.fromRGB(150, 50, 50)
+					btn.Active = false
 				else
 					btn.Active = true
 					btn.Text = (storedItem == "None" and "Empty" or storedItem)
@@ -391,9 +466,16 @@ function SquadsTab.Initialize(parentFrame)
 	-- ==========================================
 	local FinderTab = activeSubFrames["SQUAD FINDER"]
 	local FinderContainer, _ = CreateGrimPanel(FinderTab); FinderContainer.Size = UDim2.new(1, 0, 1, 0)
-	local finderTitle = UIHelpers.CreateLabel(FinderContainer, "PUBLIC SQUAD DIRECTORY", UDim2.new(1, -40, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 20); finderTitle.Position = UDim2.new(0, 20, 0, 10); finderTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+	local finderTitle = UIHelpers.CreateLabel(FinderContainer, "PUBLIC SQUAD DIRECTORY", UDim2.new(0.6, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 20); finderTitle.Position = UDim2.new(0, 20, 0, 10); finderTitle.TextXAlignment = Enum.TextXAlignment.Left
+	local RefreshBtn, rbStroke = CreateSharpButton(FinderContainer, "REFRESH", UDim2.new(0, 100, 0, 30), Enum.Font.GothamBlack, 12)
+	RefreshBtn.Position = UDim2.new(1, -20, 0, 15); RefreshBtn.AnchorPoint = Vector2.new(1, 0); RefreshBtn.TextColor3 = UIHelpers.Colors.Gold; rbStroke.Color = UIHelpers.Colors.Gold
+
 	local FinderScroll = Instance.new("ScrollingFrame", FinderContainer); FinderScroll.Size = UDim2.new(1, -40, 1, -70); FinderScroll.Position = UDim2.new(0, 20, 0, 50); FinderScroll.BackgroundTransparency = 1; FinderScroll.ScrollBarThickness = 6; FinderScroll.BorderSizePixel = 0
 	local fsLayout = Instance.new("UIListLayout", FinderScroll); fsLayout.Padding = UDim.new(0, 10); fsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() FinderScroll.CanvasSize = UDim2.new(0,0,0, fsLayout.AbsoluteContentSize.Y + 20) end)
+
+	local NoSquadsLbl = UIHelpers.CreateLabel(FinderScroll, "No active squads found for this week. Be the first to found one!", UDim2.new(1, 0, 0, 50), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 14)
+	NoSquadsLbl.LayoutOrder = -1
 
 	local function AddSquadCard(sqName, sqDesc, sqLogo, sqLevel, memberCount, spScore)
 		local card, _ = CreateGrimPanel(FinderScroll); card.Size = UDim2.new(1, -10, 0, 80); card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
@@ -407,10 +489,20 @@ function SquadsTab.Initialize(parentFrame)
 		reqBtn.MouseButton1Click:Connect(function() Network:WaitForChild("SquadAction"):FireServer("RequestJoin", sqName); reqBtn.Text = "REQUEST SENT"; reqBtn.TextColor3 = Color3.fromRGB(150, 150, 150); rStroke.Color = UIHelpers.Colors.BorderMuted; reqBtn.Active = false end)
 	end
 
-	task.spawn(function()
-		local publicSquads = Network:WaitForChild("GetPublicSquads"):InvokeServer()
-		if publicSquads then for _, sq in ipairs(publicSquads) do AddSquadCard(sq.Name, sq.Desc, sq.Logo, sq.Level, sq.MemberCount, sq.SP) end end
-	end)
+	local function LoadFinder()
+		for _, c in ipairs(FinderScroll:GetChildren()) do if c:IsA("Frame") then c:Destroy() end end
+		NoSquadsLbl.Visible = true
+		task.spawn(function()
+			local publicSquads = Network:WaitForChild("GetPublicSquads"):InvokeServer()
+			if publicSquads and #publicSquads > 0 then 
+				NoSquadsLbl.Visible = false
+				for _, sq in ipairs(publicSquads) do AddSquadCard(sq.Name, sq.Desc, sq.Logo, sq.Level, sq.MemberCount, sq.SP) end 
+			end
+		end)
+	end
+
+	RefreshBtn.MouseButton1Click:Connect(LoadFinder)
+	LoadFinder()
 end
 
 return SquadsTab
