@@ -135,6 +135,8 @@ local function ParseAwakenedStats(statString)
 end
 
 local function StartBattle(player, encounterType, requestedPartId)
+	if ActiveBattles[player.UserId] then return end 
+
 	local currentPart = player:GetAttribute("CurrentPart") or 1
 	local eTemplate, logFlavor
 	local isStory, isEndless, isPaths, isWorldBoss, isNightmare, isLabyrinth = false, false, false, false, false, false
@@ -458,13 +460,10 @@ local function StartBattle(player, encounterType, requestedPartId)
 					break
 				end
 
-				-- ONLY sync the health visually, do not double-calculate damage
 				ActiveBattles[player.UserId].Enemy.HP = ddData.BossHP
 				ActiveBattles[player.UserId].Enemy.MaxHP = ddData.MaxHP or 500000000
 
-				if not ActiveBattles[player.UserId].IsProcessing then
-					CombatUpdate:FireClient(player, "Update", {Battle = ActiveBattles[player.UserId]})
-				end
+				-- [[ THE FIX: Removed the rogue UI 'Update' command from the 2-second background loop so it doesn't force-close the Limb Target Menu! ]]
 
 				task.wait(2) 
 			end
@@ -538,7 +537,7 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 				end)
 			end
 
-			squadEvent:Fire(sqName, spAward)
+			squadEvent:Fire(sqName, spAward, player.UserId)
 		end
 	end
 
@@ -551,6 +550,15 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 	if winReg and winReg.Value ~= "None" and player:GetAttribute("Regiment") == winReg.Value then
 		xpGain = math.floor(xpGain * 1.15)
 		dewsGain = math.floor(dewsGain * 1.15)
+	end
+
+	local squadUpgradesRaw = player:GetAttribute("SquadUpgrades")
+	if squadUpgradesRaw and squadUpgradesRaw ~= "" then
+		local succ, sqUp = pcall(function() return game:GetService("HttpService"):JSONDecode(squadUpgradesRaw) end)
+		if succ and sqUp then
+			if sqUp.Training and sqUp.Training > 0 then xpGain = math.floor(xpGain * (1.0 + (sqUp.Training * 0.05))) end
+			if sqUp.Wealth and sqUp.Wealth > 0 then dewsGain = math.floor(dewsGain * (1.0 + (sqUp.Wealth * 0.05))) end
+		end
 	end
 
 	player:SetAttribute("XP", (player:GetAttribute("XP") or 0) + xpGain)
