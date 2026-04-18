@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 -- Name: AFKTab
 local AFKTab = {}
 
@@ -90,11 +91,11 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 
 	-- Automatically stack elements for Mobile users
 	if isMobile then
-		MapContainer.Size = UDim2.new(1, 0, 0.45, 0)
-		MapContainer.Position = UDim2.new(0, 0, 0, 45)
+		MapContainer.Size = UDim2.new(1, 0, 0.40, 0)
+		MapContainer.Position = UDim2.new(0, 0, 0, 40)
 
-		RosterContainer.Size = UDim2.new(1, 0, 0.55, -55)
-		RosterContainer.Position = UDim2.new(0, 0, 0.45, 50)
+		RosterContainer.Size = UDim2.new(1, 0, 0.60, -40)
+		RosterContainer.Position = UDim2.new(0, 0, 0.40, 40)
 		RosterContainer.AnchorPoint = Vector2.new(0, 0)
 
 		LogContainer.Visible = false 
@@ -112,7 +113,11 @@ function AFKTab.Initialize(parentFrame, InitiateDeploymentCallback)
 
 	local MapSquare = Instance.new("Frame", MapContainer)
 	MapSquare.Size = UDim2.new(1, 0, 1, 0); MapSquare.Position = UDim2.new(0.5, 0, 0.5, 0); MapSquare.AnchorPoint = Vector2.new(0.5, 0.5); MapSquare.BackgroundTransparency = 1
-	Instance.new("UIAspectRatioConstraint", MapSquare).AspectRatio = 1.0
+
+	-- THE FIX: DominantAxis prevents the map from expanding out of the container boundaries on wide screens
+	local mapAsp = Instance.new("UIAspectRatioConstraint", MapSquare)
+	mapAsp.AspectRatio = 1.0
+	mapAsp.DominantAxis = Enum.DominantAxis.Height
 
 	local crossV = Instance.new("Frame", MapSquare); crossV.Size = UDim2.new(0, 2, 0.85, 0); crossV.Position = UDim2.new(0.5, 0, 0.5, 0); crossV.AnchorPoint = Vector2.new(0.5, 0.5); crossV.BackgroundColor3 = Color3.fromRGB(60, 80, 60); crossV.BorderSizePixel = 0
 	local crossH = Instance.new("Frame", MapSquare); crossH.Size = UDim2.new(0.85, 0, 0, 2); crossH.Position = UDim2.new(0.5, 0, 0.5, 0); crossH.AnchorPoint = Vector2.new(0.5, 0.5); crossH.BackgroundColor3 = Color3.fromRGB(60, 80, 60); crossH.BorderSizePixel = 0
