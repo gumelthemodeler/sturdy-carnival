@@ -8,7 +8,7 @@ local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local AdminManager = require(ReplicatedStorage:WaitForChild("AdminManager"))
 local CosmeticData = require(ReplicatedStorage:WaitForChild("CosmeticData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData")) 
-local ItemData = require(ReplicatedStorage:WaitForChild("ItemData")) -- [[ THE FIX: Safely required ItemData here ]]
+local ItemData = require(ReplicatedStorage:WaitForChild("ItemData")) 
 local Network = ReplicatedStorage:WaitForChild("Network")
 local NotificationEvent = Network:WaitForChild("NotificationEvent")
 
@@ -230,9 +230,11 @@ PrestigeAction.OnServerInvoke = function(player)
 			player:SetAttribute("Prestige", ls.Prestige.Value)
 		end
 
+		-- Fully respects preserved prestige nodes and recalculates them on wipe
 		local statsToReset = {"Health", "Gas", "Strength", "Defense", "Speed", "Resolve", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 		for _, s in ipairs(statsToReset) do
-			player:SetAttribute(s, 10) 
+			local pBonus = player:GetAttribute("Prestige_" .. s) or 0
+			player:SetAttribute(s, 10 + pBonus) 
 			player:SetAttribute("Invested_" .. s, 10)
 		end
 
@@ -250,7 +252,6 @@ PrestigeAction.OnServerInvoke = function(player)
 	end
 end
 
--- [[ THE FIX: Validates all gamepasses upon any purchase successfully completing ]]
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, wasPurchased)
 	if not wasPurchased then return end
 
@@ -314,7 +315,6 @@ local function VerifyCoordinateTitle(player)
 	end
 end
 
--- [[ THE FIX: Robust Check for Gamepasses when Player Joins ]]
 Players.PlayerAdded:Connect(function(player)
 	player:GetAttributeChangedSignal("Titan"):Connect(function()
 		VerifyCoordinateTitle(player)
@@ -334,7 +334,6 @@ Players.PlayerAdded:Connect(function(player)
 	end
 end)
 
--- [[ MEMORY RUNES: Infinite Progression Sink ]]
 local RuneCosts = {
 	Vanguard = { BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Name = "Rune of the Vanguard" },
 	Wall = { BaseDust = 5, BaseDews = 10000, BaseXP = 25000, Mult = 1.15, Name = "Rune of the Wall" },
@@ -371,7 +370,6 @@ UpgradeRuneEvent.OnServerEvent:Connect(function(player, runeId)
 	end
 end)
 
--- [[ RELICS SHOP ]]
 local PathsShopBuy = Network:FindFirstChild("PathsShopBuy") or Instance.new("RemoteEvent", Network)
 PathsShopBuy.Name = "PathsShopBuy"
 
