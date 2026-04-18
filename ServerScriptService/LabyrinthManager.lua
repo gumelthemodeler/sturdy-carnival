@@ -119,17 +119,21 @@ local function GenerateCaverns(floorLevel)
 	return grid, size, startX, startY
 end
 
-function LabyrinthManager.StartSession(player)
+function LabyrinthManager.StartSession(player, carriedLoot)
 	local currentFloor = player:GetAttribute("LabyrinthFloor") or 1
 	local grid, size, sX, sY = GenerateCaverns(currentFloor)
 
 	ActiveSessions[player.UserId] = {
-		Grid = grid, Size = size, Floor = currentFloor,
-		PlayerX = sX, PlayerY = sY, InCombat = false,
-		AccumulatedLoot = { Dews = 0, XP = 0, Items = {} }
+		Grid = grid,
+		Size = size,
+		Floor = currentFloor,
+		PlayerX = sX,
+		PlayerY = sY,
+		InCombat = false,
+		AccumulatedLoot = carriedLoot or { Dews = 0, XP = 0, Items = {} } -- [[ THE FIX: Carries loot over ]]
 	}
 
-	-- THE FIX: Changed from "Sync" to "InitSync" to force a UI rebuild
+	-- [[ THE FIX: Forces the UI to rebuild the grid to prevent invisible enemies ]]
 	Network.LabyrinthUpdate:FireClient(player, "InitSync", ActiveSessions[player.UserId])
 end
 
@@ -223,7 +227,8 @@ Network:WaitForChild("LabyrinthAction").OnServerEvent:Connect(function(player, a
 
 	elseif action == "NextFloor" then
 		player:SetAttribute("LabyrinthFloor", session.Floor + 1)
-		LabyrinthManager.StartSession(player)
+		-- [[ THE FIX: Passes the current pouch to the next floor ]]
+		LabyrinthManager.StartSession(player, session.AccumulatedLoot)
 
 	elseif action == "Abandon" then
 		ActiveSessions[player.UserId] = nil
