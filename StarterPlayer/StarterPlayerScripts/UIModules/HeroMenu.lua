@@ -438,7 +438,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 			btnCover.MouseLeave:Connect(function() if cachedTooltipMgr and type(cachedTooltipMgr.Hide) == "function" then cachedTooltipMgr.Hide() end end)
 
 			local ActionsOverlay = Instance.new("Frame", card); ActionsOverlay.Name = "ActionsOverlay"; ActionsOverlay.Size = UDim2.new(1, 0, 1, 0); ActionsOverlay.BackgroundColor3 = Color3.fromRGB(18, 18, 22); ActionsOverlay.BackgroundTransparency = 0.05; ActionsOverlay.Visible = false; ActionsOverlay.ZIndex = 10; ActionsOverlay.Active = true; ActionsOverlay.BorderSizePixel = 0
-			local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+			local actLayout = Instance.new("UIListLayout", ActionsOverlay); actLayout.FillDirection = Enum.FillDirection.Vertical; actLayout.Padding = UDim.new(0, 4); actLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; actLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
 			local buttonConsumed = false
 			local function MakeOverlayBtn(text)
@@ -579,8 +579,8 @@ local function BuildAttributesTab(parentFrame)
 				end)
 			else if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("Not enough XP!", "Error") end; isUpgrading = false end
 		end
-		bAdd.MouseButton1Down:Connect(function() local customAmt = tonumber(amtInput.Text) or 1; if customAmt < 1 then customAmt = 1 end; TryUpgrade(math.floor(customAmt)) end)
-		bMax.MouseButton1Down:Connect(function() TryUpgrade("MAX") end)
+		bAdd.MouseButton1Click:Connect(function() local customAmt = tonumber(amtInput.Text) or 1; if customAmt < 1 then customAmt = 1 end; TryUpgrade(math.floor(customAmt)) end)
+		bMax.MouseButton1Click:Connect(function() TryUpgrade("MAX") end)
 		statRowRefs[statName] = { Label = statLabel, BtnContainer = btnContainer, BtnAdd = bAdd, AddStroke = addStroke, BtnMax = bMax, MaxStroke = maxStroke }
 	end
 
@@ -603,7 +603,7 @@ local function BuildAttributesTab(parentFrame)
 		for i, s in ipairs(statList) do CreateStatRow(s, list, isTitan, i, amtInput) end
 
 		local isSpammingAll = false
-		allBtn.MouseButton1Down:Connect(function()
+		allBtn.MouseButton1Click:Connect(function()
 			if isSpammingAll then return end; isSpammingAll = true
 			local prestige = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Prestige") and player.leaderstats.Prestige.Value or 0
 			local statCap = SafeGetStatCap(prestige); local currentXP = isTitan and (tonumber(player:GetAttribute("TitanXP")) or 0) or (tonumber(player:GetAttribute("XP")) or 0); local simXP = currentXP
@@ -675,38 +675,14 @@ local function BuildAttributesTab(parentFrame)
 			Network:WaitForChild("TrainAction"):FireServer(activeCombo, isTitan)
 		end
 
-		tBtn.MouseButton1Down:Connect(TriggerTrain)
-		missBtn.MouseButton1Down:Connect(function()
+		tBtn.MouseButton1Click:Connect(TriggerTrain)
+		missBtn.MouseButton1Click:Connect(function()
 			if isTitan and titanCombo > 0 then titanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if titanCombo == 0 then comboLbl.Visible = false end end)
 			elseif not isTitan and humanCombo > 0 then humanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if humanCombo == 0 then comboLbl.Visible = false end end) end
 		end)
 
-		if player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397 then
-			local autoBtn, _ = CreateSharpButton(box, "AUTO: OFF", UDim2.new(0, 90, 0, 25), Enum.Font.GothamBold, 11)
-			autoBtn.Position = UDim2.new(1, -100, 0, 12)
-			autoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-			autoBtn.ZIndex = 5
+		-- [[ THE FIX: Removed Auto-Train manual toggle from here, completely deferring logic to Settings Tab ]]
 
-			autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
-			player:GetAttributeChangedSignal("HasAutoTrain"):Connect(function()
-				autoBtn.Visible = player:GetAttribute("HasAutoTrain") == true or player.UserId == 4068160397
-			end)
-
-			local isAutoTraining = false
-			autoBtn.MouseButton1Down:Connect(function()
-				isAutoTraining = not isAutoTraining
-				autoBtn.Text = isAutoTraining and "AUTO: ON" or "AUTO: OFF"
-				autoBtn.TextColor3 = isAutoTraining and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 255, 255)
-				if isAutoTraining then
-					task.spawn(function()
-						while isAutoTraining and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) do
-							if tBtn and tBtn.Parent then TriggerTrain() else isAutoTraining = false end
-							task.wait(0.6)
-						end
-					end)
-				end
-			end)
-		end
 		return box
 	end
 	local soldierBox = CreateTrainBox(false); local titanBox = CreateTrainBox(true)
@@ -929,9 +905,10 @@ local function BuildPrestigeTab(parentFrame)
 	local SplitFrame = Instance.new("Frame", MainFrame); SplitFrame.Size = UDim2.new(1, 0, 1, 0); SplitFrame.BackgroundTransparency = 1; local sfLayout = Instance.new("UIListLayout", SplitFrame); sfLayout.FillDirection = Enum.FillDirection.Horizontal; sfLayout.Padding = UDim.new(0, 15)
 
 	local LeftPanel, _ = CreateGrimPanel(SplitFrame); LeftPanel.Size = UDim2.new(0.35, 0, 1, 0)
-	local ls = player:WaitForChild("leaderstats", 5); local pLevel = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0; local nextLevel = pLevel + 1
+
+	-- [[ THE FIX: Updated Ascension Text Math to correctly read live Leaderstats ]]
 	local ATitle = CreateSharpLabel(LeftPanel, "PRESTIGE ASCENSION", UDim2.new(1, -20, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 20); ATitle.Position = UDim2.new(0, 10, 0, 15); ATitle.TextXAlignment = Enum.TextXAlignment.Left
-	local ASub = CreateSharpLabel(LeftPanel, "TIER " .. pLevel .. " ➔ TIER " .. nextLevel, UDim2.new(1, -20, 0, 20), Enum.Font.GothamBold, Color3.fromRGB(150, 255, 150), 16); ASub.Position = UDim2.new(0, 10, 0, 45); ASub.TextXAlignment = Enum.TextXAlignment.Left
+	local ASub = CreateSharpLabel(LeftPanel, "TIER 0 ➔ TIER 1", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBold, Color3.fromRGB(150, 255, 150), 16); ASub.Position = UDim2.new(0, 10, 0, 45); ASub.TextXAlignment = Enum.TextXAlignment.Left
 
 	local RBox = Instance.new("Frame", LeftPanel); RBox.Size = UDim2.new(1, -20, 0, 130); RBox.Position = UDim2.new(0, 10, 0, 80); RBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26); local rStroke = Instance.new("UIStroke", RBox); rStroke.Color = Color3.fromRGB(70, 70, 80); rStroke.Thickness = 2
 	local rTitle = CreateSharpLabel(RBox, "NEXT TIER REWARDS:", UDim2.new(1, -10, 0, 25), Enum.Font.GothamBold, UIHelpers.Colors.TextWhite, 14); rTitle.Position = UDim2.new(0, 10, 0, 5); rTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -942,7 +919,7 @@ local function BuildPrestigeTab(parentFrame)
 	local WBox = Instance.new("Frame", LeftPanel); WBox.Size = UDim2.new(1, -20, 0, 80); WBox.Position = UDim2.new(0, 10, 0, 225); WBox.BackgroundColor3 = Color3.fromRGB(30, 10, 10); local wStroke = Instance.new("UIStroke", WBox); wStroke.Color = Color3.fromRGB(150, 50, 50); wStroke.Thickness = 2
 	local wText = CreateSharpLabel(WBox, "WARNING: Ascending will completely reset your Level, Stats, Titan Power, and Campaign Progress.", UDim2.new(1, -20, 1, -10), Enum.Font.GothamBold, Color3.fromRGB(255, 150, 150), 12); wText.Position = UDim2.new(0, 10, 0, 5); wText.TextWrapped = true; wText.TextXAlignment = Enum.TextXAlignment.Center
 
-	local AscendBtn, aStroke = CreateSharpButton(LeftPanel, "ASCEND TO TIER " .. nextLevel, UDim2.new(1, -20, 0, 50), Enum.Font.GothamBlack, 18)
+	local AscendBtn, aStroke = CreateSharpButton(LeftPanel, "ASCEND", UDim2.new(1, -20, 0, 50), Enum.Font.GothamBlack, 18)
 	AscendBtn.Position = UDim2.new(0, 10, 1, -60); AscendBtn.BackgroundColor3 = Color3.fromRGB(100, 20, 20); AscendBtn.TextColor3 = Color3.fromRGB(255, 200, 200); aStroke.Color = Color3.fromRGB(255, 50, 50)
 
 	local RightPanel = Instance.new("Frame", SplitFrame); RightPanel.Size = UDim2.new(0.65, -15, 1, 0); RightPanel.BackgroundTransparency = 1
@@ -963,6 +940,12 @@ local function BuildPrestigeTab(parentFrame)
 	UnlockBtn.MouseButton1Click:Connect(function() if SelectedNodeId then Network:WaitForChild("UnlockPrestigeNode"):FireServer(SelectedNodeId) end end)
 
 	local function UpdateUI()
+		local ls = player:FindFirstChild("leaderstats")
+		local pLevel = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
+		local nextLevel = pLevel + 1
+		ASub.Text = "TIER " .. pLevel .. " ➔ TIER " .. nextLevel
+		AscendBtn.Text = "ASCEND TO TIER " .. nextLevel
+
 		local pts = player:GetAttribute("PrestigePoints") or 0; if PointsLabel then PointsLabel.Text = "AVAILABLE POINTS: " .. pts end
 		for id, gui in pairs(NodeGuis) do
 			local isOwned = player:GetAttribute("PrestigeNode_" .. id)
@@ -991,9 +974,12 @@ local function BuildPrestigeTab(parentFrame)
 	end
 
 	AscendBtn.MouseButton1Click:Connect(function()
+		local ls = player:FindFirstChild("leaderstats")
+		local currentTier = ls and ls:FindFirstChild("Prestige") and ls.Prestige.Value or 0
+
 		local confirm = Network:WaitForChild("PrestigeAction"):InvokeServer()
 		if confirm then 
-			if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("ASCENDED TO PRESTIGE TIER " .. nextLevel .. "!", "Success") end
+			if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("ASCENDED TO PRESTIGE TIER " .. (currentTier + 1) .. "!", "Success") end
 			task.wait(1); UpdateUI()
 		else
 			if NotificationManager and type(NotificationManager.Show) == "function" then NotificationManager.Show("You must clear Chapter 8 with maxed stats to Ascend!", "Error") end
@@ -1046,6 +1032,7 @@ local function BuildPrestigeTab(parentFrame)
 	end
 	TreeContainer:GetPropertyChangedSignal("AbsoluteSize"):Connect(RenderLinesAndNodes); task.delay(0.1, RenderLinesAndNodes)
 	player.AttributeChanged:Connect(function(attr) if string.find(attr, "Prestige") then UpdateUI() end end)
+	task.spawn(function() local ls = player:WaitForChild("leaderstats", 10); if ls and ls:FindFirstChild("Prestige") then ls.Prestige.Changed:Connect(UpdateUI) end end)
 	UpdateUI()
 end
 
