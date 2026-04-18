@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
+local MessagingService = game:GetService("MessagingService")
 
 local SquadStore = DataStoreService:GetDataStore("StrikeSquads_V2")
 
@@ -29,7 +30,6 @@ local GetSquadRequests = Instance.new("RemoteFunction", Network); GetSquadReques
 local ActiveSquads = {}
 local GlobalSquadCache = {}
 local isFetchingCache = false
-local PendingRequests = {} 
 
 local currentTopSquadName = nil 
 local Top5SquadsCache = {}
@@ -65,6 +65,133 @@ local function UpdateOnlineMembers(sqName)
 		end
 	end
 end
+
+local function LoadPlayerSquad(player)
+	local mySquad = player:GetAttribute("SquadName")
+	if mySquad and mySquad ~= "None" and mySquad ~= "" then
+		local sqData = ActiveSquads[mySquad]
+
+		if not sqData then
+			local success, data = pcall(function() return SquadStore:GetAsync(mySquad) end)
+			if success then
+				if data then
+					sqData = data
+					ActiveSquads[mySquad] = sqData
+				else
+					player:SetAttribute("SquadName", "None")
+					return
+				end
+			else
+				warn("[SquadManager] Failed to load squad data for: " .. mySquad)
+				return 
+			end
+		end
+
+		if sqData then
+			if not sqData.Members[tostring(player.UserId)] then
+				local success, freshData = pcall(function() return SquadStore:GetAsync(mySquad) end)
+				if success and freshData and freshData.Members[tostring(player.UserId)] then
+					sqData = freshData
+					ActiveSquads[mySquad] = sqData 
+				else
+					player:SetAttribute("SquadName", "None")
+					player:SetAttribute("SquadLevel", 1)
+					player:SetAttribute("SquadIsLeader", false)
+					player:SetAttribute("SquadRole", "None")
+					player:SetAttribute("YmirFavored", false)
+					player:SetAttribute("Top5_Squad", false)
+					return
+				end
+			end
+
+			local needsSeasonReset = false
+			if not sqData.Season or sqData.Season < currentSeasonWeek then
+				needsSeasonReset = true
+			end
+
+			if needsSeasonReset then
+				local alreadySavedThisServer = ActiveSquads[mySquad] and ActiveSquads[mySquad].Season == currentSeasonWeek
+
+				sqData.SP = 0
+				for _, mem in pairs(sqData.Members) do mem.SP = 0 end 
+				sqData.Season = currentSeasonWeek
+				ActiveSquads[mySquad] = sqData
+
+				if not alreadySavedThisServer then
+					SaveSquadData(mySquad, sqData)
+				end
+			end
+
+			player:SetAttribute("SquadDesc", sqData.Desc)
+			player:SetAttribute("SquadLogo", sqData.Logo)
+			player:SetAttribute("SquadLevel", sqData.Level or 1)
+			player:SetAttribute("SquadSP", sqData.SP)
+
+			local myRole = sqData.Members[tostring(player.UserId)].Role or "Member"
+			player:SetAttribute("SquadIsLeader", myRole == "Leader")
+			player:SetAttribute("SquadRole", myRole)
+
+			player:SetAttribute("YmirFavored", mySquad == currentTopSquadName)
+			player:SetAttribute("Top5_Squad", Top5SquadsCache[mySquad] or false)
+			local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None", "None", "None", "None", "None", "None", "None", "None", "None"})
+			player:SetAttribute("SquadVault", vaultStr)
+
+			local upgradesStr = HttpService:JSONEncode(sqData.Upgrades or {Capacity=0, Wealth=0, Training=0, Luck=0, Prestige=0})
+			player:SetAttribute("SquadUpgrades", upgradesStr)
+			player:SetAttribute("SquadVisuals", sqData.Upgrades and sqData.Upgrades.Prestige or 0)
+		end
+	end
+end
+
+-- Subscribe to Cross-Server Squad Updates
+pcall(function()
+	MessagingService:SubscribeAsync("SquadUpdate", function(message)
+		local data = message.Data
+		local sqName = data.SquadName
+		local targetId = data.TargetId
+		local actionType = data.ActionType
+
+		-- Refresh local cache if this server has the squad loaded
+		if ActiveSquads[sqName] then
+			local success, freshData = pcall(function() return SquadStore:GetAsync(sqName) end)
+			if success and freshData then
+				ActiveSquads[sqName] = freshData
+			end
+		end
+
+		if data.OriginServer == game.JobId then return end -- Avoid duplicate processing for the server that fired this
+
+		for _, p in ipairs(Players:GetPlayers()) do
+			if actionType == "Requested" then
+				if p:GetAttribute("SquadName") == sqName then
+					local pRole = p:GetAttribute("SquadRole")
+					if pRole == "Leader" or pRole == "Officer" then
+						NotificationEvent:FireClient(p, (data.TargetName or "Someone") .. " has requested to join your Squad!", "Info")
+					end
+				end
+			elseif actionType == "Accepted" and tostring(p.UserId) == targetId then
+				if p:GetAttribute("SquadName") ~= sqName then
+					LoadPlayerSquad(p)
+					NotificationEvent:FireClient(p, "Your request to join " .. sqName .. " was accepted!", "Success")
+				end
+			elseif actionType == "Kicked" and tostring(p.UserId) == targetId then
+				if p:GetAttribute("SquadName") == sqName then
+					p:SetAttribute("SquadName", "None")
+					p:SetAttribute("SquadLevel", 1)
+					p:SetAttribute("SquadIsLeader", false)
+					p:SetAttribute("SquadRole", "None")
+					p:SetAttribute("YmirFavored", false)
+					p:SetAttribute("Top5_Squad", false)
+					p:SetAttribute("SquadSP", 0)
+					p:SetAttribute("SquadVisuals", 0)
+					p:SetAttribute("SquadVault", '{"1":"None","2":"None","3":"None","4":"None","5":"None","6":"None","7":"None","8":"None","9":"None"}')
+					p:SetAttribute("SquadUpgrades", '{"Capacity":0,"Wealth":0,"Training":0,"Luck":0,"Prestige":0}')
+					NotificationEvent:FireClient(p, "You have been kicked from the Squad.", "Error")
+				end
+			end
+		end
+	end)
+end)
 
 AddSquadSP.Event:Connect(function(sqName, amount, userId)
 	local sqData = ActiveSquads[sqName]
@@ -217,12 +344,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		ActiveSquads[data.Name] = newSquadData
 		SaveSquadData(data.Name, newSquadData)
 
-		for _, reqList in pairs(PendingRequests) do
-			if reqList[tostring(player.UserId)] then
-				reqList[tostring(player.UserId)] = nil
-			end
-		end
-
 		player:SetAttribute("SquadName", data.Name)
 		player:SetAttribute("SquadDesc", newSquadData.Desc)
 		player:SetAttribute("SquadLogo", newSquadData.Logo)
@@ -237,7 +358,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		player:SetAttribute("SquadVisuals", 0)
 		NotificationEvent:FireClient(player, "Squad '" .. data.Name .. "' officially founded!", "Success")
 
-		-- [[ THE NEW LEVEL UP LOGIC ]]
 	elseif action == "LevelUp" then
 		local sqName = player:GetAttribute("SquadName")
 		local sqData = ActiveSquads[sqName]
@@ -294,7 +414,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 			return
 		end
 
-		-- [[ THE FIX: Expanded Max Levels and Added Level Requirements ]]
 		local Costs = { Capacity = 250000, Wealth = 100000, Training = 100000, Luck = 150000, Prestige = 500000 }
 		local MaxLevels = { Capacity = 5, Wealth = 10, Training = 10, Luck = 10, Prestige = 5 }
 		local ReqScales = { Capacity = 5, Wealth = 5, Training = 5, Luck = 5, Prestige = 10 }
@@ -329,7 +448,8 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local sqName = data
 		if player:GetAttribute("SquadName") and player:GetAttribute("SquadName") ~= "None" then NotificationEvent:FireClient(player, "You must leave your current Squad first.", "Error") return end
 
-		local sqData = ActiveSquads[sqName] or SquadStore:GetAsync(sqName)
+		local success, sqData = pcall(function() return SquadStore:GetAsync(sqName) end)
+		if not success or not sqData then sqData = ActiveSquads[sqName] end
 		if not sqData then NotificationEvent:FireClient(player, "Squad not found.", "Error") return end
 
 		local sqUpgrades = sqData.Upgrades or {Capacity=0}
@@ -338,15 +458,34 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local memCount = 0; for _, _ in pairs(sqData.Members) do memCount += 1 end
 		if memCount >= maxMembers then NotificationEvent:FireClient(player, "That Squad is currently full!", "Error") return end
 
-		if not PendingRequests[sqName] then PendingRequests[sqName] = {} end
-		if PendingRequests[sqName][tostring(player.UserId)] then NotificationEvent:FireClient(player, "You already have a pending request for this Squad.", "Error") return end
+		if not sqData.Requests then sqData.Requests = {} end
+		if sqData.Requests[tostring(player.UserId)] then NotificationEvent:FireClient(player, "You already have a pending request for this Squad.", "Error") return end
 
-		PendingRequests[sqName][tostring(player.UserId)] = player.Name
+		sqData.Requests[tostring(player.UserId)] = player.Name
+		SaveSquadData(sqName, sqData)
 
+		if ActiveSquads[sqName] then
+			ActiveSquads[sqName].Requests = sqData.Requests
+		end
+
+		-- Alert officers globally
+		pcall(function()
+			MessagingService:PublishAsync("SquadUpdate", {
+				SquadName = sqName,
+				TargetId = tostring(player.UserId),
+				ActionType = "Requested",
+				TargetName = player.Name,
+				OriginServer = game.JobId
+			})
+		end)
+
+		-- Alert officers locally
 		for _, p in ipairs(Players:GetPlayers()) do
-			local pRole = sqData.Members[tostring(p.UserId)] and sqData.Members[tostring(p.UserId)].Role
-			if pRole == "Leader" or pRole == "Officer" then 
-				NotificationEvent:FireClient(p, player.Name .. " has requested to join your Squad!", "Info") 
+			if p:GetAttribute("SquadName") == sqName then
+				local pRole = p:GetAttribute("SquadRole")
+				if pRole == "Leader" or pRole == "Officer" then 
+					NotificationEvent:FireClient(p, player.Name .. " has requested to join your Squad!", "Info") 
+				end
 			end
 		end
 		NotificationEvent:FireClient(player, "Join Request sent to the Squad Officers.", "Success")
@@ -361,13 +500,19 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		local myRole = sqData.Members[tostring(player.UserId)] and sqData.Members[tostring(player.UserId)].Role
 		if myRole ~= "Leader" and myRole ~= "Officer" then return end
 
-		if not PendingRequests[sqName] or not PendingRequests[sqName][targetId] then return end
-
-		local targetName = PendingRequests[sqName][targetId]
-		PendingRequests[sqName][targetId] = nil 
-
 		local freshData = SquadStore:GetAsync(sqName)
-		if freshData then sqData.Members = freshData.Members end
+		if freshData then 
+			sqData.Members = freshData.Members 
+			sqData.Requests = freshData.Requests or {}
+		end
+
+		if not sqData.Requests or not sqData.Requests[targetId] then 
+			NotificationEvent:FireClient(player, "This request no longer exists.", "Error")
+			return 
+		end
+
+		local targetName = sqData.Requests[targetId]
+		sqData.Requests[targetId] = nil 
 
 		if decision == "Accept" then
 			local alreadyInSquad = false
@@ -385,30 +530,28 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 			if memCount >= maxMembers then NotificationEvent:FireClient(player, "Squad is full!", "Error"); return end
 
 			sqData.Members[targetId] = {Role = "Member", Name = targetName, SP = 0}
-			NotificationEvent:FireClient(player, "Accepted " .. targetName .. " into the Squad.", "Success")
+			SaveSquadData(sqName, sqData)
+
+			pcall(function()
+				MessagingService:PublishAsync("SquadUpdate", {
+					SquadName = sqName,
+					TargetId = targetId,
+					ActionType = "Accepted",
+					OriginServer = game.JobId
+				})
+			end)
 
 			for _, p in ipairs(Players:GetPlayers()) do
 				if tostring(p.UserId) == targetId then
-					p:SetAttribute("SquadName", sqName)
-					p:SetAttribute("SquadDesc", sqData.Desc)
-					p:SetAttribute("SquadLogo", sqData.Logo)
-					p:SetAttribute("SquadLevel", sqData.Level or 1)
-					p:SetAttribute("SquadSP", sqData.SP)
-					p:SetAttribute("SquadIsLeader", false)
-					p:SetAttribute("SquadRole", "Member")
-					p:SetAttribute("YmirFavored", sqName == currentTopSquadName)
-					p:SetAttribute("Top5_Squad", Top5SquadsCache[sqName] or false)
-					p:SetAttribute("SquadVault", HttpService:JSONEncode(sqData.Vault))
-					p:SetAttribute("SquadUpgrades", HttpService:JSONEncode(sqData.Upgrades or {Capacity=0, Wealth=0, Training=0, Luck=0, Prestige=0}))
-					p:SetAttribute("SquadVisuals", sqData.Upgrades and sqData.Upgrades.Prestige or 0)
+					LoadPlayerSquad(p)
 					NotificationEvent:FireClient(p, "Your request to join " .. sqName .. " was accepted!", "Success")
 				end
 			end
+			NotificationEvent:FireClient(player, "Accepted " .. targetName .. " into the Squad.", "Success")
 		else
+			SaveSquadData(sqName, sqData)
 			NotificationEvent:FireClient(player, "Denied request from " .. targetName .. ".", "Info")
 		end
-
-		SaveSquadData(sqName, sqData)
 
 	elseif action == "KickMember" then
 		local sqName = player:GetAttribute("SquadName")
@@ -442,6 +585,15 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 			local targetName = sqData.Members[targetId].Name
 			sqData.Members[targetId] = nil
 			SaveSquadData(sqName, sqData)
+
+			pcall(function()
+				MessagingService:PublishAsync("SquadUpdate", {
+					SquadName = sqName,
+					TargetId = targetId,
+					ActionType = "Kicked",
+					OriginServer = game.JobId
+				})
+			end)
 
 			for _, p in ipairs(Players:GetPlayers()) do
 				if tostring(p.UserId) == targetId and p:GetAttribute("SquadName") == sqName then
@@ -587,7 +739,6 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 		end
 
 		ActiveSquads[sqName] = nil
-		PendingRequests[sqName] = nil
 
 		task.spawn(function()
 			pcall(function()
@@ -624,8 +775,15 @@ GetSquadRequests.OnServerInvoke = function(player)
 	local myRole = sqData.Members[tostring(player.UserId)] and sqData.Members[tostring(player.UserId)].Role
 	if myRole ~= "Leader" and myRole ~= "Officer" then return {} end
 
+	-- Always fetch fresh data to sync cross-server requests when UI is opened
+	local success, freshData = pcall(function() return SquadStore:GetAsync(sqName) end)
+	if success and freshData then
+		sqData.Requests = freshData.Requests or {}
+		ActiveSquads[sqName].Requests = sqData.Requests
+	end
+
 	local reqs = {}
-	for uid, uname in pairs(PendingRequests[sqName] or {}) do table.insert(reqs, {UserId = uid, Name = uname}) end
+	for uid, uname in pairs(sqData.Requests or {}) do table.insert(reqs, {UserId = uid, Name = uname}) end
 	return reqs
 end
 
@@ -674,83 +832,6 @@ GetSquadLeaderboard.OnServerInvoke = function(player)
 	end
 
 	return top10
-end
-
-local function LoadPlayerSquad(player)
-	local mySquad = player:GetAttribute("SquadName")
-	if mySquad and mySquad ~= "None" and mySquad ~= "" then
-		local sqData = ActiveSquads[mySquad]
-
-		if not sqData then
-			local success, data = pcall(function() return SquadStore:GetAsync(mySquad) end)
-			if success then
-				if data then
-					sqData = data
-					ActiveSquads[mySquad] = sqData
-				else
-					player:SetAttribute("SquadName", "None")
-					return
-				end
-			else
-				warn("[SquadManager] Failed to load squad data for: " .. mySquad)
-				return 
-			end
-		end
-
-		if sqData then
-			if not sqData.Members[tostring(player.UserId)] then
-				local success, freshData = pcall(function() return SquadStore:GetAsync(mySquad) end)
-				if success and freshData and freshData.Members[tostring(player.UserId)] then
-					sqData = freshData
-					ActiveSquads[mySquad] = sqData 
-				else
-					player:SetAttribute("SquadName", "None")
-					player:SetAttribute("SquadLevel", 1)
-					player:SetAttribute("SquadIsLeader", false)
-					player:SetAttribute("SquadRole", "None")
-					player:SetAttribute("YmirFavored", false)
-					player:SetAttribute("Top5_Squad", false)
-					return
-				end
-			end
-
-			local needsSeasonReset = false
-			if not sqData.Season or sqData.Season < currentSeasonWeek then
-				needsSeasonReset = true
-			end
-
-			if needsSeasonReset then
-				local alreadySavedThisServer = ActiveSquads[mySquad] and ActiveSquads[mySquad].Season == currentSeasonWeek
-
-				sqData.SP = 0
-				for _, mem in pairs(sqData.Members) do mem.SP = 0 end 
-				sqData.Season = currentSeasonWeek
-				ActiveSquads[mySquad] = sqData
-
-				if not alreadySavedThisServer then
-					SaveSquadData(mySquad, sqData)
-				end
-			end
-
-			player:SetAttribute("SquadDesc", sqData.Desc)
-			player:SetAttribute("SquadLogo", sqData.Logo)
-			player:SetAttribute("SquadLevel", sqData.Level or 1)
-			player:SetAttribute("SquadSP", sqData.SP)
-
-			local myRole = sqData.Members[tostring(player.UserId)].Role or "Member"
-			player:SetAttribute("SquadIsLeader", myRole == "Leader")
-			player:SetAttribute("SquadRole", myRole)
-
-			player:SetAttribute("YmirFavored", mySquad == currentTopSquadName)
-			player:SetAttribute("Top5_Squad", Top5SquadsCache[mySquad] or false)
-			local vaultStr = HttpService:JSONEncode(sqData.Vault or {"None", "None", "None", "None", "None", "None", "None", "None", "None"})
-			player:SetAttribute("SquadVault", vaultStr)
-
-			local upgradesStr = HttpService:JSONEncode(sqData.Upgrades or {Capacity=0, Wealth=0, Training=0, Luck=0, Prestige=0})
-			player:SetAttribute("SquadUpgrades", upgradesStr)
-			player:SetAttribute("SquadVisuals", sqData.Upgrades and sqData.Upgrades.Prestige or 0)
-		end
-	end
 end
 
 Players.PlayerAdded:Connect(function(player)
