@@ -462,16 +462,21 @@ function LabyrinthUI.Initialize(masterScreenGui)
 	end)
 
 	Network:WaitForChild("LabyrinthUpdate").OnClientEvent:Connect(function(action, data)
-		-- THE FIX: Added InitSync to force the grid to rebuild unconditionally
+		-- [[ THE FIX: Forces a complete UI grid wipe and rebuild on descent ]]
 		if action == "InitSync" then
 			CurrentSession = data
-			BuildGrid()
+			BuildGrid() 
 
 			local tint, _, _ = GetFloorTheme(data.Floor)
 			TitleLbl.TextColor3 = tint
 			SubTitleLbl.Text = "FLOOR " .. data.Floor
 
-			LootDisplay.Text = "<font color='#FFD700'>+0 Dews</font>\n<font color='#55FF55'>+0 XP</font>\n\n"
+			local lootStr = "<font color='#FFD700'>+" .. AbbreviateNumber(data.AccumulatedLoot.Dews) .. " Dews</font>\n<font color='#55FF55'>+" .. AbbreviateNumber(data.AccumulatedLoot.XP) .. " XP</font>\n\n"
+			for itemName, amt in pairs(data.AccumulatedLoot.Items or {}) do
+				lootStr = lootStr .. "<font color='#DDDDDD'>" .. amt .. "x " .. itemName .. "</font>\n"
+			end
+			LootDisplay.Text = lootStr
+
 			UpdateGridVisibility()
 
 			if not GUI.Visible then 
@@ -482,6 +487,7 @@ function LabyrinthUI.Initialize(masterScreenGui)
 
 		elseif action == "Sync" then
 			CurrentSession = data
+			-- (The rest of the script continues normally...)
 
 			local tint, _, _ = GetFloorTheme(data.Floor)
 			TitleLbl.TextColor3 = tint
