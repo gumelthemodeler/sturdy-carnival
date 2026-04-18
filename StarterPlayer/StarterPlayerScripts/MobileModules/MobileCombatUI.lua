@@ -166,19 +166,30 @@ local function RenderStatuses(container, combatant)
 	end
 end
 
+local GlobalLogCounter = 0
 local function AppendLog(message, colorHex)
 	if not GUI or not GUI.LogScroll or not message or message == "" then return end
+	GlobalLogCounter = GlobalLogCounter + 1
 	local logColor = colorHex and Color3.fromHex(colorHex:gsub("#", "")) or UIHelpers.Colors.TextWhite
+
 	local panel = Instance.new("Frame", GUI.LogScroll)
+	panel.LayoutOrder = GlobalLogCounter
 	panel.Size = UDim2.new(1, 0, 0, 0); panel.BackgroundColor3 = Color3.fromRGB(15, 15, 18); panel.BackgroundTransparency = 0.3; panel.BorderSizePixel = 0; panel.AutomaticSize = Enum.AutomaticSize.Y
 	local pStroke = Instance.new("UIStroke", panel); pStroke.Color = Color3.fromRGB(40, 40, 45)
-	local pad = Instance.new("UIPadding", panel); pad.PaddingLeft = UDim.new(0, 5); pad.PaddingRight = UDim.new(0, 5); pad.PaddingTop = UDim.new(0, 5); pad.PaddingBottom = UDim.new(0, 5)
+	local pad = Instance.new("UIPadding", panel); pad.PaddingLeft = UDim.new(0, 10); pad.PaddingRight = UDim.new(0, 10); pad.PaddingTop = UDim.new(0, 8); pad.PaddingBottom = UDim.new(0, 8)
+
 	local lbl = UIHelpers.CreateLabel(panel, message, UDim2.new(1, 0, 0, 0), Enum.Font.GothamMedium, logColor, 10)
 	lbl.TextXAlignment = Enum.TextXAlignment.Left; lbl.RichText = true; lbl.TextWrapped = true; lbl.AutomaticSize = Enum.AutomaticSize.Y
 
 	local children = GUI.LogScroll:GetChildren()
-	local logCount = 0; for _, c in ipairs(children) do if c:IsA("Frame") then logCount += 1 end end
-	if logCount > 30 then for _, c in ipairs(children) do if c:IsA("Frame") then c:Destroy() break end end end
+	local frames = {}
+	for _, c in ipairs(children) do if c:IsA("Frame") then table.insert(frames, c) end end
+
+	if #frames > 30 then 
+		table.sort(frames, function(a, b) return a.LayoutOrder < b.LayoutOrder end)
+		frames[1]:Destroy() 
+	end
+
 	task.delay(0.05, function() if GUI.LogScroll then GUI.LogScroll.CanvasPosition = Vector2.new(0, 999999) end end)
 end
 
@@ -381,7 +392,7 @@ local function CloseUI(forcePathsOpen)
 
 	if forcePathsOpen then
 		task.delay(0.2, function()
-			local pathsModule = player.PlayerScripts:FindFirstChild("UIModules") and player.PlayerScripts.UIModules:FindFirstChild("PathsShopUI")
+			local pathsModule = player.PlayerScripts:WaitForChild("UIModules"):FindFirstChild("PathsShopUI")
 			if pathsModule and pathsModule:IsA("ModuleScript") then
 				require(pathsModule).OpenShop()
 			end
@@ -700,13 +711,13 @@ local function UpdateSkills()
 					local wasPaths = (skillName == "Retreat" or skillName == "Flee") and currentBattleState and currentBattleState.Context and currentBattleState.Context.IsPaths
 
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
-					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 16)
-					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 18
+					local execLbl = UIHelpers.CreateLabel(GUI.ActionGrid, "EXECUTING MANEUVER...", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 18)
+					execLbl.TextScaled = true; local etsc = Instance.new("UITextSizeConstraint", execLbl); etsc.MaxTextSize = 20
 					Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = skillName})
 
 					if wasPaths then
 						task.delay(1.5, function()
-							local pathsModule = player.PlayerScripts:FindFirstChild("UIModules") and player.PlayerScripts.UIModules:FindFirstChild("PathsShopUI")
+							local pathsModule = player.PlayerScripts:WaitForChild("UIModules"):FindFirstChild("PathsShopUI")
 							if pathsModule and pathsModule:IsA("ModuleScript") then require(pathsModule).OpenShop() end
 						end)
 					end
@@ -1048,7 +1059,6 @@ function MobileCombatUI.Initialize(masterScreenGui)
 						if type(VFXManager.ScreenShake) == "function" then VFXManager.ScreenShake(1.5, 0.5) end
 					end
 
-					-- [[ THE FIX: Check attribute before flashing the screen white ]]
 					if player:GetAttribute("Setting_ScreenFlash") ~= false then
 						GUI.ExecuteFlash.BackgroundTransparency = 0
 						TweenService:Create(GUI.ExecuteFlash, TweenInfo.new(1.0, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
