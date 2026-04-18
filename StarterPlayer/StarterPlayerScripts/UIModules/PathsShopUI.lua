@@ -107,6 +107,8 @@ function PathsShopUI.OpenShop()
 	if PathsShopUI.ScreenGui and not PathsShopUI.IsOpen then
 		PathsShopUI.IsOpen = true
 		PathsShopUI.ScreenGui.Enabled = true
+		PathsShopUI.ScreenGui.DisplayOrder = 5000 -- FIX: Forces Coordinate over all other UIs
+
 		PathsShopUI.UpdateShop()
 
 		local VFXManager = require(player:WaitForChild("PlayerScripts"):WaitForChild("VFXManager"))
@@ -127,7 +129,7 @@ function PathsShopUI.Initialize(masterScreenGui)
 	local ScreenGui = Instance.new("ScreenGui", PlayerGui)
 	ScreenGui.Name = "PathsShopGUI"
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	ScreenGui.DisplayOrder = 200 
+	ScreenGui.DisplayOrder = 5000 -- FIX: Ultimate Top Layer
 	ScreenGui.Enabled = false
 	PathsShopUI.ScreenGui = ScreenGui
 
@@ -145,7 +147,7 @@ function PathsShopUI.Initialize(masterScreenGui)
 	MainContainer.BackgroundColor3 = C_VOID
 	MainContainer.BorderSizePixel = 0
 	MainContainer.GroupTransparency = 1 
-	MainContainer.ZIndex = 2
+	MainContainer.ZIndex = 5000
 	PathsShopUI.MainContainer = MainContainer
 
 	local sizeConstraint = Instance.new("UISizeConstraint", MainContainer)
