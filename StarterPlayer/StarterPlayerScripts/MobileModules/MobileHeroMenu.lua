@@ -146,6 +146,7 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 	end
 	RadarContainer:GetPropertyChangedSignal("AbsoluteSize"):Connect(RenderRadarChart); toggleStatsBtn.Activated:Connect(function() isShowingTitanStats = not isShowingTitanStats; toggleStatsBtn.Text = isShowingTitanStats and "VIEW HUMAN STATS" or "VIEW TITAN STATS"; RenderRadarChart() end)
 
+	local SkillSlotLabels = {}
 	RefreshProfile = function()
 		local tName = player:GetAttribute("Titan") or "None"; local cName = player:GetAttribute("Clan") or "None"; local regName = player:GetAttribute("Regiment") or "Cadet Corps"
 		local hasRegData, regDataModule = pcall(function() return require(game.ReplicatedStorage:WaitForChild("RegimentData")) end); if hasRegData and regDataModule and regDataModule.Regiments[regName] then regIcon.Image = regDataModule.Regiments[regName].Icon else regIcon.Image = "" end
@@ -153,6 +154,18 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		local wpnName = player:GetAttribute("EquippedWeapon") or "None"; local accName = player:GetAttribute("EquippedAccessory") or "None"; local pTitle = player:GetAttribute("EquippedTitle") or "Cadet"; local pAura = player:GetAttribute("EquippedAura") or "None"
 		local resolvedTitleData = nil; if type(CosmeticData) == "table" and CosmeticData.Titles then resolvedTitleData = CosmeticData.Titles[pTitle]; if not resolvedTitleData then for k, v in pairs(CosmeticData.Titles) do if v.Name == pTitle then resolvedTitleData = v break end end end end; if resolvedTitleData then AvatarTitle.Text = string.upper(resolvedTitleData.Name); AvatarTitle.TextColor3 = Color3.fromHex((resolvedTitleData.Color or "#FFFFFF"):gsub("#", "")) end
 		local resolvedAuraData = nil; if type(CosmeticData) == "table" and CosmeticData.Auras then resolvedAuraData = CosmeticData.Auras[pAura]; if not resolvedAuraData then for k, v in pairs(CosmeticData.Auras) do if v.Name == pAura then resolvedAuraData = v break end end end end; if UIAuraManager and type(UIAuraManager.ApplyAura) == "function" and resolvedAuraData then UIAuraManager.ApplyAura(AvatarAuraGlow, resolvedAuraData, AvatarBox) end
+
+		-- [[ THE FIX: Sync Identity Tab Active Loadout ]]
+		for i, lbl in ipairs(SkillSlotLabels) do
+			local rawName = player:GetAttribute("EquippedSkill_" .. i)
+			if not rawName or rawName == "" or rawName == "None" then
+				local defaults = {"BASIC SLASH", "HEAVY SLASH", "MANEUVER", "RECOVER"}
+				lbl.Text = defaults[i]
+			else
+				lbl.Text = string.upper(rawName)
+			end
+		end
+
 		for _, child in ipairs(InvGrid:GetChildren()) do if child.Name == "ItemCard" then child:Destroy() end end
 
 		local inventoryItems = {}; local currentSlotsUsed = 0
@@ -255,7 +268,13 @@ local function BuildIdentityTab(parentFrame, cachedTooltipMgr)
 		end
 	end)
 
-	-- THE FIX: Force the inventory to build immediately on boot
+	for i = 1, 4 do
+		local slotFrame, _ = CreateGrimPanel(ActionRow)
+		slotFrame.Visible = false
+		local nameLbl = CreateSharpLabel(slotFrame, "EMPTY", UDim2.new(1, 0, 1, 0), Enum.Font.GothamBold, Color3.fromRGB(245, 245, 245), 11)
+		table.insert(SkillSlotLabels, nameLbl)
+	end
+
 	RefreshProfile()
 end
 
@@ -332,8 +351,6 @@ local function BuildAttributesTab(parentFrame)
 
 		tBtn.Activated:Connect(TriggerTrain); missBtn.Activated:Connect(function() if isTitan and titanCombo > 0 then titanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if titanCombo == 0 then comboLbl.Visible = false end end) elseif not isTitan and humanCombo > 0 then humanCombo = 0; comboLbl.Visible = true; comboLbl.Text = "<font color='#FF5555'>COMBO DROPPED!</font>"; task.delay(1.5, function() if humanCombo == 0 then comboLbl.Visible = false end end) end end)
 
-		-- [[ THE FIX: Removed Auto-Train manual toggle from here, completely deferring logic to Settings Tab ]]
-
 		return box
 	end
 	local soldierBox = CreateTrainBox(false); local titanBox = CreateTrainBox(true)
@@ -379,7 +396,6 @@ local function BuildSkillsTab(parentFrame)
 	local LibHeader = CreateSharpLabel(MainFrame, "SKILL LIBRARY", UDim2.new(0.95, 0, 0, 30), Enum.Font.GothamBlack, Color3.fromRGB(245, 245, 245), 18); LibHeader.LayoutOrder = 3; LibHeader.TextXAlignment = Enum.TextXAlignment.Left
 	local SkillLibraryContainer = Instance.new("Frame", MainFrame); SkillLibraryContainer.Size = UDim2.new(0.95, 0, 0, 0); SkillLibraryContainer.AutomaticSize = Enum.AutomaticSize.Y; SkillLibraryContainer.BackgroundTransparency = 1; SkillLibraryContainer.LayoutOrder = 4; local libLayout = Instance.new("UIListLayout", SkillLibraryContainer); libLayout.Padding = UDim.new(0, 15); libLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; libLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-	-- [[ THE FIX: Unified Safe Skill Validation Function ]]
 	local function IsSkillValid(skillName, isTransformedCheck)
 		local sData = SkillData.Skills[skillName]
 		if not sData then return false end
@@ -587,8 +603,8 @@ local function BuildPrestigeTab(parentFrame)
 		if SelectedNodeId and DetailPanel.Visible and type(GameData) == "table" and GameData.PrestigeNodes then
 			local node = GameData.PrestigeNodes[SelectedNodeId]; local isOwned = player:GetAttribute("PrestigeNode_" .. SelectedNodeId); local hasReq = node.Req == nil or player:GetAttribute("PrestigeNode_" .. node.Req)
 			if isOwned then DReq.Text = "OWNED"; DReq.TextColor3 = Color3.fromRGB(100, 255, 100); UnlockBtn.Text = "OWNED"; UnlockBtn.TextColor3 = Color3.fromRGB(150, 150, 150); UBtnStroke.Color = UIHelpers.Colors.BorderMuted; UnlockBtn.Active = false
-			elseif not hasReq then DReq.Text = "REQ: " .. GameData.PrestigeNodes[node.Req].Name; DReq.TextColor3 = UIHelpers.Colors.Border; UnlockBtn.Text = "LOCKED"; UnlockBtn.TextColor3 = UIHelpers.Colors.Border; UBtnStroke.Color = UIHelpers.Colors.Border; UnlockBtn.Active = false
-			else DReq.Text = "AVAILABLE (HAVE: "..pts..")"; DReq.TextColor3 = UIHelpers.Colors.TextWhite; UnlockBtn.Text = "UNLOCK"; UnlockBtn.TextColor3 = Color3.fromHex(node.Color:gsub("#", "")); UBtnStroke.Color = Color3.fromHex(node.Color:gsub("#", "")); UnlockBtn.Active = true end
+			elseif not hasReq then DReq.Text = "REQUIRES: " .. GameData.PrestigeNodes[node.Req].Name; DReq.TextColor3 = UIHelpers.Colors.Border; UnlockBtn.Text = "LOCKED"; UnlockBtn.TextColor3 = UIHelpers.Colors.Border; UBtnStroke.Color = UIHelpers.Colors.Border; UnlockBtn.Active = false
+			else DReq.Text = "AVAILABLE TO UNLOCK"; DReq.TextColor3 = UIHelpers.Colors.TextWhite; UnlockBtn.Text = "UNLOCK"; UnlockBtn.TextColor3 = Color3.fromHex(node.Color:gsub("#", "")); UBtnStroke.Color = Color3.fromHex(node.Color:gsub("#", "")); UnlockBtn.Active = true end
 		end
 	end
 
