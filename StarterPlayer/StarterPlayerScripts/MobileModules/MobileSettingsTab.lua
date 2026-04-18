@@ -93,16 +93,24 @@ function MobileSettingsTab.Initialize(parentFrame)
 
 	CreateMobileToggleCard(ScrollList, "SCREEN FLASH", "Toggles intense combat and titan flashes.", "Setting_ScreenFlash")
 	CreateMobileToggleCard(ScrollList, "MUSIC", "Toggles background region music.", "Setting_Music")
-	CreateMobileToggleCard(ScrollList, "AUTO TRAIN", "Auto-punches to train stats while AFK.", "Setting_AutoTrain")
 
+	local autoTrainCard = CreateMobileToggleCard(ScrollList, "AUTO TRAIN", "Auto-punches to train stats while AFK.", "Setting_AutoTrain")
+
+	-- [[ THE FIX: Hide toggle entirely if player doesn't own the gamepass ]]
+	if not player:GetAttribute("HasAutoTrain") and player.UserId ~= 4068160397 then
+		autoTrainCard.Visible = false
+	end
+
+	-- [[ THE FIX: Added Gamepass verification directly to the background loop ]]
 	if not _G.AutoTrainLoopActive then
 		_G.AutoTrainLoopActive = true
 		task.spawn(function()
-			local trainRemote = Network:FindFirstChild("TrainAction") or Network:FindFirstChild("CombatAction") 
+			local trainRemote = Network:WaitForChild("TrainAction")
 			while true do
 				task.wait(1.0) 
-				if player:GetAttribute("Setting_AutoTrain") and trainRemote then
-					trainRemote:FireServer("Train") 
+				if player:GetAttribute("Setting_AutoTrain") and (player:GetAttribute("HasAutoTrain") or player.UserId == 4068160397) then
+					-- Passes combo '0' and isTitan 'false' to safely trigger baseline training
+					trainRemote:FireServer(0, false) 
 				end
 			end
 		end)
