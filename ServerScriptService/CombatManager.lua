@@ -1,5 +1,6 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- @ScriptType: Script
 -- Name: CombatManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -566,9 +567,8 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 	local droppedItems, autoSoldDews = LootManager.ProcessDrops(player, battle.Enemy.Drops or {}, battle.Context.IsEndless, battle.Context.CurrentWave)
 
 	if dialogueRewards and dialogueRewards.ItemName then
-		local safeName = dialogueRewards.ItemName:gsub("[^%w]", "") .. "Count"
 		local amountGiven = dialogueRewards.Amount or 1
-		player:SetAttribute(safeName, (player:GetAttribute(safeName) or 0) + amountGiven)
+		LootManager.GiveOrAutoSellItem(player, dialogueRewards.ItemName, amountGiven)
 		table.insert(droppedItems, {Name = dialogueRewards.ItemName, Amount = amountGiven})
 	end
 
@@ -1101,7 +1101,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	local combatants = { battle.Player, battle.Enemy }
 	table.sort(combatants, function(a, b) return (a.IsPlayer and pRoll or eRoll) > (b.IsPlayer and pRoll or eRoll) end)
 
-	-- [[ THE FIX: Thread-Safe Loop wrapping to prevent unrecoverable 'IsProcessing = true' locking. ]]
 	local success, loopErr = pcall(function()
 		for _, combatant in ipairs(combatants) do
 
