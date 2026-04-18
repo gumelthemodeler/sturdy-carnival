@@ -6,15 +6,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
 
-local MAX_INVENTORY_CAPACITY = 25
 local SellValues = { Common = 10, Uncommon = 25, Rare = 75, Epic = 200, Legendary = 500, Mythical = 1500, Transcendent = 0 }
 
 local function GetUniqueSlotCount(plr)
 	local count = 0
+	-- [[ THE FIX: Consumables no longer trigger the Inventory Full logic ]]
 	for iName, _ in pairs(ItemData.Equipment) do
-		if (plr:GetAttribute(iName:gsub("[^%w]", "") .. "Count") or 0) > 0 then count += 1 end
-	end
-	for iName, _ in pairs(ItemData.Consumables) do
 		if (plr:GetAttribute(iName:gsub("[^%w]", "") .. "Count") or 0) > 0 then count += 1 end
 	end
 	return count
@@ -26,8 +23,9 @@ function LootManager.GiveOrAutoSellItem(player, itemName, amount)
 
 	local rarity = iData.Rarity or "Common"
 	local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
+	local isProtected = (rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent")
 
-	if isAutoSellEnabled then
+	if isAutoSellEnabled and not isProtected then
 		local sellValue = (SellValues[rarity] or 10) * amount
 		player.leaderstats.Dews.Value += sellValue
 		local NotificationEvent = Network:FindFirstChild("NotificationEvent")
@@ -46,22 +44,27 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 	local autoSoldDewsCapacity = 0
 	local autoSoldDewsSettings = 0
 	local currentSlots = GetUniqueSlotCount(player)
-	-- THE FIX: Prevent auto-selling by respecting the expanded capacity
-	local MAX_INVENTORY_CAPACITY = player:GetAttribute("HasBackpackExpansion") and 75 or 25
 
+	local MAX_INVENTORY_CAPACITY = player:GetAttribute("HasBackpackExpansion") and 75 or 25
 	local dropMultiplier = player:GetAttribute("HasDoubleDrops") and 2 or 1
 	local isYmirFavored = player:GetAttribute("YmirFavored")
 	local favoredMultiplier = isYmirFavored and 1.5 or 1.0 
 
 	local luckBoost = 1.0
 	local luckExpiry = player:GetAttribute("Buff_Luck_Expiry") or 0
-	if os.time() <= luckExpiry then
-		luckBoost = player:GetAttribute("LuckBoost") or 1.0
-	end
+	if os.time() <= luckExpiry then luckBoost = player:GetAttribute("LuckBoost") or 1.0 end
 
-	-- [[ THE FIX: Top 5 Global Players get a 15% passive luck boost ]]
 	if player:GetAttribute("Top5_Prestige") or player:GetAttribute("Top5_Elo") or player:GetAttribute("Top5_Squad") then
 		luckBoost = luckBoost * 1.15
+	end
+
+	-- [[ THE FIX: Applies Squad Drop Rate Upgrade ]]
+	local squadUpgradesRaw = player:GetAttribute("SquadUpgrades")
+	if squadUpgradesRaw and squadUpgradesRaw ~= "" then
+		local succ, sqUp = pcall(function() return game:GetService("HttpService"):JSONDecode(squadUpgradesRaw) end)
+		if succ and sqUp and sqUp.Luck and sqUp.Luck > 0 then
+			luckBoost = luckBoost + (sqUp.Luck * 0.05)
+		end
 	end
 
 	if enemyDrops and enemyDrops.ItemChance then
@@ -76,7 +79,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 				elseif rarity == "Legendary" then finalChance += (currentWave * 0.3)
 				elseif rarity == "Epic" then finalChance += (currentWave * 1.0)
 				else finalChance += (currentWave * 2.0) end
-
 				finalChance = finalChance * 1.5
 			end
 
@@ -87,45 +89,22 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 			if roll <= finalChance then
 				local attrName = itemName:gsub("[^%w]", "") .. "Count"
 				local currentAmt = player:GetAttribute(attrName) or 0
-				local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
 
-				if isAutoSellEnabled then
+				local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
+				local isEquipment = ItemData.Equipment[itemName] ~= nil
+
+				-- [[ THE FIX: Hard-blocks Legendary+ items from ever being auto-sold or deleted ]]
+				local isProtected = (rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent")
+
+				if isAutoSellEnabled and not isProtected then
 					autoSoldDewsSettings += (SellValues[rarity] or 10) * dropMultiplier
-				elseif currentAmt == 0 and currentSlots >= MAX_INVENTORY_CAPACITY then
+				elseif isEquipment and not isProtected and currentAmt == 0 and currentSlots >= MAX_INVENTORY_CAPACITY then
 					autoSoldDewsCapacity += (SellValues[rarity] or 10) * dropMultiplier
 				else
 					local nameTag = (dropMultiplier > 1) and (itemName .. " (x" .. dropMultiplier .. ")") or itemName
 					table.insert(droppedItems, nameTag)
 					player:SetAttribute(attrName, currentAmt + dropMultiplier)
-					if currentAmt == 0 then currentSlots += 1 end
-				end
-			end
-		end
-
-		if isEndless and #droppedItems == 0 and autoSoldDewsCapacity == 0 and autoSoldDewsSettings == 0 then
-			local pool = {}
-			for iname, _ in pairs(enemyDrops.ItemChance) do 
-				local iData = ItemData.Equipment[iname] or ItemData.Consumables[iname]
-				if iData and iData.Rarity ~= "Mythical" and iData.Rarity ~= "Legendary" then
-					table.insert(pool, iname) 
-				end
-			end
-			if #pool > 0 then
-				local pItem = pool[math.random(1, #pool)]
-				local attrName = pItem:gsub("[^%w]", "") .. "Count"
-				local currentAmt = player:GetAttribute(attrName) or 0
-				local iData = ItemData.Equipment[pItem] or ItemData.Consumables[pItem]
-				local rarity = iData and iData.Rarity or "Common"
-				local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
-
-				if isAutoSellEnabled then
-					autoSoldDewsSettings += (SellValues[rarity] or 10) * dropMultiplier
-				elseif currentAmt == 0 and currentSlots >= MAX_INVENTORY_CAPACITY then
-					autoSoldDewsCapacity += (SellValues[rarity] or 10) * dropMultiplier
-				else
-					local nameTag = (dropMultiplier > 1) and (pItem .. " (x" .. dropMultiplier .. ")") or pItem
-					table.insert(droppedItems, nameTag)
-					player:SetAttribute(attrName, currentAmt + dropMultiplier)
+					if isEquipment and currentAmt == 0 then currentSlots += 1 end
 				end
 			end
 		end
@@ -133,10 +112,6 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 
 	if autoSoldDewsSettings > 0 then
 		player.leaderstats.Dews.Value += autoSoldDewsSettings
-		local NotificationEvent = Network:FindFirstChild("NotificationEvent")
-		if NotificationEvent then
-			NotificationEvent:FireClient(player, "Auto-Sold dropped items for " .. autoSoldDewsSettings .. " Dews!", "Success")
-		end
 	end
 
 	if autoSoldDewsCapacity > 0 then
