@@ -64,10 +64,13 @@ local function ToggleAtmosphere(state, floorLevel)
 	end
 end
 
-local function SpawnPathDust(floorLevel)
-	local tint, _, _ = GetFloorTheme(floorLevel or 1)
+-- [[ THE FIX: dynamically pulls floor level so we don't spawn duplicate loops ]]
+local function SpawnPathDust()
 	task.spawn(function()
 		while GUI and GUI.Visible do
+			local floorLvl = CurrentSession and CurrentSession.Floor or 1
+			local tint, _, _ = GetFloorTheme(floorLvl)
+
 			local dust = Instance.new("Frame", GUI)
 			dust.BackgroundColor3 = tint
 			dust.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
@@ -112,7 +115,7 @@ local function BuildGrid()
 	GridCells = {}
 
 	local size = CurrentSession.Size
-	local cellSize = 65 -- The massive scale you preferred
+	local cellSize = 65 
 
 	MapContainer.Size = UDim2.new(0, size * cellSize, 0, size * cellSize)
 
@@ -210,7 +213,6 @@ local function BuildGrid()
 	paStroke.Color = Color3.fromRGB(255, 255, 255)
 	paStroke.Thickness = 2
 
-	-- Snap Camera instantly to player on load
 	local targetX = -((CurrentSession.PlayerX - 0.5) * cellSize)
 	local targetY = -((CurrentSession.PlayerY - 0.5) * cellSize)
 	MapContainer.Position = UDim2.new(0.5, targetX, 0.5, targetY)
@@ -309,7 +311,6 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 	ClickBlocker.AutoButtonColor = false
 	ClickBlocker.Selectable = false
 
-	-- [[ 1. TOP BAR ]]
 	local TopBar = Instance.new("Frame", GUI)
 	TopBar.Size = UDim2.new(1, 0, 0, 80)
 	TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
@@ -325,10 +326,10 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 	SubTitleLbl.Position = UDim2.new(0, 0, 0, 50)
 	SubTitleLbl.ZIndex = 3
 
-	-- [[ 2. MAP (Locked below Top Bar, original massive dimensions) ]]
+	-- [[ THE FIX: Responsive Grid Container. No longer heavily overlaps the PouchContainer on small screens ]]
 	GridContainer = Instance.new("Frame", GUI)
-	GridContainer.Size = UDim2.new(0, 480, 0, 480) 
-	GridContainer.Position = UDim2.new(0.5, 0, 0, 95)
+	GridContainer.Size = UDim2.new(1, -20, 1, -210) 
+	GridContainer.Position = UDim2.new(0.5, 0, 0, 85)
 	GridContainer.AnchorPoint = Vector2.new(0.5, 0)
 	GridContainer.BackgroundColor3 = Color3.fromRGB(8, 8, 10) 
 	GridContainer.BorderSizePixel = 0
@@ -367,10 +368,10 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 		end
 	end)
 
-	-- [[ 3. POUCH (Anchored safely directly to the bottom screen edge) ]]
+	-- [[ THE FIX: Shorter pouch container to avoid clipping in on Mobile screens ]]
 	PouchContainer = Instance.new("Frame", GUI)
-	PouchContainer.Size = UDim2.new(0.9, 0, 0, 150)
-	PouchContainer.Position = UDim2.new(0.5, 0, 1, -15)
+	PouchContainer.Size = UDim2.new(0.9, 0, 0, 110)
+	PouchContainer.Position = UDim2.new(0.5, 0, 1, -10)
 	PouchContainer.AnchorPoint = Vector2.new(0.5, 1)
 	PouchContainer.BackgroundColor3 = Color3.fromRGB(20, 15, 12) 
 	PouchContainer.BorderSizePixel = 0
@@ -391,14 +392,14 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 	Divider.BorderSizePixel = 0
 	Divider.ZIndex = 3
 
-	LootDisplay = CreateSharpLabel(PouchContainer, "0 Dews\n0 XP", UDim2.new(0.5, 0, 0, 80), Enum.Font.GothamBold, Color3.fromRGB(230, 230, 230), 14)
-	LootDisplay.Position = UDim2.new(0.05, 0, 0, 50)
+	LootDisplay = CreateSharpLabel(PouchContainer, "0 Dews\n0 XP", UDim2.new(0.5, 0, 0, 60), Enum.Font.GothamBold, Color3.fromRGB(230, 230, 230), 12)
+	LootDisplay.Position = UDim2.new(0.05, 0, 0, 45)
 	LootDisplay.TextXAlignment = Enum.TextXAlignment.Left
 	LootDisplay.TextYAlignment = Enum.TextYAlignment.Top
 	LootDisplay.RichText = true
 	LootDisplay.ZIndex = 3
 
-	local LeaveBtn, _ = CreateSharpButton(PouchContainer, "ABANDON RUN", UDim2.new(0.35, 0, 0, 45), Enum.Font.GothamBlack, 16)
+	local LeaveBtn, _ = CreateSharpButton(PouchContainer, "ABANDON RUN", UDim2.new(0.35, 0, 0, 40), Enum.Font.GothamBlack, 14)
 	LeaveBtn.Position = UDim2.new(0.95, 0, 0.5, 10)
 	LeaveBtn.AnchorPoint = Vector2.new(1, 0.5)
 	LeaveBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
@@ -450,7 +451,6 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 	end)
 
 	Network:WaitForChild("LabyrinthUpdate").OnClientEvent:Connect(function(action, data)
-		-- [[ THE FIX: Forces a complete UI grid wipe and rebuild on descent ]]
 		if action == "InitSync" then
 			CurrentSession = data
 			BuildGrid() 
@@ -467,15 +467,16 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 
 			UpdateGridVisibility()
 
+			-- [[ THE FIX: Forces Atmosphere to update to the newly generated floor immediately. ]]
+			ToggleAtmosphere(true, data.Floor)
+
 			if not GUI.Visible then 
 				GUI.Visible = true 
-				ToggleAtmosphere(true, data.Floor)
-				SpawnPathDust(data.Floor)
+				SpawnPathDust()
 			end
 
 		elseif action == "Sync" then
 			CurrentSession = data
-			-- (The rest of the script continues normally...)
 
 			local tint, _, _ = GetFloorTheme(data.Floor)
 			TitleLbl.TextColor3 = tint
@@ -492,7 +493,7 @@ function MobileLabyrinthUI.Initialize(masterScreenGui)
 			if not GUI.Visible then 
 				GUI.Visible = true 
 				ToggleAtmosphere(true, data.Floor)
-				SpawnPathDust(data.Floor)
+				SpawnPathDust()
 			end
 
 		elseif action == "ReachedExit" then
