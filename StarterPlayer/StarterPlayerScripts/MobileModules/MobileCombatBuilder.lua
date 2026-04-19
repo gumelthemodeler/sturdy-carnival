@@ -1,7 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
 -- Name: MobileCombatBuilder
--- @ScriptType: ModuleScript
 local MobileCombatBuilder = {}
 
 local Players = game:GetService("Players")
@@ -87,7 +86,6 @@ function MobileCombatBuilder.Build(masterScreenGui, player)
 	GUI.CombatBackdrop.ZIndex = 98
 	GUI.CombatBackdrop.Active = true
 
-	-- Fully Responsive Base: 100% of Screen Space instead of shrunken box
 	GUI.CombatWindow = Instance.new("Frame", masterScreenGui)
 	GUI.CombatWindow.Name = "MobileCombatWindow"
 	GUI.CombatWindow.Size = UDim2.new(1, 0, 1, 0)
@@ -116,7 +114,7 @@ function MobileCombatBuilder.Build(masterScreenGui, player)
 	GUI.MissionInfoLbl.TextScaled = true
 	local mtsc = Instance.new("UITextSizeConstraint", GUI.MissionInfoLbl); mtsc.MaxTextSize = 18
 
-	-- COMBATANTS FRAME (Top 28% height)
+	-- COMBATANTS FRAME
 	GUI.CombatantsFrame = Instance.new("Frame", GUI.CombatWindow)
 	GUI.CombatantsFrame.Size = UDim2.new(1, -20, 0.28, 0)
 	GUI.CombatantsFrame.Position = UDim2.new(0, 10, 0.1, 0)
@@ -164,7 +162,7 @@ function MobileCombatBuilder.Build(masterScreenGui, player)
 	local pStatLayout = Instance.new("UIListLayout", GUI.PlayerStatusBox)
 	pStatLayout.FillDirection = Enum.FillDirection.Horizontal; pStatLayout.Padding = UDim.new(0, 4)
 
-	-- Ally Intercept Animation Panel (Hidden left natively)
+	-- Ally Intercept Animation Panel
 	GUI.AllyPanel, _ = CreateFlatPanel(GUI.CombatantsFrame)
 	GUI.AllyPanel.Size = UDim2.new(0.46, 0, 1, 0)
 	GUI.AllyPanel.Position = UDim2.new(-0.5, 0, 0, 0)
@@ -234,7 +232,7 @@ function MobileCombatBuilder.Build(masterScreenGui, player)
 	local eStatLayout = Instance.new("UIListLayout", GUI.EnemyStatusBox)
 	eStatLayout.FillDirection = Enum.FillDirection.Horizontal; eStatLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right; eStatLayout.Padding = UDim.new(0, 4)
 
-	-- EXECUTE OVERLAY (Scales correctly)
+	-- EXECUTE OVERLAY 
 	GUI.ExecuteOverlay = Instance.new("Frame", GUI.CombatWindow)
 	GUI.ExecuteOverlay.Size = UDim2.new(1, 0, 1, 0); GUI.ExecuteOverlay.BackgroundColor3 = Color3.new(0, 0, 0); GUI.ExecuteOverlay.BackgroundTransparency = 0.3; GUI.ExecuteOverlay.ZIndex = 150; GUI.ExecuteOverlay.Visible = false
 	GUI.ExecuteBanner = Instance.new("TextButton", GUI.ExecuteOverlay)
@@ -246,7 +244,7 @@ function MobileCombatBuilder.Build(masterScreenGui, player)
 	local pulsator = Instance.new("UIScale", GUI.ExecuteBanner); pulsator.Name = "Pulsator"
 	GUI.ExecuteFlash = Instance.new("Frame", GUI.ExecuteOverlay); GUI.ExecuteFlash.Size = UDim2.new(1, 0, 1, 0); GUI.ExecuteFlash.BackgroundColor3 = Color3.new(1, 1, 1); GUI.ExecuteFlash.BackgroundTransparency = 1; GUI.ExecuteFlash.ZIndex = 155
 
-	-- LOG AREA (Middle 20% height)
+	-- LOG AREA
 	GUI.LogContainer, _ = CreateFlatPanel(GUI.CombatWindow)
 	GUI.LogContainer.Size = UDim2.new(1, -20, 0.20, 0)
 	GUI.LogContainer.Position = UDim2.new(0, 10, 0.39, 0)
@@ -266,24 +264,28 @@ function MobileCombatBuilder.Build(masterScreenGui, player)
 		GUI.LogScroll.CanvasPosition = Vector2.new(0, GUI.LogScroll.CanvasSize.Y.Offset)
 	end)
 
-	-- ACTION AREA (Bottom 39% height - massive block for big fingers)
+	-- ACTION AREA
 	GUI.ActionContainer = Instance.new("Frame", GUI.CombatWindow)
 	GUI.ActionContainer.Size = UDim2.new(1, -20, 0.39, 0)
 	GUI.ActionContainer.Position = UDim2.new(0, 10, 0.60, 0)
 	GUI.ActionContainer.BackgroundTransparency = 1
 
+	-- [[ THE FIX: Fully dynamic scaling forces mobile devices to register touch swiping gracefully ]]
 	GUI.ActionGrid = Instance.new("ScrollingFrame", GUI.ActionContainer)
 	GUI.ActionGrid.Size = UDim2.new(1, 0, 1, 0)
 	GUI.ActionGrid.BackgroundTransparency = 1
 	GUI.ActionGrid.ScrollBarThickness = 0
+	GUI.ActionGrid.ScrollingDirection = Enum.ScrollingDirection.Y
+	GUI.ActionGrid.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	GUI.ActionGrid.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 	local acLayout = Instance.new("UIGridLayout", GUI.ActionGrid)
-	-- [[ THE FIX: Offset for Y stops infinite expanding, scale for X maps 4 columns cleanly ]]
 	acLayout.CellSize = UDim2.new(0.23, 0, 0, 45) 
 	acLayout.CellPadding = UDim2.new(0.02, 0, 0, 6)
 	acLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	acLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 
+	-- Keep manual connection as secondary safety fallback
 	acLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		GUI.ActionGrid.CanvasSize = UDim2.new(0, 0, 0, acLayout.AbsoluteContentSize.Y + 10)
 	end)
