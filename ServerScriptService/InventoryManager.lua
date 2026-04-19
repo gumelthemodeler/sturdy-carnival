@@ -80,6 +80,12 @@ for _, gType in ipairs({"Titan", "Clan"}) do
 			end
 
 			local itemizedName = "Itemized " .. current
+
+			-- [[ MAP FRITZ EXCEPTION SO IT DOESN'T ERASE/FAIL ]]
+			if current == "Fritz" then
+				itemizedName = "Fritz Clan Serum"
+			end
+
 			if not ItemData.Consumables[itemizedName] then
 				NotificationEvent:FireClient(player, "This cannot be itemized.", "Error")
 				return
@@ -108,12 +114,34 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 					player:SetAttribute(safeName, count) 
 					NotificationEvent:FireClient(player, "Ackermans cannot inherit Titans!", "Error")
 				else
+					-- [[ THE FIX: Auto-Itemize the currently equipped Titan so it is never lost ]]
+					local currentTitan = player:GetAttribute("Titan") or "None"
+					if currentTitan ~= "None" then
+						local itemizedName = "Itemized " .. currentTitan
+						local safeItemName = itemizedName:gsub("[^%w]", "") .. "Count"
+						player:SetAttribute(safeItemName, (player:GetAttribute(safeItemName) or 0) + 1)
+						NotificationEvent:FireClient(player, "Your previous Titan was safely itemized to your Pouch.", "Success")
+					end
+
 					player:SetAttribute("Titan", itemInfo.TitanName)
 					player:SetAttribute("AutoSpinning", false) 
 					NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.TitanName .. "!", "Success")
 				end
 
 			elseif itemInfo.Action == "EquipClan" then
+				-- [[ THE FIX: Auto-Itemize the currently equipped Clan so it is never lost ]]
+				local currentClan = player:GetAttribute("Clan") or "None"
+				if currentClan ~= "None" then
+					local itemizedName = "Itemized " .. currentClan
+					if currentClan == "Fritz" then itemizedName = "Fritz Clan Serum" end
+
+					if ItemData.Consumables[itemizedName] then
+						local safeItemName = itemizedName:gsub("[^%w]", "") .. "Count"
+						player:SetAttribute(safeItemName, (player:GetAttribute(safeItemName) or 0) + 1)
+						NotificationEvent:FireClient(player, "Your previous Clan was safely itemized to your Pouch.", "Success")
+					end
+				end
+
 				player:SetAttribute("AutoSpinning", false) 
 				player:SetAttribute("Clan", itemInfo.ClanName)
 				NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.ClanName .. " lineage!", "Success")
