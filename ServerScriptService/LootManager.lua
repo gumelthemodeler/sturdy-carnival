@@ -24,12 +24,13 @@ function LootManager.GiveOrAutoSellItem(player, itemName, amount)
 	local rarity = iData.Rarity or "Common"
 	local isAutoSellEnabled = player:GetAttribute("AutoSell_" .. rarity)
 	local isProtected = (rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent")
+	local isEquipment = ItemData.Equipment[itemName] ~= nil
 
 	-- Applies Double Drops consistently to manual grants to sync with UI notifications
 	local dropMultiplier = player:GetAttribute("HasDoubleDrops") and 2 or 1
 	local finalAmount = amount * dropMultiplier
 
-	if isAutoSellEnabled and not isProtected then
+	if isAutoSellEnabled and isEquipment and not isProtected then
 		local sellValue = (SellValues[rarity] or 10) * finalAmount
 		player.leaderstats.Dews.Value += sellValue
 		local NotificationEvent = Network:FindFirstChild("NotificationEvent")
@@ -98,7 +99,7 @@ function LootManager.ProcessDrops(player, enemyDrops, isEndless, currentWave)
 
 				local isProtected = (rarity == "Legendary" or rarity == "Mythical" or rarity == "Transcendent")
 
-				if isAutoSellEnabled and not isProtected then
+				if isAutoSellEnabled and isEquipment and not isProtected then
 					autoSoldDewsSettings += (SellValues[rarity] or 10) * dropMultiplier
 				elseif isEquipment and not isProtected and currentAmt == 0 and currentSlots >= MAX_INVENTORY_CAPACITY then
 					autoSoldDewsCapacity += (SellValues[rarity] or 10) * dropMultiplier
