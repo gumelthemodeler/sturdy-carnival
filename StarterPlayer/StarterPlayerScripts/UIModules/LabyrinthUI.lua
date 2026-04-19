@@ -64,10 +64,13 @@ local function ToggleAtmosphere(state, floorLevel)
 	end
 end
 
-local function SpawnPathDust(floorLevel)
-	local tint, _, _ = GetFloorTheme(floorLevel or 1)
+-- [[ THE FIX: dynamically pulls floor level so we don't spawn duplicate loops ]]
+local function SpawnPathDust()
 	task.spawn(function()
 		while GUI and GUI.Visible do
+			local floorLvl = CurrentSession and CurrentSession.Floor or 1
+			local tint, _, _ = GetFloorTheme(floorLvl)
+
 			local dust = Instance.new("Frame", GUI)
 			dust.BackgroundColor3 = tint
 			dust.Size = UDim2.new(0, math.random(2, 4), 0, math.random(2, 4))
@@ -111,7 +114,7 @@ local function BuildGrid()
 	GridCells = {}
 
 	local size = CurrentSession.Size
-	local cellSize = 65 -- [[ Fixed physical scale to enable smooth panning ]]
+	local cellSize = 65 
 
 	MapContainer.Size = UDim2.new(0, size * cellSize, 0, size * cellSize)
 
@@ -138,7 +141,6 @@ local function BuildGrid()
 			strk.Color = Color3.fromRGB(50, 50, 60)
 			strk.Transparency = 1
 
-			-- Sharp Geometric Iconography
 			local iconFrame = Instance.new("Frame", btn)
 			iconFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 			iconFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -146,7 +148,7 @@ local function BuildGrid()
 			iconFrame.BorderSizePixel = 0
 			iconFrame.Visible = false
 
-			if cellVal == 1 then -- Enemy: Glowing Red Diamond
+			if cellVal == 1 then 
 				iconFrame.Size = UDim2.new(0.45, 0, 0.45, 0)
 				iconFrame.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
 				iconFrame.Rotation = 45
@@ -165,7 +167,7 @@ local function BuildGrid()
 					end
 				end)
 
-			elseif cellVal == 2 then -- Loot: Emerald Box
+			elseif cellVal == 2 then 
 				iconFrame.Size = UDim2.new(0.4, 0, 0.4, 0)
 				iconFrame.BackgroundColor3 = Color3.fromRGB(40, 200, 40)
 
@@ -176,7 +178,7 @@ local function BuildGrid()
 				inner.BackgroundColor3 = UIHelpers.Colors.Gold
 				inner.BorderSizePixel = 0
 
-			elseif cellVal == 3 then -- Exit: Monolithic Archway
+			elseif cellVal == 3 then 
 				iconFrame.Size = UDim2.new(0.55, 0, 0.55, 0)
 				iconFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 
@@ -216,7 +218,6 @@ local function BuildGrid()
 	paStroke.Color = Color3.fromRGB(255, 255, 255)
 	paStroke.Thickness = 2
 
-	-- Snap Camera instantly to player on load
 	local targetX = -((CurrentSession.PlayerX - 0.5) * cellSize)
 	local targetY = -((CurrentSession.PlayerY - 0.5) * cellSize)
 	MapContainer.Position = UDim2.new(0.5, targetX, 0.5, targetY)
@@ -229,14 +230,12 @@ local function UpdateGridVisibility()
 	local mapTint, playerColor, tileColor = GetFloorTheme(CurrentSession.Floor)
 	local cellSize = 65
 
-	-- [[ THE FIX: Panning Camera Tween ]]
 	local targetX = -((px - 0.5) * cellSize)
 	local targetY = -((py - 0.5) * cellSize)
 	TweenService:Create(MapContainer, TweenInfo.new(0.3, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
 		Position = UDim2.new(0.5, targetX, 0.5, targetY)
 	}):Play()
 
-	-- Circular Vision Fog Reveal
 	for dy = -4, 4 do
 		for dx = -4, 4 do
 			local ax, ay = px + dx, py + dy
@@ -253,12 +252,10 @@ local function UpdateGridVisibility()
 
 			local val = CurrentSession.Grid[y][x]
 			local isAdj = (math.abs(px - x) == 1 and py == y) or (math.abs(py - y) == 1 and px == x)
-			-- Euclidean distance for smooth circular spotlight around the camera
 			local dist = math.sqrt(math.pow(px - x, 2) + math.pow(py - y, 2))
 
 			if not RevealedTiles[y .. "_" .. x] then continue end
 
-			-- Dynamic Vignette Shadow Falloff
 			local targetTrans = 1
 			if dist <= 1.5 then targetTrans = 0.05
 			elseif dist <= 2.5 then targetTrans = 0.25
@@ -340,7 +337,7 @@ function LabyrinthUI.Initialize(masterScreenGui)
 	GridContainer.BackgroundColor3 = Color3.fromRGB(8, 8, 10) 
 	GridContainer.BorderSizePixel = 0
 	GridContainer.ZIndex = 2
-	GridContainer.ClipsDescendants = true -- Cuts off the map outside the tactical window
+	GridContainer.ClipsDescendants = true 
 
 	local mapStroke = Instance.new("UIStroke", GridContainer)
 	mapStroke.Color = Color3.fromRGB(30, 30, 35)
@@ -350,7 +347,6 @@ function LabyrinthUI.Initialize(masterScreenGui)
 	MapContainer.BackgroundTransparency = 1
 	MapContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
 
-	-- Fixed Player Avatar in the dead center
 	PlayerAvatar = Instance.new("Frame", GridContainer)
 	PlayerAvatar.Size = UDim2.new(0, 65, 0, 65)
 	PlayerAvatar.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -462,7 +458,6 @@ function LabyrinthUI.Initialize(masterScreenGui)
 	end)
 
 	Network:WaitForChild("LabyrinthUpdate").OnClientEvent:Connect(function(action, data)
-		-- [[ THE FIX: Forces a complete UI grid wipe and rebuild on descent ]]
 		if action == "InitSync" then
 			CurrentSession = data
 			BuildGrid() 
@@ -479,15 +474,16 @@ function LabyrinthUI.Initialize(masterScreenGui)
 
 			UpdateGridVisibility()
 
+			-- [[ THE FIX: Extracted so atmosphere is forced to change no matter what ]]
+			ToggleAtmosphere(true, data.Floor)
+
 			if not GUI.Visible then 
 				GUI.Visible = true 
-				ToggleAtmosphere(true, data.Floor)
-				SpawnPathDust(data.Floor)
+				SpawnPathDust()
 			end
 
 		elseif action == "Sync" then
 			CurrentSession = data
-			-- (The rest of the script continues normally...)
 
 			local tint, _, _ = GetFloorTheme(data.Floor)
 			TitleLbl.TextColor3 = tint
@@ -504,7 +500,7 @@ function LabyrinthUI.Initialize(masterScreenGui)
 			if not GUI.Visible then 
 				GUI.Visible = true 
 				ToggleAtmosphere(true, data.Floor)
-				SpawnPathDust(data.Floor)
+				SpawnPathDust()
 			end
 
 		elseif action == "ReachedExit" then
