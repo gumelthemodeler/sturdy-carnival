@@ -161,6 +161,27 @@ pcall(function()
 
 		if data.OriginServer == game.JobId then return end -- Avoid duplicate processing for the server that fired this
 
+		-- [[ THE FIX: Handle cross-server Disband events to strip tags from players in other servers ]]
+		if actionType == "Disbanded" then
+			if ActiveSquads[sqName] then ActiveSquads[sqName] = nil end
+			for _, p in ipairs(Players:GetPlayers()) do
+				if p:GetAttribute("SquadName") == sqName then
+					p:SetAttribute("SquadName", "None")
+					p:SetAttribute("SquadLevel", 1)
+					p:SetAttribute("SquadIsLeader", false)
+					p:SetAttribute("SquadRole", "None")
+					p:SetAttribute("YmirFavored", false)
+					p:SetAttribute("Top5_Squad", false)
+					p:SetAttribute("SquadSP", 0)
+					p:SetAttribute("SquadVisuals", 0)
+					p:SetAttribute("SquadVault", '{"1":"None","2":"None","3":"None","4":"None","5":"None","6":"None","7":"None","8":"None","9":"None"}')
+					p:SetAttribute("SquadUpgrades", '{"Capacity":0,"Wealth":0,"Training":0,"Luck":0,"Prestige":0}')
+					NotificationEvent:FireClient(p, "Your Squad was disbanded by the Leader.", "Error")
+				end
+			end
+			return
+		end
+
 		for _, p in ipairs(Players:GetPlayers()) do
 			if actionType == "Requested" then
 				if p:GetAttribute("SquadName") == sqName then
@@ -171,6 +192,7 @@ pcall(function()
 				end
 			elseif actionType == "Accepted" and tostring(p.UserId) == targetId then
 				if p:GetAttribute("SquadName") ~= sqName then
+					p:SetAttribute("SquadName", sqName) -- [[ THE FIX: Inject the squad name BEFORE pulling data ]]
 					LoadPlayerSquad(p)
 					NotificationEvent:FireClient(p, "Your request to join " .. sqName .. " was accepted!", "Success")
 				end
@@ -237,8 +259,11 @@ local function FetchTopSquad()
 		local topEntry = nil
 
 		for rank, entry in ipairs(pages:GetCurrentPage()) do
-			if rank <= 5 then topSquads[entry.key] = true end
-			if rank == 1 then topEntry = entry end
+			-- [[ THE FIX: Squads MUST have > 0 SP to earn the Top 5 / Ymir's Favored leaderboard titles ]]
+			if (tonumber(entry.value) or 0) > 0 then
+				if rank <= 5 then topSquads[entry.key] = true end
+				if rank == 1 then topEntry = entry end
+			end
 		end
 		Top5SquadsCache = topSquads
 
@@ -252,6 +277,8 @@ local function FetchTopSquad()
 					end
 				end
 			end
+		else
+			currentTopSquadName = nil -- Ensures the old favored squad gets dethroned on a reset
 		end
 
 		for _, p in ipairs(Players:GetPlayers()) do
@@ -271,18 +298,20 @@ local function RewardTopSquads()
 	pcall(function()
 		local pages = SquadLeaderboard:GetSortedAsync(false, 5)
 		for rank, entry in ipairs(pages:GetCurrentPage()) do
-			if rank == 1 then
-				for _, p in ipairs(Players:GetPlayers()) do
-					if p:GetAttribute("SquadName") == entry.key and p:FindFirstChild("leaderstats") then
-						p.leaderstats.Dews.Value += 500000
-						NotificationEvent:FireClient(p, "SEASON END: Your Squad placed #1 Globally! (+500,000 Dews)", "Success")
+			if (tonumber(entry.value) or 0) > 0 then
+				if rank == 1 then
+					for _, p in ipairs(Players:GetPlayers()) do
+						if p:GetAttribute("SquadName") == entry.key and p:FindFirstChild("leaderstats") then
+							p.leaderstats.Dews.Value += 500000
+							NotificationEvent:FireClient(p, "SEASON END: Your Squad placed #1 Globally! (+500,000 Dews)", "Success")
+						end
 					end
-				end
-			elseif rank <= 5 then
-				for _, p in ipairs(Players:GetPlayers()) do
-					if p:GetAttribute("SquadName") == entry.key and p:FindFirstChild("leaderstats") then
-						p.leaderstats.Dews.Value += 100000
-						NotificationEvent:FireClient(p, "SEASON END: Your Squad placed Top 5! (+100,000 Dews)", "Success")
+				elseif rank <= 5 then
+					for _, p in ipairs(Players:GetPlayers()) do
+						if p:GetAttribute("SquadName") == entry.key and p:FindFirstChild("leaderstats") then
+							p.leaderstats.Dews.Value += 100000
+							NotificationEvent:FireClient(p, "SEASON END: Your Squad placed Top 5! (+100,000 Dews)", "Success")
+						end
 					end
 				end
 			end
@@ -543,6 +572,7 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 
 			for _, p in ipairs(Players:GetPlayers()) do
 				if tostring(p.UserId) == targetId then
+					p:SetAttribute("SquadName", sqName) -- [[ THE FIX: Inject the squad name BEFORE pulling data ]]
 					LoadPlayerSquad(p)
 					NotificationEvent:FireClient(p, "Your request to join " .. sqName .. " was accepted!", "Success")
 				end
@@ -737,6 +767,15 @@ SquadAction.OnServerEvent:Connect(function(player, action, data)
 				NotificationEvent:FireClient(p, "Your Squad was disbanded by the Leader.", "Error")
 			end
 		end
+
+		-- [[ THE FIX: Broadcast disband event so ALL servers clear their players of this squad's attributes ]]
+		pcall(function()
+			MessagingService:PublishAsync("SquadUpdate", {
+				SquadName = sqName,
+				ActionType = "Disbanded",
+				OriginServer = game.JobId
+			})
+		end)
 
 		ActiveSquads[sqName] = nil
 
