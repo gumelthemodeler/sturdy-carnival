@@ -258,7 +258,7 @@ local function UpdatePvPSkills()
 		local btnText = customLabel or string.upper(skillName)
 		local btn = CreateMinimalButton(GUI.ActionGrid, btnText, UDim2.new(0, 0, 0, 0), baseColor or "#DDDDDD")
 
-		btn.Activated:Connect(function()
+		btn.MouseButton1Click:Connect(function()
 			if inputLocked then return end
 			inputLocked = true 
 			HideAlly()
@@ -679,7 +679,7 @@ local function UpdateSkills()
 			btn.TextColor3 = Color3.fromRGB(100, 100, 100)
 			local stroke = btn:FindFirstChild("UIStroke"); if stroke then stroke.Color = Color3.fromRGB(50, 50, 50) end
 
-			btn.Activated:Connect(function()
+			btn.MouseButton1Click:Connect(function()
 				if inputLocked then return end
 				if string.find(errorReason, "NO GAS") then
 					if VFXManager and type(VFXManager.PlaySFX) == "function" then VFXManager.PlaySFX("GasHiss", 1.0) end
@@ -703,7 +703,7 @@ local function UpdateSkills()
 				end
 			end
 
-			btn.Activated:Connect(function()
+			btn.MouseButton1Click:Connect(function()
 				if inputLocked then return end
 				inputLocked = true 
 				HideAlly()
@@ -858,12 +858,12 @@ function MobileCombatUI.Initialize(masterScreenGui)
 	MasterGuiRef = masterScreenGui
 	GUI = MobileCombatBuilder.Build(masterScreenGui, player)
 
-	GUI.ClickOverlay.Activated:Connect(function()
+	GUI.ClickOverlay.MouseButton1Click:Connect(function()
 		if isTypewriting then skipTypewriting = true else ClickSignal:Fire() end
 	end)
 
 	for targetId, limbBtn in pairs(GUI.Limbs) do
-		limbBtn.Activated:Connect(function()
+		limbBtn.MouseButton1Click:Connect(function()
 			if pendingSkillName and not inputLocked then
 				inputLocked = true
 				HideAlly()
@@ -889,7 +889,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 		end)
 	end
 
-	GUI.CancelBtn.Activated:Connect(function()
+	GUI.CancelBtn.MouseButton1Click:Connect(function()
 		if GUI.TargetMenu then GUI.TargetMenu.Visible = false end
 		if GUI.ActionGrid then GUI.ActionGrid.Visible = true end
 		pendingSkillName = nil 
@@ -1009,7 +1009,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 					local choicesArray = data.Choices or {"CONTINUE STORY"}
 					for idx, choiceText in ipairs(choicesArray) do
 						local btn = CreateMinimalButton(GUI.ChoicesContainer, choiceText, UDim2.new(0, 200, 0, 35), "#55FF55")
-						btn.Activated:Connect(function()
+						btn.MouseButton1Click:Connect(function()
 							GUI.DialogueBox.Visible = false
 							if GUI.LogContainer then GUI.LogContainer.Visible = true end
 							if GUI.ActionContainer then GUI.ActionContainer.Visible = true end
@@ -1052,7 +1052,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				end
 
 				local c
-				c = GUI.ExecuteBanner.Activated:Connect(function()
+				c = GUI.ExecuteBanner.MouseButton1Click:Connect(function()
 					c:Disconnect()
 
 					if VFXManager and type(VFXManager.PlaySFX) == "function" then 
@@ -1204,12 +1204,12 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 				if GUI.ActionGrid then
 					local continueBtn = CreateMinimalButton(GUI.ActionGrid, "CONTINUE EXPEDITION", UDim2.new(0, 0, 0, 0), "#55FF55")
-					continueBtn.Activated:Connect(function()
+					continueBtn.MouseButton1Click:Connect(function()
 						UpdateSkills()
 					end)
 
 					local retreatBtn = CreateMinimalButton(GUI.ActionGrid, "RETREAT TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
-					retreatBtn.Activated:Connect(function()
+					retreatBtn.MouseButton1Click:Connect(function()
 						Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = "Retreat"})
 					end)
 				end
@@ -1262,13 +1262,13 @@ function MobileCombatUI.Initialize(masterScreenGui)
 				if GUI.ActionGrid then
 					if data and data.Battle and data.Battle.Context and data.Battle.Context.IsStoryMission then
 						local continueCampBtn = CreateMinimalButton(GUI.ActionGrid, "CONTINUE CAMPAIGN", UDim2.new(0, 0, 0, 0), "#FFD700")
-						continueCampBtn.Activated:Connect(function()
+						continueCampBtn.MouseButton1Click:Connect(function()
 							Network:WaitForChild("CombatAction"):FireServer("EngageStory")
 						end)
 					end
 
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "RETURN TO COMMAND", UDim2.new(0, 0, 0, 0), "#55FF55")
-					closeBtn.Activated:Connect(function() 
+					closeBtn.MouseButton1Click:Connect(function() 
 						CloseUI() 
 					end)
 				end
@@ -1301,7 +1301,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 
 				if GUI.ActionGrid then
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "RETURN TO COMMAND", UDim2.new(0, 0, 0, 0), "#FF5555")
-					closeBtn.Activated:Connect(function() 
+					closeBtn.MouseButton1Click:Connect(function() 
 						CloseUI(wasPaths) 
 					end)
 				end
@@ -1331,7 +1331,7 @@ function MobileCombatUI.Initialize(masterScreenGui)
 					for _, c in ipairs(GUI.ActionGrid:GetChildren()) do if c:IsA("TextButton") or c:IsA("TextLabel") then c:Destroy() end end
 					GUI.ActionGrid.Visible = true
 					local closeBtn = CreateMinimalButton(GUI.ActionGrid, "FORCE RETURN", UDim2.new(0, 0, 0, 0), "#FF5555")
-					closeBtn.Activated:Connect(function() CloseUI() end)
+					closeBtn.MouseButton1Click:Connect(function() CloseUI() end)
 				end
 			end
 		end
