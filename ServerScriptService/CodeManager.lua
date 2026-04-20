@@ -58,6 +58,11 @@ local ActiveCodes = {
 			["Clan Blood Vial"] = 5,
 		}
 	},
+	["FATPATCH"] = {
+		Items = { 
+			["Legendary Clan Vial"] = 5,
+		}
+	},
 
 }
 
