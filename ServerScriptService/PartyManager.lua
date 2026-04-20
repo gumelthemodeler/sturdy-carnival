@@ -1,6 +1,4 @@
 -- @ScriptType: Script
-
--- @ScriptType: Script
 -- @ScriptType: Script
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -151,11 +149,17 @@ Players.PlayerRemoving:Connect(function(player)
 	Invites[player.UserId] = nil
 end)
 
--- Replace _G hack with a BindableFunction
+-- [[ THE FIX: Added a ghost-state cleanup to prevent broken party leaders causing deployment soft-locks ]]
 local GetPartyBindable = Instance.new("BindableFunction")
 GetPartyBindable.Name = "GetPlayerParty"
 GetPartyBindable.Parent = Network
 
 GetPartyBindable.OnInvoke = function(player)
-	return PlayerToParty[player.UserId] and Parties[PlayerToParty[player.UserId]] or {Leader = player, Members = {player}}
+	local leaderId = PlayerToParty[player.UserId]
+	if leaderId and not Parties[leaderId] then
+		PlayerToParty[player.UserId] = nil
+		leaderId = nil
+	end
+
+	return leaderId and Parties[leaderId] or {Leader = player, Members = {player}}
 end
