@@ -137,11 +137,8 @@ end
 local function StartBattle(player, encounterType, requestedPartId)
 	if ActiveBattles[player.UserId] then return end 
 
-	-- [[ THE FIX: Auto-Battling / Random Encounters in Menu Issue ]]
-	-- If the player has opened their Main Menu, do not trigger combat encounters.
 	if player:GetAttribute("InMenu") == true or player:GetAttribute("AFK") == true then return end
 
-	-- Tag player as being in combat explicitly
 	player:SetAttribute("InCombat", true)
 
 	local currentPart = player:GetAttribute("CurrentPart") or 1
@@ -889,8 +886,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	local battle = ActiveBattles[player.UserId]
 
 	if not battle then 
-		-- [[ THE FIX: Fail-safe to force close the Combat UI if desync occurs and the battle no longer exists server-side ]]
-		if actionType == "Attack" then
+		if actionType == "Attack" and not player:GetAttribute("InMultiplayerRaid") then
 			CombatUpdate:FireClient(player, "Fled", {Battle = nil, LogMsg = "<font color='#FF5555'>Battle synchronization lost. Force closing.</font>"})
 		end
 		return 
@@ -964,7 +960,7 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		return
 	end
 
-	-- [[ THE FIX: Extracted Retreat Check BEFORE IsProcessing Evaluation to guarantee Retreat is never soft-locked ]]
+	-- [[ THE FIX: Relocated Retreat Check beneath 'not battle' check to prevent it from hijacking Multiplayer Raids ]]
 	if actionType == "Attack" then
 		local skillName = actionData.SkillName
 		if skillName == "Retreat" or skillName == "Flee" then
