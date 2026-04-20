@@ -1,6 +1,6 @@
 -- @ScriptType: Script
--- Name: RaidManager
 -- @ScriptType: Script
+-- Name: RaidManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Network = ReplicatedStorage:WaitForChild("Network")
@@ -16,7 +16,8 @@ local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local CombatCore = require(script.Parent:WaitForChild("CombatCore"))
 
 local ActiveRaids = {}
-local TURN_DURATION = 15
+-- [[ THE FIX: Lengthened turn duration so players don't feel like the game is playing itself ]]
+local TURN_DURATION = 30
 local AoESkills = { ["Colossal Steam"] = 0.40, ["Titan Roar"] = 0.30, ["Stomp"] = 0.25, ["Crushed Boulders"] = 0.35 }
 
 local function CreateCombatant(player)
@@ -85,6 +86,7 @@ local function EndRaid(raidId, isVictory)
 	for _, pData in ipairs(raid.Party) do
 		local player = pData.PlayerObj
 		if player and player.Parent then
+			player:SetAttribute("InMultiplayerRaid", false)
 			local fakeBattle = { Context = raid.Context, Player = pData, Enemy = raid.Boss }
 
 			if isVictory then
@@ -129,7 +131,6 @@ local function ResolveRaidTurn(raidId)
 	if not raid or raid.State == "Resolving" then return end
 	raid.State = "Resolving"
 
-	-- [[ FASTER PACING ]]
 	local turnDelay = 0.8
 
 	for _, actor in ipairs(raid.Party) do
@@ -141,22 +142,25 @@ local function ResolveRaidTurn(raidId)
 				continue
 			end
 
+			-- [[ THE FIX: Extracted "Retreat" and "Flee" OUTSIDE the skill block. It was being bypassed because Flee isn't a combat skill, causing players to just basic-attack instead of fleeing. ]]
 			local skill = SkillData.Skills[actor.Move]
+
+			if actor.Move == "Retreat" or actor.Move == "Flee" or (skill and skill.Effect == "Flee") then
+				actor.HP = 0 
+				local fakeBattle = { Context = raid.Context, Player = actor, Enemy = raid.Boss }
+				actor.PlayerObj:SetAttribute("InMultiplayerRaid", false)
+				CombatUpdate:FireClient(actor.PlayerObj, "Fled", { Battle = fakeBattle })
+
+				local logMsg = "<font color='#AAAAAA'>" .. actor.Name .. " fired a smoke signal and retreated from the Raid!</font>"
+				BroadcastRaidUpdate(raid, "TurnStrike", { LogMsg = logMsg, ShakeType = "None" })
+				task.wait(0.4)
+				continue
+			end
+
 			if skill then
 				if skill.GasCost then actor.Gas = math.max(0, actor.Gas - skill.GasCost) end
 				if skill.EnergyCost then actor.TitanEnergy = math.max(0, actor.TitanEnergy - skill.EnergyCost) end
 				if skill.Effect == "Rest" or actor.Move == "Recover" then actor.Gas = math.min(actor.MaxGas, actor.Gas + (actor.MaxGas * 0.40)) end
-
-				if skill.Effect == "Flee" or actor.Move == "Retreat" then
-					actor.HP = 0 
-					local fakeBattle = { Context = raid.Context, Player = actor, Enemy = raid.Boss }
-					CombatUpdate:FireClient(actor.PlayerObj, "Fled", { Battle = fakeBattle })
-
-					local logMsg = "<font color='#AAAAAA'>" .. actor.Name .. " fired a smoke signal and retreated from the Raid!</font>"
-					BroadcastRaidUpdate(raid, "TurnStrike", { LogMsg = logMsg, ShakeType = "None" })
-					task.wait(0.4)
-					continue
-				end
 
 				if actor.Move == "Fall Back" then
 					raid.Context.Range = "Long"
@@ -390,7 +394,10 @@ RaidAction.OnServerEvent:Connect(function(player, action, data)
 		end
 
 		local bossData = EnemyData.RaidBosses[data.RaidId]
-		if not bossData then return end
+		if not bossData then 
+			Network.NotificationEvent:FireClient(player, "Raid Boss data could not be loaded.", "Error")
+			return 
+		end
 
 		local raidId = "Raid_" .. player.UserId .. "_" .. os.time()
 		local memberCount = #partyData.Members
@@ -411,7 +418,10 @@ RaidAction.OnServerEvent:Connect(function(player, action, data)
 			}
 		}
 
-		for _, member in ipairs(partyData.Members) do table.insert(ActiveRaids[raidId].Party, CreateCombatant(member)) end
+		for _, member in ipairs(partyData.Members) do
+			member:SetAttribute("InMultiplayerRaid", true)
+			table.insert(ActiveRaids[raidId].Party, CreateCombatant(member))
+		end
 		BroadcastRaidUpdate(ActiveRaids[raidId], "Start", { LogMsg = "<font color='#FF5555'>[MULTIPLAYER RAID: Turn Timer Active]</font>\n" .. bossData.Name .. " blocks your path!" })
 	end
 end)
