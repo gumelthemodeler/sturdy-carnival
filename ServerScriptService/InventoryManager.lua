@@ -1,5 +1,6 @@
 -- @ScriptType: Script
 -- @ScriptType: Script
+-- @ScriptType: Script
 -- Name: InventoryManager
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -66,7 +67,6 @@ ToggleLock.OnServerEvent:Connect(function(player, itemName)
 	player:SetAttribute(safeName, not player:GetAttribute(safeName))
 end)
 
--- [[ THE FIX: Added Itemize Handlers for Titan and Clan extraction ]]
 for _, gType in ipairs({"Titan", "Clan"}) do
 	local remote = Network:FindFirstChild("Itemize" .. gType) or Instance.new("RemoteEvent", Network)
 	remote.Name = "Itemize" .. gType
@@ -81,7 +81,6 @@ for _, gType in ipairs({"Titan", "Clan"}) do
 
 			local itemizedName = "Itemized " .. current
 
-			-- [[ MAP FRITZ EXCEPTION SO IT DOESN'T ERASE/FAIL ]]
 			if current == "Fritz" then
 				itemizedName = "Fritz Clan Serum"
 			end
@@ -114,41 +113,30 @@ Network:WaitForChild("ConsumeItem").OnServerEvent:Connect(function(player, itemN
 					player:SetAttribute(safeName, count) 
 					NotificationEvent:FireClient(player, "Ackermans cannot inherit Titans!", "Error")
 				else
-					-- [[ THE FIX: Auto-Itemize the currently equipped Titan so it is never lost ]]
 					local currentTitan = player:GetAttribute("Titan") or "None"
 					if currentTitan ~= "None" then
-						local itemizedName = "Itemized " .. currentTitan
-						local safeItemName = itemizedName:gsub("[^%w]", "") .. "Count"
-						player:SetAttribute(safeItemName, (player:GetAttribute(safeItemName) or 0) + 1)
-						NotificationEvent:FireClient(player, "Your previous Titan was safely itemized to your Pouch.", "Success")
+						player:SetAttribute(safeName, count) 
+						NotificationEvent:FireClient(player, "Titan slot full! Itemize or store your current Titan first.", "Error")
+					else
+						player:SetAttribute("Titan", itemInfo.TitanName)
+						player:SetAttribute("AutoSpinning", false) 
+						NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.TitanName .. "!", "Success")
 					end
-
-					player:SetAttribute("Titan", itemInfo.TitanName)
-					player:SetAttribute("AutoSpinning", false) 
-					NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.TitanName .. "!", "Success")
 				end
 
 			elseif itemInfo.Action == "EquipClan" then
-				-- [[ THE FIX: Auto-Itemize the currently equipped Clan so it is never lost ]]
 				local currentClan = player:GetAttribute("Clan") or "None"
 				if currentClan ~= "None" then
-					local itemizedName = "Itemized " .. currentClan
-					if currentClan == "Fritz" then itemizedName = "Fritz Clan Serum" end
-
-					if ItemData.Consumables[itemizedName] then
-						local safeItemName = itemizedName:gsub("[^%w]", "") .. "Count"
-						player:SetAttribute(safeItemName, (player:GetAttribute(safeItemName) or 0) + 1)
-						NotificationEvent:FireClient(player, "Your previous Clan was safely itemized to your Pouch.", "Success")
-					end
+					player:SetAttribute(safeName, count) 
+					NotificationEvent:FireClient(player, "Lineage slot full! Itemize or store your current Clan first.", "Error")
+				else
+					player:SetAttribute("AutoSpinning", false) 
+					player:SetAttribute("Clan", itemInfo.ClanName)
+					NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.ClanName .. " lineage!", "Success")
 				end
-
-				player:SetAttribute("AutoSpinning", false) 
-				player:SetAttribute("Clan", itemInfo.ClanName)
-				NotificationEvent:FireClient(player, "Inherited the " .. itemInfo.ClanName .. " lineage!", "Success")
 
 			elseif itemInfo.Action == "AwakenClan" then
 				local currentClan = player:GetAttribute("Clan") or "None"
-				-- [[ THE FIX: Explicitly prevents Fritz from being awakened ]]
 				if currentClan ~= "None" and currentClan ~= "Fritz" and not string.find(currentClan, "Awakened") and not string.find(currentClan, "Abyssal") then
 					player:SetAttribute("Clan", "Awakened " .. currentClan)
 					NotificationEvent:FireClient(player, "Your Clan bloodline has awakened to its true power!", "Success")
