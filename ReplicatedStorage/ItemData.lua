@@ -1,5 +1,6 @@
 -- @ScriptType: ModuleScript
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 local ItemData = {}
 
 ItemData.Equipment = {
@@ -29,7 +30,7 @@ ItemData.Equipment = {
 	["Hange's Goggles"] = { Type = "Accessory", Rarity = "Epic", Cost = 15000, Bonus = { Speed = 25, Gas = 20 }, Desc = "Protects the eyes during high-speed maneuvers." },
 	["Mikasa's Scarf"] = { Type = "Accessory", Rarity = "Legendary", Cost = 40000, Bonus = { Strength = 50, Speed = 30, Resolve = 25 }, Desc = "A warm, red scarf. Fills you with a burning resolve." },
 	["Erwin's Pendant"] = { Type = "Accessory", Rarity = "Legendary", Cost = 45000, Bonus = { Resolve = 60, Defense = 30, Health = 80 }, Desc = "A symbol of absolute, unwavering leadership." },
-	["Coordinate's Sand"] = { Type = "Accessory", Rarity = "Mythical", Cost = 250000, Bonus = { Strength = 50, Defense = 50, Speed = 50, Resolve = 50, Gas = 50, Health = 50 }, Desc = "A handful of sand from the Paths. Godlike power." },
+	["Coordinate's Sand"] = { Type = "Accessory", Rarity = "Mythical", Cost = 750000, Bonus = { Strength = 50, Defense = 50, Speed = 50, Resolve = 50, Gas = 50, Health = 50 }, Desc = "A handful of sand from the Paths. Godlike power." },
 
 	["Blade of the Frenzied"] = { Type = "Weapon", Style = "Ultrahard Steel Blades", Rarity = "Transcendent", Cost = 1000000, Bonus = { Strength = 400, Speed = 100, Defense = -100 }, Cursed = true, SelfDamage = 0.05, Desc = "<font color='#FF3333'>[CURSED]</font> Insane damage, but you take 5% Max HP damage every time you attack. Halves your Defense." },
 	["Abyssal Thunder Spear"] = { Type = "Weapon", Style = "Thunder Spears", Rarity = "Transcendent", Cost = 1000000, Bonus = { Strength = 800, Speed = -50 }, Cursed = true, SelfDamage = 0.10, Desc = "<font color='#FF3333'>[CURSED]</font> A nuclear payload. You take 10% Max HP damage on launch. Sluggish speed." },
@@ -44,18 +45,17 @@ ItemData.Consumables = {
 	["Spinal Fluid Syringe"] = { Rarity = "Legendary", Cost = 25000, Desc = "Premium item. Guarantees a Legendary or Mythical Titan." },
 	["Clan Blood Vial"] = { Rarity = "Epic", Cost = 10000, Desc = "Used to roll for Clan Lineages." },
 
-	-- [[ THE FIX: Added Legendary Clan Vial ]]
 	["Legendary Clan Vial"] = { Rarity = "Legendary", Cost = 25000, Desc = "Premium item. Guarantees a Legendary or Mythical Clan Lineage." },
 
-	["Ancestral Awakening Serum"] = { Rarity = "Mythical", Cost = 150000, Action = "AwakenClan", Desc = "Awakens the true power of your current lineage. Only works on major clans." },
-	["Ymir's Clay Fragment"] = { Rarity = "Mythical", Cost = 150000, Action = "AwakenTitan", Desc = "Allows the Attack Titan to reach the Coordinate." },
+	["Ancestral Awakening Serum"] = { Rarity = "Mythical", Cost = 500000, Action = "AwakenClan", Desc = "Awakens the true power of your current lineage. Only works on major clans." },
+	["Ymir's Clay Fragment"] = { Rarity = "Mythical", Cost = 500000, Action = "AwakenTitan", Desc = "Allows the Attack Titan to reach the Coordinate." },
 	["Titan Hardening Extract"] = { Rarity = "Legendary", Cost = 75000, IsMaterial = true, Desc = "(Obtained in the Supply Shop) Used in the Forge to Awaken max-tier weapons with random Substats." },
 
 	["Iron Bamboo Heart"] = { Rarity = "Epic", Cost = 3000, IsMaterial = true, Desc = "A rare material extracted from the Titan Forest via Expeditions. Used for complex forging." },
 	["Glowing Titan Crystal"] = { Rarity = "Legendary", Cost = 10000, IsMaterial = true, Desc = "A dense energy crystal found deep in Expeditions. Highly sought after by Hange." },
-	["Abyssal Blood"] = { Rarity = "Mythical", Cost = 50000, IsMaterial = true, Desc = "A terrifying black liquid dropped only by Nightmare Bosses. Used to forge Cursed gear." },
+	["Abyssal Blood"] = { Rarity = "Mythical", Cost = 150000, IsMaterial = true, Desc = "A terrifying black liquid dropped only by Nightmare Bosses. Used to forge Cursed gear." },
 
-	["Coordinate Shard"] = { Rarity = "Mythical", Cost = 250000, IsMaterial = true, Desc = "A literal fragment of the Paths. One of the rarest materials in existence." },
+	["Coordinate Shard"] = { Rarity = "Mythical", Cost = 750000, IsMaterial = true, Desc = "A literal fragment of the Paths. One of the rarest materials in existence." },
 
 	["Iron Bamboo Extract"] = { Rarity = "Epic", Cost = 8000, Action = "Consume", Buff = "Damage", Duration = 900, Desc = "Increases all damage dealt by 50% for 15 minutes." },
 	["Titan Research Notes"] = { Rarity = "Rare", Cost = 5000, Action = "Consume", Buff = "XP", Duration = 900, Desc = "Doubles all XP gained from combat and training for 15 minutes." },
@@ -71,8 +71,8 @@ ItemData.Consumables = {
 	["Itemized Armored Titan"] = { Rarity = "Legendary", Cost = 25000, Action = "EquipTitan", TitanName = "Armored Titan", Desc = "An extracted spinal fluid syringe of the Armored Titan. Consume to inherit." },
 	["Itemized Female Titan"] = { Rarity = "Legendary", Cost = 25000, Action = "EquipTitan", TitanName = "Female Titan", Desc = "An extracted spinal fluid syringe of the Female Titan. Consume to inherit." },
 	["Itemized War Hammer Titan"] = { Rarity = "Legendary", Cost = 25000, Action = "EquipTitan", TitanName = "War Hammer Titan", Desc = "An extracted spinal fluid syringe of the War Hammer Titan. Consume to inherit." },
-	["Itemized Beast Titan"] = { Rarity = "Mythical", Cost = 25000, Action = "EquipTitan", TitanName = "Beast Titan", Desc = "An extracted spinal fluid syringe of the Beast Titan. Consume to inherit." },
-	["Itemized Colossal Titan"] = { Rarity = "Mythical", Cost = 25000, Action = "EquipTitan", TitanName = "Colossal Titan", Desc = "An extracted spinal fluid syringe of the Colossal Titan. Consume to inherit." },
+	["Itemized Beast Titan"] = { Rarity = "Mythical", Cost = 100000, Action = "EquipTitan", TitanName = "Beast Titan", Desc = "An extracted spinal fluid syringe of the Beast Titan. Consume to inherit." },
+	["Itemized Colossal Titan"] = { Rarity = "Mythical", Cost = 100000, Action = "EquipTitan", TitanName = "Colossal Titan", Desc = "An extracted spinal fluid syringe of the Colossal Titan. Consume to inherit." },
 	["Itemized Founding Titan"] = { Rarity = "Transcendent", Cost = 25000, Action = "EquipTitan", TitanName = "Founding Titan", Desc = "An extracted spinal fluid syringe of the Founding Titan. Consume to inherit." },
 
 	["Itemized Founding Female Titan"] = { Rarity = "Transcendent", Cost = 50000, Action = "EquipTitan", TitanName = "Founding Female Titan", Desc = "An extracted spinal fluid syringe of the Founding Female Titan. Consume to inherit." },
@@ -83,16 +83,16 @@ ItemData.Consumables = {
 
 	["Itemized Yeager"] = { Rarity = "Legendary", Cost = 25000, Action = "EquipClan", ClanName = "Yeager", Desc = "An extracted blood vial of the Yeager lineage. Consume to inherit." },
 	["Itemized Tybur"] = { Rarity = "Legendary", Cost = 25000, Action = "EquipClan", ClanName = "Tybur", Desc = "An extracted blood vial of the Tybur lineage. Consume to inherit." },
-	["Itemized Ackerman"] = { Rarity = "Mythical", Cost = 25000, Action = "EquipClan", ClanName = "Ackerman", Desc = "An extracted blood vial of the Ackerman lineage. Consume to inherit." },
+	["Itemized Ackerman"] = { Rarity = "Mythical", Cost = 100000, Action = "EquipClan", ClanName = "Ackerman", Desc = "An extracted blood vial of the Ackerman lineage. Consume to inherit." },
 	["Itemized Galliard"] = { Rarity = "Epic", Cost = 25000, Action = "EquipClan", ClanName = "Galliard", Desc = "An extracted blood vial of the Galliard lineage. Consume to inherit." },
 	["Itemized Braun"] = { Rarity = "Epic", Cost = 25000, Action = "EquipClan", ClanName = "Braun", Desc = "An extracted blood vial of the Braun lineage. Consume to inherit." },
 	["Itemized Arlert"] = { Rarity = "Epic", Cost = 25000, Action = "EquipClan", ClanName = "Arlert", Desc = "An extracted blood vial of the Arlert lineage. Consume to inherit." },
 	["Itemized Braus"] = { Rarity = "Rare", Cost = 25000, Action = "EquipClan", ClanName = "Braus", Desc = "An extracted blood vial of the Braus lineage. Consume to inherit." },
 	["Itemized Springer"] = { Rarity = "Rare", Cost = 25000, Action = "EquipClan", ClanName = "Springer", Desc = "An extracted blood vial of the Springer lineage. Consume to inherit." },
-	["Itemized Reiss"] = { Rarity = "Mythical", Cost = 25000, Action = "EquipClan", ClanName = "Reiss", Desc = "An extracted blood vial of the Reiss lineage. Consume to inherit." },
+	["Itemized Reiss"] = { Rarity = "Mythical", Cost = 100000, Action = "EquipClan", ClanName = "Reiss", Desc = "An extracted blood vial of the Reiss lineage. Consume to inherit." },
 
-	["Itemized Awakened Yeager"] = { Rarity = "Mythical", Cost = 75000, Action = "EquipClan", ClanName = "Awakened Yeager", Desc = "An extracted blood vial of the Awakened Yeager lineage." },
-	["Itemized Awakened Tybur"] = { Rarity = "Mythical", Cost = 75000, Action = "EquipClan", ClanName = "Awakened Tybur", Desc = "An extracted blood vial of the Awakened Tybur lineage." },
+	["Itemized Awakened Yeager"] = { Rarity = "Mythical", Cost = 250000, Action = "EquipClan", ClanName = "Awakened Yeager", Desc = "An extracted blood vial of the Awakened Yeager lineage." },
+	["Itemized Awakened Tybur"] = { Rarity = "Mythical", Cost = 250000, Action = "EquipClan", ClanName = "Awakened Tybur", Desc = "An extracted blood vial of the Awakened Tybur lineage." },
 	["Itemized Awakened Ackerman"] = { Rarity = "Transcendent", Cost = 125000, Action = "EquipClan", ClanName = "Awakened Ackerman", Desc = "An extracted blood vial of the Awakened Ackerman lineage." },
 	["Itemized Awakened Galliard"] = { Rarity = "Legendary", Cost = 75000, Action = "EquipClan", ClanName = "Awakened Galliard", Desc = "An extracted blood vial of the Awakened Galliard lineage." },
 	["Itemized Awakened Braun"] = { Rarity = "Legendary", Cost = 75000, Action = "EquipClan", ClanName = "Awakened Braun", Desc = "An extracted blood vial of the Awakened Braun lineage." },
@@ -193,7 +193,6 @@ ItemData.Products = {
 	{ ID = 3557938597, Name = "1x Clan Vial", Desc = "Grants one Clan Blood Vial.", Reward = "Item", ItemName = "Clan Blood Vial", Amount = 1 },
 	{ ID = 3557938636, Name = "5x Clan Vials", Desc = "Grants five Clan Blood Vials.", Reward = "Item", ItemName = "Clan Blood Vial", Amount = 5 },
 
-	-- [[ THE FIX: Added Legendary Clan Vial ]]
 	{ ID = 3557938637, Name = "1x Leg. Clan Vial", Desc = "Grants one Legendary Clan Vial.", Reward = "Item", ItemName = "Legendary Clan Vial", Amount = 1 },
 
 	{ ID = 3562817556, Name = "Gift: Auto Train", Desc = "Grants a tradable Auto Train pass.", Reward = "Item", ItemName = "Auto Train (Gift)", Amount = 1 },
