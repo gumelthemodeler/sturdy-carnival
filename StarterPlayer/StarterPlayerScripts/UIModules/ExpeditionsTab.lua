@@ -32,9 +32,11 @@ local CONFIG = {
 		MapOcean = "rbxassetid://13583561330",
 		MapGrid = "rbxassetid://6500548545", 
 		MapFog = "rbxassetid://13835698889",
-		HexZone = "rbxassetid://3618653659",
+		HexZone = "rbxassetid://14457173664",
+		GlowOrb = "rbxassetid://1311282431", 
 
-		-- Background Country Splashes (Optional)
+		MapMarker = "rbxassetid://000000000", -- Optional Icon ID
+
 		Country_Trost = "rbxassetid://122199458494734", 
 		Country_Forest = "rbxassetid://104188447571196",
 		Country_Utgard = "rbxassetid://2045145074",
@@ -59,12 +61,6 @@ local function AbbreviateNumber(n)
 	return str .. (Suffixes[suffixIndex + 1] or "")
 end
 
-local function FormatTime(seconds)
-	local mins = math.floor(seconds / 60)
-	local secs = seconds % 60
-	return string.format("%02d:%02d", mins, secs)
-end
-
 local function CreateSharpButton(parent, text, size, font, textSize)
 	local btn = Instance.new("TextButton", parent); btn.Size = size; btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34); btn.BorderSizePixel = 0; btn.AutoButtonColor = false; btn.Font = font; btn.TextColor3 = Color3.fromRGB(245, 245, 245); btn.TextSize = textSize; btn.Text = text
 	local stroke = Instance.new("UIStroke", btn); stroke.Color = Color3.fromRGB(70, 70, 80); stroke.Thickness = 2; stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -73,15 +69,24 @@ local function CreateSharpButton(parent, text, size, font, textSize)
 	return btn, stroke
 end
 
+local function GetSquadColor(squadName, isMine)
+	if isMine then return UIHelpers.Colors.Gold end 
+	if not squadName or squadName == "Unclaimed" or squadName == "None" then return Color3.fromRGB(120, 120, 120) end
+	if squadName == "Marleyan Scouts" or squadName == "Pure Titans" then return Color3.fromRGB(200, 20, 20) end
+
+	local hash = 0
+	for i = 1, #squadName do hash = hash + string.byte(squadName, i) end
+	math.randomseed(hash)
+	local r, g, b = math.random(100, 255), math.random(100, 255), math.random(100, 255)
+	return Color3.fromRGB(r, g, b)
+end
+
 function ExpeditionsTab.Initialize(parentFrame)
 	for _, child in ipairs(parentFrame:GetChildren()) do if child:IsA("GuiObject") then child:Destroy() end end
 
 	local MasterLayout = Instance.new("UIListLayout", parentFrame)
 	MasterLayout.FillDirection = Enum.FillDirection.Horizontal; MasterLayout.SortOrder = Enum.SortOrder.LayoutOrder; MasterLayout.Padding = UDim.new(0, 20)
 
-	-- ==========================================
-	-- MAIN PANEL & NAVIGATION
-	-- ==========================================
 	local MissionsPanel = Instance.new("Frame", parentFrame)
 	MissionsPanel.Size = UDim2.new(0.68, 0, 1, 0); MissionsPanel.BackgroundTransparency = 1; MissionsPanel.LayoutOrder = 1
 	local mPad = Instance.new("UIPadding", MissionsPanel); mPad.PaddingLeft = UDim.new(0.02, 0)
@@ -108,9 +113,7 @@ function ExpeditionsTab.Initialize(parentFrame)
 	local MainViewContainer = Instance.new("Frame", MissionsPanel)
 	MainViewContainer.Size = UDim2.new(1, 0, 1, -60); MainViewContainer.Position = UDim2.new(0, 0, 0, 50); MainViewContainer.BackgroundTransparency = 1
 
-	local FetchLiveMatches, FetchDoomsdayData, FetchLiveMapData
-	local doomsdayLoopActive = false
-	local currentDoomsdayData = nil
+	local FetchLiveMapData
 
 	local function ShowPage(pageName, titleText)
 		for name, frame in pairs(Pages) do frame.Visible = (name == pageName) end
@@ -126,7 +129,7 @@ function ExpeditionsTab.Initialize(parentFrame)
 		elseif pageName == "WorldMap" then
 			WorldMapTabStroke.Color = UIHelpers.Colors.Gold; WorldMapTabBtn.TextColor3 = UIHelpers.Colors.Gold
 			MissionsTabStroke.Color = UIHelpers.Colors.BorderMuted; MissionsTabBtn.TextColor3 = UIHelpers.Colors.TextWhite
-			if FetchLiveMapData then FetchLiveMapData() end -- Hook server fetch on open
+			if FetchLiveMapData then FetchLiveMapData() end
 		end
 	end
 
@@ -134,9 +137,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 	WorldMapTabBtn.MouseButton1Click:Connect(function() ShowPage("WorldMap", "TERRITORY CONTROL") end)
 	BackBtn.MouseButton1Click:Connect(function() ShowPage("Main", "COMBAT DEPLOYMENT") end)
 
-	-- ==========================================
-	-- DEPLOYMENT OVERLAY
-	-- ==========================================
 	local DeployOverlay = Instance.new("Frame", parentFrame.Parent) 
 	DeployOverlay.Name = "DeploymentTransition"; DeployOverlay.Size = UDim2.new(1, 0, 1, 0); DeployOverlay.BackgroundColor3 = Color3.fromRGB(12, 12, 15); DeployOverlay.BackgroundTransparency = 1; DeployOverlay.ZIndex = 90; DeployOverlay.Visible = false
 	local dStatus = UIHelpers.CreateLabel(DeployOverlay, "ESTABLISHING CONNECTION...", UDim2.new(1, 0, 0, 40), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 24)
@@ -156,9 +156,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 		DeployOverlay.Visible = false; dStatus.TextColor3 = UIHelpers.Colors.Gold
 	end
 
-	-- ==========================================
-	-- MISSIONS TAB (Default Interface)
-	-- ==========================================
 	local MissionsBasePage = Instance.new("Frame", MainViewContainer)
 	MissionsBasePage.Size = UDim2.new(1, 0, 1, 0); MissionsBasePage.BackgroundTransparency = 1; MissionsBasePage.Visible = true
 	Pages["Main"] = MissionsBasePage
@@ -170,7 +167,7 @@ function ExpeditionsTab.Initialize(parentFrame)
 
 
 	-- ==========================================
-	-- WORLD MAP: FULLY SPACED TACTICAL WEB
+	-- WORLD MAP: TACTICAL WEB ENGINE
 	-- ==========================================
 	local WorldMapPage = Instance.new("Frame", MainViewContainer)
 	WorldMapPage.Size = UDim2.new(1, 0, 1, 0); WorldMapPage.BackgroundColor3 = Color3.fromRGB(10, 10, 12); WorldMapPage.ClipsDescendants = true; WorldMapPage.Visible = false
@@ -191,12 +188,27 @@ function ExpeditionsTab.Initialize(parentFrame)
 	MapGrid.ScaleType = Enum.ScaleType.Tile; MapGrid.TileSize = UDim2.new(0, 200, 0, 200)
 	MapGrid.ImageColor3 = Color3.fromRGB(0, 0, 0); MapGrid.ImageTransparency = 0.5; MapGrid.ZIndex = 2
 
+	local CountryLayer = Instance.new("Frame", MapCanvas)
+	CountryLayer.Size = UDim2.new(1, 0, 1, 0); CountryLayer.BackgroundTransparency = 1; CountryLayer.ZIndex = 3
+
+	local function RenderCountryDecal(imageId)
+		local cImage = Instance.new("ImageLabel", CountryLayer)
+		cImage.Size = UDim2.new(1, 0, 1, 0); cImage.BackgroundTransparency = 1; cImage.Image = imageId
+		cImage.ImageColor3 = Color3.fromRGB(60, 60, 65); cImage.ImageTransparency = 0.2
+	end
+
+	RenderCountryDecal(CONFIG.Decals.Country_Trost)
+	RenderCountryDecal(CONFIG.Decals.Country_Forest)
+	RenderCountryDecal(CONFIG.Decals.Country_Utgard)
+	RenderCountryDecal(CONFIG.Decals.Country_Wasteland)
+	RenderCountryDecal(CONFIG.Decals.Country_Shoreline)
+	RenderCountryDecal(CONFIG.Decals.Country_Marley)
+
 	local Vignette = Instance.new("Frame", WorldMapPage)
 	Vignette.Size = UDim2.new(1, 0, 1, 0); Vignette.BackgroundTransparency = 0.1; Vignette.ZIndex = 15; Vignette.Interactable = false
 	local vGrad = Instance.new("UIGradient", Vignette); vGrad.Color = ColorSequence.new(Color3.new(0,0,0)); vGrad.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.05, 0.8), NumberSequenceKeypoint.new(0.95, 0.8), NumberSequenceKeypoint.new(1, 0)
 	}); vGrad.Rotation = 90
-	local Vignette2 = Vignette:Clone(); Vignette2.Parent = WorldMapPage; Vignette2:FindFirstChild("UIGradient").Rotation = 0
 
 	local function ClampMapPosition(posX, posY)
 		local parentSize = WorldMapPage.AbsoluteSize; local canvasSize = MapCanvas.AbsoluteSize
@@ -238,49 +250,48 @@ function ExpeditionsTab.Initialize(parentFrame)
 	end)
 
 	-- ==========================================
-	-- LIVE FUNCTIONAL NODE ENGINE
+	-- NODE SIDE PANEL (SINGLE BUTTON EDITION)
 	-- ==========================================
-	local SupplyLineLayer = Instance.new("Frame", MapCanvas); SupplyLineLayer.Size = UDim2.new(1, 0, 1, 0); SupplyLineLayer.BackgroundTransparency = 1; SupplyLineLayer.ZIndex = 3
-	local InfluenceLayer = Instance.new("Frame", MapCanvas); InfluenceLayer.Size = UDim2.new(1, 0, 1, 0); InfluenceLayer.BackgroundTransparency = 1; InfluenceLayer.ZIndex = 4
-	local CapitalPinsLayer = Instance.new("Frame", MapCanvas); CapitalPinsLayer.Size = UDim2.new(1, 0, 1, 0); CapitalPinsLayer.BackgroundTransparency = 1; CapitalPinsLayer.ZIndex = 5
-
-	-- Side Panel Interface
 	local NodePanel = Instance.new("Frame", WorldMapPage)
 	NodePanel.Size = UDim2.new(0, 250, 1, 0); NodePanel.Position = UDim2.new(1, 0, 0, 0); NodePanel.BackgroundColor3 = Color3.fromRGB(15, 15, 18); NodePanel.ZIndex = 20
 	local npStroke = Instance.new("UIStroke", NodePanel); npStroke.Color = UIHelpers.Colors.BorderMuted; npStroke.Thickness = 2
 	local NodeTitle = UIHelpers.CreateLabel(NodePanel, "NODE INFO", UDim2.new(1, -20, 0, 30), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 18); NodeTitle.Position = UDim2.new(0, 10, 0, 10); NodeTitle.TextXAlignment = Enum.TextXAlignment.Left
-	local NodeOwner = UIHelpers.CreateLabel(NodePanel, "Status: Unclaimed", UDim2.new(1, -20, 0, 20), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 14); NodeOwner.Position = UDim2.new(0, 10, 0, 40); NodeOwner.TextXAlignment = Enum.TextXAlignment.Left
-	local ActionBtn, _ = CreateSharpButton(NodePanel, "DEPLOY", UDim2.new(1, -20, 0, 40), Enum.Font.GothamBlack, 14); ActionBtn.Position = UDim2.new(0, 10, 0, 80)
+	local NodeOwner = UIHelpers.CreateLabel(NodePanel, "Owner: Unclaimed", UDim2.new(1, -20, 0, 40), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 14); NodeOwner.Position = UDim2.new(0, 10, 0, 40); NodeOwner.TextXAlignment = Enum.TextXAlignment.Left; NodeOwner.TextWrapped = true
+
+	local ActionBtn, _ = CreateSharpButton(NodePanel, "LAUNCH ASSAULT", UDim2.new(1, -20, 0, 45), Enum.Font.GothamBlack, 14); ActionBtn.Position = UDim2.new(0, 10, 0, 90)
 	local ClosePanelBtn, _ = CreateSharpButton(NodePanel, "CLOSE", UDim2.new(1, -20, 0, 30), Enum.Font.GothamBold, 12); ClosePanelBtn.Position = UDim2.new(0, 10, 1, -40); ClosePanelBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 	ClosePanelBtn.MouseButton1Click:Connect(function() TweenService:Create(NodePanel, TweenInfo.new(0.3, Enum.EasingStyle.Sine), {Position = UDim2.new(1, 0, 0, 0)}):Play() end)
 
 	local ActiveSelectedNodeId = nil
+
 	ActionBtn.MouseButton1Click:Connect(function()
 		if ActiveSelectedNodeId then
-			Network:WaitForChild("MapAction"):FireServer("InteractNode", ActiveSelectedNodeId)
+			if string.find(ActionBtn.Text, "FORTIFY") then
+				Network:WaitForChild("MapAction"):FireServer("InteractNode", "Fortify", {NodeId = ActiveSelectedNodeId})
+			else
+				InitiateDeployment("CombatAction", "EngageTerritory", {NodeId = ActiveSelectedNodeId, Action = "Assault"}) 
+			end
 		end
 	end)
+
+	local SupplyLineLayer = Instance.new("Frame", MapCanvas); SupplyLineLayer.Size = UDim2.new(1, 0, 1, 0); SupplyLineLayer.BackgroundTransparency = 1; SupplyLineLayer.ZIndex = 3
+	local GlowLayer = Instance.new("Frame", MapCanvas); GlowLayer.Size = UDim2.new(1, 0, 1, 0); GlowLayer.BackgroundTransparency = 1; GlowLayer.ZIndex = 4
+	local CapitalPinsLayer = Instance.new("Frame", MapCanvas); CapitalPinsLayer.Size = UDim2.new(1, 0, 1, 0); CapitalPinsLayer.BackgroundTransparency = 1; CapitalPinsLayer.ZIndex = 5
 
 	local AllVisualNodes = {}
 	local LiveMapData = {} 
 
-	-- Spaced Out Coordinate Layout
 	local TerritoryData = {
-		-- Central / Interior
 		{Id = "N1", Name = "Mitras Capital", Reg = "Interior", Pos = UDim2.new(0.5,0, 0.5,0)},
 		{Id = "N2", Name = "Hermiha District", Reg = "Wall Sina", Pos = UDim2.new(0.42,0, 0.42,0)},
 		{Id = "N3", Name = "Yarckel District", Reg = "Wall Sina", Pos = UDim2.new(0.58,0, 0.42,0)},
 		{Id = "N4", Name = "Stohess District", Reg = "Wall Sina", Pos = UDim2.new(0.58,0, 0.58,0)},
 		{Id = "N5", Name = "Ehrmich District", Reg = "Wall Sina", Pos = UDim2.new(0.42,0, 0.58,0)},
-
-		-- Middle Ring
 		{Id = "N6", Name = "Utopia District", Reg = "Wall Rose", Pos = UDim2.new(0.3,0, 0.3,0)},
 		{Id = "N7", Name = "Karanes District", Reg = "Wall Rose", Pos = UDim2.new(0.7,0, 0.3,0)},
 		{Id = "N8", Name = "Trost District", Reg = "Wall Rose", Pos = UDim2.new(0.7,0, 0.7,0)},
 		{Id = "N9", Name = "Krolva District", Reg = "Wall Rose", Pos = UDim2.new(0.3,0, 0.7,0)},
 		{Id = "N10", Name = "Rose Breach Site", Reg = "Wall Rose", Pos = UDim2.new(0.5,0, 0.75,0)},
-
-		-- Outer Ring & Wilds (Pushed to the edges)
 		{Id = "N11", Name = "Shiganshina", Reg = "Wall Maria", Pos = UDim2.new(0.5,0, 0.85,0)},
 		{Id = "N12", Name = "Quinta District", Reg = "Wall Maria", Pos = UDim2.new(0.15,0, 0.3,0)},
 		{Id = "N13", Name = "Giant Forest Base", Reg = "Titan Wilds", Pos = UDim2.new(0.85,0, 0.5,0)},
@@ -291,8 +302,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 		{Id = "N18", Name = "Shifter's Crag", Reg = "The Wasteland", Pos = UDim2.new(0.1,0, 0.5,0)},
 		{Id = "N19", Name = "Cursed Ridge", Reg = "The Wasteland", Pos = UDim2.new(0.9,0, 0.75,0)},
 		{Id = "N20", Name = "Southern Valley", Reg = "Titan Wilds", Pos = UDim2.new(0.35,0, 0.9,0)},
-
-		-- Marleyan Coast / Expansion (Extreme corners)
 		{Id = "N21", Name = "Paradis Port", Reg = "Shoreline", Pos = UDim2.new(0.9,0, 0.9,0)},
 		{Id = "N22", Name = "Intercept Fleet", Reg = "Ocean", Pos = UDim2.new(0.95,0, 0.6,0)},
 		{Id = "N23", Name = "Fort Slava", Reg = "Mainland", Pos = UDim2.new(0.05,0, 0.1,0)},
@@ -300,106 +309,122 @@ function ExpeditionsTab.Initialize(parentFrame)
 		{Id = "N25", Name = "Tybur Estate", Reg = "Mainland", Pos = UDim2.new(0.05,0, 0.8,0)},
 	}
 
-	-- Render Static UI Structure
 	for _, baseData in ipairs(TerritoryData) do
 		local pinWrap = Instance.new("Frame", CapitalPinsLayer)
 		pinWrap.Size = UDim2.new(0, 0, 0, 0); pinWrap.Position = baseData.Pos; pinWrap.BackgroundTransparency = 1
 
-		local hex = Instance.new("ImageLabel", InfluenceLayer)
-		hex.Size = UDim2.new(0, 300, 0, 300); hex.Position = baseData.Pos; hex.AnchorPoint = Vector2.new(0.5, 0.5)
-		hex.BackgroundTransparency = 1; hex.Image = CONFIG.Decals.HexZone; hex.ImageTransparency = 0.85
-		hex.ImageColor3 = Color3.fromRGB(30, 30, 35)
+		local glow = Instance.new("ImageLabel", GlowLayer)
+		glow.Size = UDim2.new(0, 180, 0, 180); glow.Position = baseData.Pos; glow.AnchorPoint = Vector2.new(0.5, 0.5)
+		glow.BackgroundTransparency = 1; glow.Image = CONFIG.Decals.GlowOrb; glow.ImageTransparency = 0.5
+		glow.ImageColor3 = Color3.fromRGB(30, 30, 35)
 
 		local pinBtn = Instance.new("TextButton", pinWrap)
-		pinBtn.Size = UDim2.new(0, 20, 0, 20); pinBtn.Position = UDim2.new(0, 0, 0, 0); pinBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-		pinBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); pinBtn.Rotation = 45; pinBtn.Text = ""
-		local pStroke = Instance.new("UIStroke", pinBtn); pStroke.Color = Color3.fromRGB(120, 120, 120); pStroke.Thickness = 2
+		pinBtn.Size = UDim2.new(0, 24, 0, 24); pinBtn.Position = UDim2.new(0, 0, 0, 0); pinBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+		pinBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); pinBtn.Rotation = 45; pinBtn.Text = ""; pinBtn.AutoButtonColor = false
+		local pStroke = Instance.new("UIStroke", pinBtn); pStroke.Color = Color3.fromRGB(120, 120, 120); pStroke.Thickness = 2; pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-		local innerDetail = Instance.new("Frame", pinBtn); innerDetail.Size = UDim2.new(1, -6, 1, -6); innerDetail.Position = UDim2.new(0, 3, 0, 3); innerDetail.BackgroundColor3 = Color3.fromRGB(50, 50, 55); innerDetail.BorderSizePixel = 0
 		local pulse = Instance.new("Frame", pinBtn); pulse.Size = UDim2.new(1, 0, 1, 0); pulse.BackgroundColor3 = Color3.fromRGB(255, 0, 0); pulse.BackgroundTransparency = 1; pulse.BorderSizePixel = 0
-		local pulseTween = TweenService:Create(pulse, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {BackgroundTransparency = 1, Size = UDim2.new(2.5,0,2.5,0), Position = UDim2.new(-0.75,0,-0.75,0)})
+		local pulseTween = TweenService:Create(pulse, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {BackgroundTransparency = 0.4, Size = UDim2.new(2.0,0,2.0,0), Position = UDim2.new(-0.5,0,-0.5,0)})
 
-		local lblTitle = UIHelpers.CreateLabel(pinWrap, string.upper(baseData.Name), UDim2.new(0, 200, 0, 15), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 12)
-		lblTitle.Position = UDim2.new(0, 15, 0.5, 0); lblTitle.AnchorPoint = Vector2.new(0, 0.5); lblTitle.TextXAlignment = Enum.TextXAlignment.Left; lblTitle.TextStrokeTransparency = 0
-		local lblReg = UIHelpers.CreateLabel(pinWrap, string.upper(baseData.Reg), UDim2.new(0, 200, 0, 10), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 9)
-		lblReg.Position = UDim2.new(0, 15, 0.5, 12); lblReg.AnchorPoint = Vector2.new(0, 0.5); lblReg.TextXAlignment = Enum.TextXAlignment.Left; lblReg.TextStrokeTransparency = 0
+		local lblTitle = UIHelpers.CreateLabel(pinWrap, string.upper(baseData.Name), UDim2.new(0, 200, 0, 15), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14)
+		lblTitle.Position = UDim2.new(0, 20, 0.5, -5); lblTitle.AnchorPoint = Vector2.new(0, 0.5); lblTitle.TextXAlignment = Enum.TextXAlignment.Left
+		local textShadow = Instance.new("UIStroke", lblTitle); textShadow.Color = Color3.new(0,0,0); textShadow.Thickness = 2
+
+		local lblReg = UIHelpers.CreateLabel(pinWrap, string.upper(baseData.Reg), UDim2.new(0, 200, 0, 10), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 10)
+		lblReg.Position = UDim2.new(0, 20, 0.5, 10); lblReg.AnchorPoint = Vector2.new(0, 0.5); lblReg.TextXAlignment = Enum.TextXAlignment.Left
+		local regShadow = Instance.new("UIStroke", lblReg); regShadow.Color = Color3.new(0,0,0); regShadow.Thickness = 1.5
 
 		pinBtn.MouseButton1Click:Connect(function()
-			local serverState = LiveMapData[baseData.Id] or {Owned = false, UnderAttack = false}
+			local serverState = LiveMapData[baseData.Id] or {Owned = false, OwnerName = "Unclaimed", UnderAttack = false, Health = 100, MaxHealth = 100}
 			ActiveSelectedNodeId = baseData.Id
 			NodeTitle.Text = string.upper(baseData.Name)
+			NodeOwner.Text = "Owner: " .. serverState.OwnerName .. "\nHealth: " .. (serverState.Health or 100) .. "/" .. (serverState.MaxHealth or 100)
 
 			if serverState.Owned then 
-				NodeOwner.Text = "Status: SECURED GARRISON"; NodeOwner.TextColor3 = UIHelpers.Colors.Gold; ActionBtn.Text = "FORTIFY SECTOR"
-			elseif serverState.UnderAttack then 
-				NodeOwner.Text = "Status: ACTIVE WARZONE"; NodeOwner.TextColor3 = Color3.fromRGB(255, 50, 50); ActionBtn.Text = "DEPLOY TO DEFENSE"
+				NodeOwner.TextColor3 = UIHelpers.Colors.Gold
+				ActionBtn.Text = "FORTIFY SECTOR (100k Dews)"
+				ActionBtn.TextColor3 = UIHelpers.Colors.Gold
 			else 
-				NodeOwner.Text = "Status: HOSTILE TERRITORY"; NodeOwner.TextColor3 = UIHelpers.Colors.TextMuted; ActionBtn.Text = "LAUNCH INVASION" 
+				NodeOwner.TextColor3 = (serverState.UnderAttack) and Color3.fromRGB(255, 50, 50) or UIHelpers.Colors.TextMuted
+				ActionBtn.Text = "LAUNCH ASSAULT"
+				ActionBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
 			end
 			TweenService:Create(NodePanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Position = UDim2.new(1, -250, 0, 0)}):Play()
 		end)
 
 		AllVisualNodes[baseData.Id] = {
-			Data = baseData, Wrap = pinWrap, Hex = hex, Pin = pinBtn, Stroke = pStroke, 
-			Inner = innerDetail, Pulse = pulse, PulseTween = pulseTween
+			Data = baseData, Wrap = pinWrap, Glow = glow, Pin = pinBtn, Stroke = pStroke, Pulse = pulse, PulseTween = pulseTween
 		}
 	end
 
-	-- Procedural Network Engine: Draws lines dynamically when data arrives
-	local CONNECTION_DISTANCE = 0.28 -- Increased distance to support spaced nodes
-
 	local function UpdateVisualMapState()
-		-- 1. Apply Pin Colors based on LiveMapData
 		for id, nodeUI in pairs(AllVisualNodes) do
-			local state = LiveMapData[id] or {Owned = false, UnderAttack = false}
+			local state = LiveMapData[id] or {Owned = false, OwnerName = "Unclaimed", UnderAttack = false}
+			local sColor = GetSquadColor(state.OwnerName, state.Owned)
 
 			if state.UnderAttack then
-				nodeUI.Stroke.Color = Color3.fromRGB(255, 50, 50); nodeUI.Inner.BackgroundColor3 = Color3.fromRGB(255, 0, 0); nodeUI.Hex.ImageColor3 = Color3.fromRGB(200, 20, 20)
-				nodeUI.Pulse.BackgroundTransparency = 0.5; nodeUI.PulseTween:Play()
-			elseif state.Owned then
-				nodeUI.Stroke.Color = UIHelpers.Colors.Gold; nodeUI.Inner.BackgroundColor3 = UIHelpers.Colors.Gold; nodeUI.Hex.ImageColor3 = UIHelpers.Colors.Gold
-				nodeUI.Pulse.BackgroundTransparency = 1; nodeUI.PulseTween:Cancel()
+				nodeUI.Stroke.Color = Color3.fromRGB(255, 50, 50)
+				nodeUI.Pin.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+				nodeUI.Glow.ImageColor3 = Color3.fromRGB(255, 0, 0)
+				nodeUI.Glow.ImageTransparency = 0.3
+				nodeUI.PulseTween:Play()
 			else
-				nodeUI.Stroke.Color = Color3.fromRGB(120, 120, 120); nodeUI.Inner.BackgroundColor3 = Color3.fromRGB(50, 50, 55); nodeUI.Hex.ImageColor3 = Color3.fromRGB(30, 30, 35)
-				nodeUI.Pulse.BackgroundTransparency = 1; nodeUI.PulseTween:Cancel()
+				nodeUI.Stroke.Color = sColor
+				nodeUI.Pin.BackgroundColor3 = Color3.fromRGB(sColor.R * 255 * 0.3, sColor.G * 255 * 0.3, sColor.B * 255 * 0.3)
+				nodeUI.Glow.ImageColor3 = sColor
+				nodeUI.Glow.ImageTransparency = (state.OwnerName == "Unclaimed") and 0.8 or 0.3
+				nodeUI.Pulse.BackgroundTransparency = 1
+				nodeUI.PulseTween:Cancel()
 			end
 		end
 
-		-- 2. Redraw Supply Lines
 		for _, child in ipairs(SupplyLineLayer:GetChildren()) do child:Destroy() end
-		local nodeIds = {}
-		for id, _ in pairs(AllVisualNodes) do table.insert(nodeIds, id) end
 
-		for i = 1, #nodeIds do
-			for j = i + 1, #nodeIds do
-				local nA = AllVisualNodes[nodeIds[i]]
-				local nB = AllVisualNodes[nodeIds[j]]
-				local posA = Vector2.new(nA.Data.Pos.X.Scale, nA.Data.Pos.Y.Scale)
-				local posB = Vector2.new(nB.Data.Pos.X.Scale, nB.Data.Pos.Y.Scale)
-				local dist = (posA - posB).Magnitude
-
-				if dist < CONNECTION_DISTANCE then
-					local stateA = LiveMapData[nA.Data.Id] or {Owned = false}
-					local stateB = LiveMapData[nB.Data.Id] or {Owned = false}
-					local isSafeRoute = (stateA.Owned and stateB.Owned)
-
-					local line = Instance.new("Frame", SupplyLineLayer)
-					line.BackgroundColor3 = isSafeRoute and UIHelpers.Colors.Gold or Color3.fromRGB(50, 50, 55); line.BorderSizePixel = 0
-					local center = UDim2.new((posA.X + posB.X)/2, 0, (posA.Y + posB.Y)/2, 0)
-					line.Position = center; line.AnchorPoint = Vector2.new(0.5, 0.5); line.Rotation = math.deg(math.atan2(posB.Y - posA.Y, posB.X - posA.X))
-
-					local function updateLine()
-						local cSize = MapCanvas.AbsoluteSize
-						local p1 = Vector2.new(posA.X * cSize.X, posA.Y * cSize.Y)
-						local p2 = Vector2.new(posB.X * cSize.X, posB.Y * cSize.Y)
-						line.Size = UDim2.new(0, (p1 - p2).Magnitude, 0, isSafeRoute and 4 or 2)
-					end
-					MapCanvas:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateLine); updateLine()
-
-					if not isSafeRoute then 
-						local dash = Instance.new("UIStroke", line); dash.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; dash.LineJoinMode = Enum.LineJoinMode.Miter; dash.Thickness = 1; dash.Color = Color3.fromRGB(15,15,18) 
-					end
+		local DrawnLines = {}
+		for i, nA in pairs(AllVisualNodes) do
+			local neighbors = {}
+			for j, nB in pairs(AllVisualNodes) do
+				if nA.Data.Id ~= nB.Data.Id then
+					local pA = Vector2.new(nA.Data.Pos.X.Scale, nA.Data.Pos.Y.Scale)
+					local pB = Vector2.new(nB.Data.Pos.X.Scale, nB.Data.Pos.Y.Scale)
+					table.insert(neighbors, {Node = nB, Dist = (pA - pB).Magnitude})
 				end
+			end
+			table.sort(neighbors, function(a, b) return a.Dist < b.Dist end)
+
+			for k = 1, 2 do 
+				local target = neighbors[k].Node
+				local linkKey = (nA.Data.Id < target.Data.Id) and (nA.Data.Id .. "_" .. target.Data.Id) or (target.Data.Id .. "_" .. nA.Data.Id)
+				if not DrawnLines[linkKey] then
+					DrawnLines[linkKey] = {nA, target}
+				end
+			end
+		end
+
+		for _, pair in pairs(DrawnLines) do
+			local nA, nB = pair[1], pair[2]
+			local stateA = LiveMapData[nA.Data.Id] or {Owned = false}
+			local stateB = LiveMapData[nB.Data.Id] or {Owned = false}
+			local isSafeRoute = (stateA.Owned and stateB.Owned)
+
+			local line = Instance.new("Frame", SupplyLineLayer)
+			line.BackgroundColor3 = isSafeRoute and UIHelpers.Colors.Gold or Color3.fromRGB(50, 50, 55); line.BorderSizePixel = 0
+
+			local posA = Vector2.new(nA.Data.Pos.X.Scale, nA.Data.Pos.Y.Scale)
+			local posB = Vector2.new(nB.Data.Pos.X.Scale, nB.Data.Pos.Y.Scale)
+			local center = UDim2.new((posA.X + posB.X)/2, 0, (posA.Y + posB.Y)/2, 0)
+			line.Position = center; line.AnchorPoint = Vector2.new(0.5, 0.5); line.Rotation = math.deg(math.atan2(posB.Y - posA.Y, posB.X - posA.X))
+
+			local function updateLine()
+				local cSize = MapCanvas.AbsoluteSize
+				local p1 = Vector2.new(posA.X * cSize.X, posA.Y * cSize.Y)
+				local p2 = Vector2.new(posB.X * cSize.X, posB.Y * cSize.Y)
+				line.Size = UDim2.new(0, (p1 - p2).Magnitude, 0, isSafeRoute and 4 or 2)
+			end
+			MapCanvas:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateLine); updateLine()
+
+			if not isSafeRoute then 
+				local dash = Instance.new("UIStroke", line); dash.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; dash.LineJoinMode = Enum.LineJoinMode.Miter; dash.Thickness = 1; dash.Color = Color3.fromRGB(15,15,18) 
 			end
 		end
 	end
@@ -407,20 +432,20 @@ function ExpeditionsTab.Initialize(parentFrame)
 	FetchLiveMapData = function()
 		task.spawn(function()
 			local serverData = Network:WaitForChild("GetMapData"):InvokeServer()
-			if serverData then
+			if serverData and type(serverData) == "table" then
 				LiveMapData = serverData
 				UpdateVisualMapState()
 			end
 		end)
 	end
 
-	-- Live Listening Hook
 	Network:WaitForChild("MapUpdate").OnClientEvent:Connect(function(updatedMapTable)
-		LiveMapData = updatedMapTable
-		UpdateVisualMapState()
+		if updatedMapTable and type(updatedMapTable) == "table" then
+			LiveMapData = updatedMapTable
+			UpdateVisualMapState()
+		end
 	end)
 
-	-- Initial neutral render
 	UpdateVisualMapState()
 
 	-- ==========================================
@@ -444,9 +469,16 @@ function ExpeditionsTab.Initialize(parentFrame)
 
 			for _, member in ipairs(CurrentParty) do
 				local mCard = Instance.new("Frame", RosterFrame); mCard.Size = UDim2.new(1, 0, 0, 42); mCard.BackgroundColor3 = Color3.fromRGB(25, 25, 30); local mStroke = Instance.new("UIStroke", mCard); mStroke.Color = UIHelpers.Colors.BorderMuted
-				local nameColor = member.IsYmirsFavored and Color3.fromRGB(100, 150, 255) or UIHelpers.Colors.TextWhite
-				local mName = UIHelpers.CreateLabel(mCard, member.Name, UDim2.new(1, -45, 1, 0), Enum.Font.GothamBold, nameColor, 14); mName.Position = UDim2.new(0, 15, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
-				if member.IsLeader then local crown = UIHelpers.CreateLabel(mCard, "👑", UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 16); crown.Position = UDim2.new(1, -35, 0, 0) end
+
+				-- Safe verification
+				local isMemDict = (type(member) == "table" and typeof(member) ~= "Instance")
+				local memName = isMemDict and member.Name or member.Name
+				local memIsLeader = isMemDict and member.IsLeader or false
+				local memIsFavored = isMemDict and member.IsYmirsFavored or false
+
+				local nameColor = memIsFavored and Color3.fromRGB(100, 150, 255) or UIHelpers.Colors.TextWhite
+				local mName = UIHelpers.CreateLabel(mCard, memName, UDim2.new(1, -45, 1, 0), Enum.Font.GothamBold, nameColor, 14); mName.Position = UDim2.new(0, 15, 0, 0); mName.TextXAlignment = Enum.TextXAlignment.Left
+				if memIsLeader then local crown = UIHelpers.CreateLabel(mCard, "👑", UDim2.new(0, 30, 1, 0), Enum.Font.GothamBlack, UIHelpers.Colors.Gold, 16); crown.Position = UDim2.new(1, -35, 0, 0) end
 			end
 
 			local LeaveBtn = CreateSharpButton(PartyContent, "LEAVE TEAM", UDim2.new(1, 0, 0, 35), Enum.Font.GothamBlack, 14); LeaveBtn.LayoutOrder = 4; LeaveBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -464,7 +496,12 @@ function ExpeditionsTab.Initialize(parentFrame)
 		PartyUpdate.OnClientEvent:Connect(function(action, data)
 			if action == "UpdateList" then
 				IsInParty = true; CurrentParty = data; IsPartyLeader = false
-				for _, mem in ipairs(CurrentParty) do if mem.UserId == player.UserId and mem.IsLeader then IsPartyLeader = true end end
+				for _, mem in ipairs(CurrentParty) do 
+					local isMemDict = (type(mem) == "table" and typeof(mem) ~= "Instance")
+					local mId = isMemDict and mem.UserId or mem.UserId
+					local mLead = isMemDict and mem.IsLeader or false
+					if mId == player.UserId and mLead then IsPartyLeader = true end 
+				end
 				PendingInvites = {}; RenderPartyUI()
 			elseif action == "IncomingInvite" then PendingInvites[data] = true; RenderPartyUI()
 			elseif action == "Disbanded" then IsInParty = false; CurrentParty = {}; IsPartyLeader = false; RenderPartyUI() end
