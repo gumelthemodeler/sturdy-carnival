@@ -143,7 +143,7 @@ local function StartBattle(player, encounterType, requestedPartId)
 
 	local currentPart = player:GetAttribute("CurrentPart") or 1
 	local eTemplate, logFlavor
-	local isStory, isEndless, isPaths, isWorldBoss, isNightmare, isLabyrinth = false, false, false, false, false, false
+	local isStory, isEndless, isPaths, isWorldBoss, isNightmare, isLabyrinth, isTerritory = false, false, false, false, false, false, false
 	local activeMissionData = nil
 	local totalWaves, startingWave = 1, 1
 	local targetPart = currentPart
@@ -236,6 +236,17 @@ local function StartBattle(player, encounterType, requestedPartId)
 		logFlavor = "<font color='#FF5555'>[LABYRINTH FLOOR " .. targetFloor .. "]</font>\nA monstrous " .. eTemplate.Name .. " stalks the corridors!"
 		cTerrain = "Caverns"
 		cWeather = "Night"
+
+	elseif encounterType == "EngageTerritory" then
+		isTerritory = true
+		local tData = type(requestedPartId) == "table" and requestedPartId or {}
+		targetPart = 6 -- Mid-High tier difficulty for territory wars
+		local partData = EnemyData.Parts[targetPart]
+		if not partData then targetPart = 1; partData = EnemyData.Parts[1] end
+		eTemplate = GetValidEndlessMob(partData)
+		logFlavor = "<font color='#FF5555'>[TERRITORY WARZONE]</font>\nYou deployed to " .. tostring(tData.Action or "Assault"):upper() .. " the territory!\nA hostile " .. eTemplate.Name .. " intercepts you!"
+		cTerrain = "City"
+		cWeather = "Clear"
 	else
 		targetPart = math.min(8, currentPart)
 		local partData = EnemyData.Parts[targetPart]
@@ -429,7 +440,11 @@ local function StartBattle(player, encounterType, requestedPartId)
 
 	ActiveBattles[player.UserId] = {
 		IsProcessing = false,
-		Context = { IsStoryMission = isStory, IsEndless = isEndless, IsPaths = isPaths, IsWorldBoss = isWorldBoss, IsNightmare = isNightmare, IsLabyrinth = isLabyrinth, TargetPart = targetPart, CurrentWave = startingWave, TotalWaves = totalWaves, MissionData = activeMissionData, TurnCount = 0, Range = ctxRange, Terrain = cTerrain, Weather = cWeather },
+		Context = { 
+			IsStoryMission = isStory, IsEndless = isEndless, IsPaths = isPaths, IsWorldBoss = isWorldBoss, IsNightmare = isNightmare, IsLabyrinth = isLabyrinth, 
+			IsTerritoryWar = isTerritory, TerritoryNodeId = type(requestedPartId) == "table" and requestedPartId.NodeId or nil, TerritoryAction = type(requestedPartId) == "table" and requestedPartId.Action or nil,
+			TargetPart = targetPart, CurrentWave = startingWave, TotalWaves = totalWaves, MissionData = activeMissionData, TurnCount = 0, Range = ctxRange, Terrain = cTerrain, Weather = cWeather 
+		},
 		Player = { 
 			IsPlayer = true, Name = player.Name, PlayerObj = player, Titan = player:GetAttribute("Titan") or "None", 
 			Style = GetActualStyle(player), Clan = clanName, 
@@ -540,6 +555,14 @@ local function ProcessEnemyDeath(player, battle, dialogueRewards)
 			end
 
 			squadEvent:Fire(sqName, spAward, player.UserId)
+		end
+	end
+
+	-- REPORT WAR MAP VICTORY TO MAP MANAGER
+	if battle.Context.IsTerritoryWar then
+		local bindable = game:GetService("ServerStorage"):FindFirstChild("TerritoryCombatWon")
+		if bindable then
+			bindable:Fire(player, battle.Context.TerritoryNodeId, battle.Context.TerritoryAction)
 		end
 	end
 
@@ -879,8 +902,13 @@ local function IsSkillValid(player, skillName, isTransformedCheck)
 end
 
 CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
-	if actionType == "EngageStory" or actionType == "EngageWorldBoss" or actionType == "EngageNightmare" or actionType == "EngageRaid" or actionType == "EngageEndless" or actionType == "EngagePaths" or actionType == "EngageDoomsday" then 
-		local pId = actionData and (actionData.PartId or actionData.BossId) or nil; StartBattle(player, actionType, pId); return 
+	if actionType == "EngageStory" or actionType == "EngageWorldBoss" or actionType == "EngageNightmare" or actionType == "EngageRaid" or actionType == "EngageEndless" or actionType == "EngagePaths" or actionType == "EngageDoomsday" or actionType == "EngageTerritory" then 
+		local pId = actionData
+		if type(actionData) == "table" and (actionData.PartId or actionData.BossId) then
+			pId = actionData.PartId or actionData.BossId
+		end
+		StartBattle(player, actionType, pId)
+		return 
 	end
 
 	local battle = ActiveBattles[player.UserId]
@@ -960,7 +988,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		return
 	end
 
-	-- [[ THE FIX: Relocated Retreat Check beneath 'not battle' check to prevent it from hijacking Multiplayer Raids ]]
 	if actionType == "Attack" then
 		local skillName = actionData.SkillName
 		if skillName == "Retreat" or skillName == "Flee" then
