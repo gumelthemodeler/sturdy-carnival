@@ -31,11 +31,8 @@ local CONFIG = {
 
 		MapOcean = "rbxassetid://13583561330",
 		MapGrid = "rbxassetid://6500548545", 
-		MapFog = "rbxassetid://13835698889",
-		HexZone = "rbxassetid://14457173664",
 		GlowOrb = "rbxassetid://1311282431", 
-
-		MapMarker = "rbxassetid://000000000", -- Optional Icon ID
+		WarningTriangle = "rbxassetid://10860248408", -- Standard Warning Triangle 
 
 		Country_Trost = "rbxassetid://122199458494734", 
 		Country_Forest = "rbxassetid://104188447571196",
@@ -50,15 +47,9 @@ local CurrentParty = {}
 local IsInParty = false
 local IsPartyLeader = false
 local PendingInvites = {}
-local isListening = false
 
-local function AbbreviateNumber(n)
-	local Suffixes = {"", "K", "M", "B", "T", "Qa"}
-	if not n then return "0" end; n = tonumber(n) or 0
-	if n < 1000 then return tostring(math.floor(n)) end
-	local suffixIndex = math.floor(math.log10(n) / 3); local value = n / (10 ^ (suffixIndex * 3))
-	local str = string.format("%.1f", value); str = str:gsub("%.0$", "")
-	return str .. (Suffixes[suffixIndex + 1] or "")
+local function IsLeader()
+	return (IsInParty and IsPartyLeader) or (not IsInParty)
 end
 
 local function CreateSharpButton(parent, text, size, font, textSize)
@@ -72,13 +63,12 @@ end
 local function GetSquadColor(squadName, isMine)
 	if isMine then return UIHelpers.Colors.Gold end 
 	if not squadName or squadName == "Unclaimed" or squadName == "None" then return Color3.fromRGB(120, 120, 120) end
-	if squadName == "Marleyan Scouts" or squadName == "Pure Titans" then return Color3.fromRGB(200, 20, 20) end
+	if squadName == "Marleyan Scouts" or squadName == "Pure Titans" or squadName == "Bandits" then return Color3.fromRGB(200, 20, 20) end
 
 	local hash = 0
 	for i = 1, #squadName do hash = hash + string.byte(squadName, i) end
 	math.randomseed(hash)
-	local r, g, b = math.random(100, 255), math.random(100, 255), math.random(100, 255)
-	return Color3.fromRGB(r, g, b)
+	return Color3.fromRGB(math.random(100, 255), math.random(100, 255), math.random(100, 255))
 end
 
 function ExpeditionsTab.Initialize(parentFrame)
@@ -156,14 +146,54 @@ function ExpeditionsTab.Initialize(parentFrame)
 		DeployOverlay.Visible = false; dStatus.TextColor3 = UIHelpers.Colors.Gold
 	end
 
+	-- ==========================================
+	-- MISSIONS TAB (HIGHLY READABLE CARDS)
+	-- ==========================================
 	local MissionsBasePage = Instance.new("Frame", MainViewContainer)
 	MissionsBasePage.Size = UDim2.new(1, 0, 1, 0); MissionsBasePage.BackgroundTransparency = 1; MissionsBasePage.Visible = true
 	Pages["Main"] = MissionsBasePage
 
 	local GridContainer = Instance.new("ScrollingFrame", MissionsBasePage)
 	GridContainer.Size = UDim2.new(1, 0, 1, 0); GridContainer.Position = UDim2.new(0, 0, 0, 0); GridContainer.BackgroundTransparency = 1; GridContainer.ScrollBarThickness = 6; GridContainer.BorderSizePixel = 0
-	local gridLayout = Instance.new("UIGridLayout", GridContainer); gridLayout.CellSize = UDim2.new(0.48, 0, 0, 150); gridLayout.CellPadding = UDim2.new(0.03, 0, 0, 15); gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center; gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() GridContainer.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 40) end)
+	local gridLayout = Instance.new("UIGridLayout", GridContainer)
+	gridLayout.CellSize = UDim2.new(0.98, 0, 0, 90) -- Wider, flatter cards for highly readable text
+	gridLayout.CellPadding = UDim2.new(0, 0, 0, 10)
+	gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	gridLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() GridContainer.CanvasSize = UDim2.new(0, 0, 0, gridLayout.AbsoluteContentSize.Y + 20) end)
+
+	local function CreateModernModeCard(title, tag, tagColor, desc, iconId, onClick)
+		local cardBtn = Instance.new("TextButton", GridContainer)
+		cardBtn.Text = ""; cardBtn.AutoButtonColor = false; cardBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); cardBtn.BorderSizePixel = 0; cardBtn.ClipsDescendants = true
+		local stroke = Instance.new("UIStroke", cardBtn); stroke.Color = Color3.fromRGB(50, 50, 55); stroke.Thickness = 2
+
+		local bg = Instance.new("ImageLabel", cardBtn); bg.Size = UDim2.new(0.3, 0, 1, 0); bg.Position = UDim2.new(0.7, 0, 0, 0); bg.BackgroundTransparency = 1; bg.Image = iconId; bg.ScaleType = Enum.ScaleType.Crop
+		local gradFrame = Instance.new("Frame", bg); gradFrame.Size = UDim2.new(1, 0, 1, 0); gradFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25); gradFrame.BorderSizePixel = 0
+		local grad = Instance.new("UIGradient", gradFrame); grad.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.8, 0.8), NumberSequenceKeypoint.new(1, 1)}
+
+		local tagLbl = UIHelpers.CreateLabel(cardBtn, tag, UDim2.new(0, 150, 0, 20), Enum.Font.GothamBold, tagColor, 11)
+		tagLbl.Position = UDim2.new(0, 15, 0, 10); tagLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+		local titleLbl = UIHelpers.CreateLabel(cardBtn, string.upper(title), UDim2.new(0.7, 0, 0, 25), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 18)
+		titleLbl.Position = UDim2.new(0, 15, 0, 30); titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+		local descLbl = UIHelpers.CreateLabel(cardBtn, desc, UDim2.new(0.75, 0, 0, 20), Enum.Font.GothamMedium, UIHelpers.Colors.TextMuted, 12)
+		descLbl.Position = UDim2.new(0, 15, 0, 55); descLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+		cardBtn.MouseEnter:Connect(function() stroke.Color = UIHelpers.Colors.Gold; titleLbl.TextColor3 = UIHelpers.Colors.Gold end)
+		cardBtn.MouseLeave:Connect(function() stroke.Color = Color3.fromRGB(50, 50, 55); titleLbl.TextColor3 = UIHelpers.Colors.TextWhite end)
+		cardBtn.MouseButton1Click:Connect(onClick)
+	end
+
+	CreateModernModeCard("Story Campaign", "[MAIN PROGRESSION]", UIHelpers.Colors.Gold, "Progress through the timeline to unlock new zones.", CONFIG.Decals.Campaign, function() InitiateDeployment("CombatAction", "EngageStory") end)
+	CreateModernModeCard("Endless Frontier", "[RESOURCE GRIND]", Color3.fromRGB(150, 200, 255), "Fight infinite waves for massive Dews & XP.", CONFIG.Decals.Endless, function() InitiateDeployment("CombatAction", "EngageEndless") end)
+	CreateModernModeCard("The Paths", "[WEEKEND EVENT]", Color3.fromRGB(200, 150, 255), "Farm Path Dust to trade with the Founder.", CONFIG.Decals.Paths, function() InitiateDeployment("CombatAction", "EngagePaths") end)
+	CreateModernModeCard("The Labyrinth", "[ROGUELIKE ENDGAME]", Color3.fromRGB(255, 100, 100), "Hardcore dungeon crawling. Death loses everything.", CONFIG.Decals.Labyrinth, function() LabyrinthUI.Open(parentFrame:FindFirstAncestorOfClass("ScreenGui")) end)
+	CreateModernModeCard("Multiplayer Raids", "[CO-OP 3-PLAYER]", Color3.fromRGB(100, 255, 150), "Team up to defeat Colossal threats.", CONFIG.Decals.Raid, function() ShowPage("Raids", "MULTIPLAYER RAIDS") end)
+	CreateModernModeCard("Doomsday Bounty", "[GLOBAL SERVER RAID]", Color3.fromRGB(255, 50, 50), "Server-wide world boss. Fight for the leaderboard.", CONFIG.Decals.WorldBoss, function() ShowPage("Doomsday", "DOOMSDAY BOUNTIES") end)
+	CreateModernModeCard("Nightmare Hunts", "[HARDCORE SOLO]", Color3.fromRGB(255, 80, 255), "Fight corrupted Titans for Cursed Weapons.", CONFIG.Decals.Nightmare, function() ShowPage("Nightmare", "NIGHTMARE HUNTS") end)
+	CreateModernModeCard("PvP Arena", "[COMPETITIVE]", Color3.fromRGB(255, 150, 50), "Ranked Elo-based combat against other players.", CONFIG.Decals.PvP, function() ShowPage("PvP", "PVP ARENA") end)
+	CreateModernModeCard("AFK Expeditions", "[PASSIVE]", UIHelpers.Colors.TextMuted, "Send scouts out to gather resources while you rest.", CONFIG.Decals.AFK, function() ShowPage("AFK", "AFK EXPEDITIONS") end)
 
 
 	-- ==========================================
@@ -244,13 +274,9 @@ function ExpeditionsTab.Initialize(parentFrame)
 			end)
 		end
 	end)
-	WorldMapPage:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		local newX, newY = ClampMapPosition(MapCanvas.Position.X.Offset, MapCanvas.Position.Y.Offset)
-		MapCanvas.Position = UDim2.new(0, newX, 0, newY)
-	end)
 
 	-- ==========================================
-	-- NODE SIDE PANEL (SINGLE BUTTON EDITION)
+	-- NODE SIDE PANEL (CONTEXTUAL SINGLE BUTTON)
 	-- ==========================================
 	local NodePanel = Instance.new("Frame", WorldMapPage)
 	NodePanel.Size = UDim2.new(0, 250, 1, 0); NodePanel.Position = UDim2.new(1, 0, 0, 0); NodePanel.BackgroundColor3 = Color3.fromRGB(15, 15, 18); NodePanel.ZIndex = 20
@@ -259,18 +285,20 @@ function ExpeditionsTab.Initialize(parentFrame)
 	local NodeOwner = UIHelpers.CreateLabel(NodePanel, "Owner: Unclaimed", UDim2.new(1, -20, 0, 40), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 14); NodeOwner.Position = UDim2.new(0, 10, 0, 40); NodeOwner.TextXAlignment = Enum.TextXAlignment.Left; NodeOwner.TextWrapped = true
 
 	local ActionBtn, _ = CreateSharpButton(NodePanel, "LAUNCH ASSAULT", UDim2.new(1, -20, 0, 45), Enum.Font.GothamBlack, 14); ActionBtn.Position = UDim2.new(0, 10, 0, 90)
+
 	local ClosePanelBtn, _ = CreateSharpButton(NodePanel, "CLOSE", UDim2.new(1, -20, 0, 30), Enum.Font.GothamBold, 12); ClosePanelBtn.Position = UDim2.new(0, 10, 1, -40); ClosePanelBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 	ClosePanelBtn.MouseButton1Click:Connect(function() TweenService:Create(NodePanel, TweenInfo.new(0.3, Enum.EasingStyle.Sine), {Position = UDim2.new(1, 0, 0, 0)}):Play() end)
 
 	local ActiveSelectedNodeId = nil
+	local ActiveSelectedAction = "None"
 
 	ActionBtn.MouseButton1Click:Connect(function()
-		if ActiveSelectedNodeId then
-			if string.find(ActionBtn.Text, "FORTIFY") then
-				Network:WaitForChild("MapAction"):FireServer("InteractNode", "Fortify", {NodeId = ActiveSelectedNodeId})
-			else
-				InitiateDeployment("CombatAction", "EngageTerritory", {NodeId = ActiveSelectedNodeId, Action = "Assault"}) 
-			end
+		if not ActiveSelectedNodeId then return end
+		if ActiveSelectedAction == "Fortify" then
+			Network:WaitForChild("MapAction"):FireServer("InteractNode", "Fortify", {NodeId = ActiveSelectedNodeId})
+		elseif ActiveSelectedAction ~= "None" then
+			-- Engage combat (Assault, Capture, or Defend)
+			InitiateDeployment("CombatAction", "EngageTerritory", {NodeId = ActiveSelectedNodeId, Action = ActiveSelectedAction}) 
 		end
 	end)
 
@@ -318,21 +346,28 @@ function ExpeditionsTab.Initialize(parentFrame)
 		glow.BackgroundTransparency = 1; glow.Image = CONFIG.Decals.GlowOrb; glow.ImageTransparency = 0.5
 		glow.ImageColor3 = Color3.fromRGB(30, 30, 35)
 
+		-- Native Diamond Node
 		local pinBtn = Instance.new("TextButton", pinWrap)
 		pinBtn.Size = UDim2.new(0, 24, 0, 24); pinBtn.Position = UDim2.new(0, 0, 0, 0); pinBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-		pinBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); pinBtn.Rotation = 45; pinBtn.Text = ""; pinBtn.AutoButtonColor = false
+		pinBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); pinBtn.BackgroundTransparency = 0; pinBtn.Rotation = 45; pinBtn.Text = ""; pinBtn.AutoButtonColor = false
 		local pStroke = Instance.new("UIStroke", pinBtn); pStroke.Color = Color3.fromRGB(120, 120, 120); pStroke.Thickness = 2; pStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
-		local pulse = Instance.new("Frame", pinBtn); pulse.Size = UDim2.new(1, 0, 1, 0); pulse.BackgroundColor3 = Color3.fromRGB(255, 0, 0); pulse.BackgroundTransparency = 1; pulse.BorderSizePixel = 0
-		local pulseTween = TweenService:Create(pulse, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {BackgroundTransparency = 0.4, Size = UDim2.new(2.0,0,2.0,0), Position = UDim2.new(-0.5,0,-0.5,0)})
+		-- Danger Triangles Wrap
+		local dangerWrap = Instance.new("Frame", pinWrap)
+		dangerWrap.Size = UDim2.new(0, 60, 0, 60); dangerWrap.Position = UDim2.new(0, 0, 0, 0); dangerWrap.AnchorPoint = Vector2.new(0.5, 0.5)
+		dangerWrap.BackgroundTransparency = 1; dangerWrap.Visible = false
+		for i=1, 3 do
+			local tri = Instance.new("Frame", dangerWrap)
+			tri.Size = UDim2.new(0, 8, 0, 8); tri.BackgroundColor3 = Color3.fromRGB(255, 50, 50); tri.Rotation = 45; tri.BorderSizePixel = 0
+			local angle = math.rad((i-1)*120)
+			tri.Position = UDim2.new(0.5 + math.cos(angle)*0.4, 0, 0.5 + math.sin(angle)*0.4, 0)
+			tri.AnchorPoint = Vector2.new(0.5, 0.5)
+		end
+		TweenService:Create(dangerWrap, TweenInfo.new(3, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1), {Rotation = 360}):Play()
 
 		local lblTitle = UIHelpers.CreateLabel(pinWrap, string.upper(baseData.Name), UDim2.new(0, 200, 0, 15), Enum.Font.GothamBlack, UIHelpers.Colors.TextWhite, 14)
 		lblTitle.Position = UDim2.new(0, 20, 0.5, -5); lblTitle.AnchorPoint = Vector2.new(0, 0.5); lblTitle.TextXAlignment = Enum.TextXAlignment.Left
 		local textShadow = Instance.new("UIStroke", lblTitle); textShadow.Color = Color3.new(0,0,0); textShadow.Thickness = 2
-
-		local lblReg = UIHelpers.CreateLabel(pinWrap, string.upper(baseData.Reg), UDim2.new(0, 200, 0, 10), Enum.Font.GothamBold, UIHelpers.Colors.TextMuted, 10)
-		lblReg.Position = UDim2.new(0, 20, 0.5, 10); lblReg.AnchorPoint = Vector2.new(0, 0.5); lblReg.TextXAlignment = Enum.TextXAlignment.Left
-		local regShadow = Instance.new("UIStroke", lblReg); regShadow.Color = Color3.new(0,0,0); regShadow.Thickness = 1.5
 
 		pinBtn.MouseButton1Click:Connect(function()
 			local serverState = LiveMapData[baseData.Id] or {Owned = false, OwnerName = "Unclaimed", UnderAttack = false, Health = 100, MaxHealth = 100}
@@ -341,19 +376,33 @@ function ExpeditionsTab.Initialize(parentFrame)
 			NodeOwner.Text = "Owner: " .. serverState.OwnerName .. "\nHealth: " .. (serverState.Health or 100) .. "/" .. (serverState.MaxHealth or 100)
 
 			if serverState.Owned then 
-				NodeOwner.TextColor3 = UIHelpers.Colors.Gold
-				ActionBtn.Text = "FORTIFY SECTOR (100k Dews)"
-				ActionBtn.TextColor3 = UIHelpers.Colors.Gold
+				if serverState.UnderAttack then
+					NodeOwner.TextColor3 = Color3.fromRGB(255, 50, 50)
+					ActionBtn.Text = "DEFEND TERRITORY"
+					ActionBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
+					ActiveSelectedAction = "Defend"
+				else
+					NodeOwner.TextColor3 = UIHelpers.Colors.Gold
+					ActionBtn.Text = "FORTIFY SECTOR (100k Dews)"
+					ActionBtn.TextColor3 = UIHelpers.Colors.Gold
+					ActiveSelectedAction = "Fortify"
+				end
 			else 
 				NodeOwner.TextColor3 = (serverState.UnderAttack) and Color3.fromRGB(255, 50, 50) or UIHelpers.Colors.TextMuted
-				ActionBtn.Text = "LAUNCH ASSAULT"
+				if IsLeader() then
+					ActionBtn.Text = "LAUNCH INVASION (CLAIM)"
+					ActiveSelectedAction = "Capture"
+				else
+					ActionBtn.Text = "LAUNCH ASSAULT (CHIP HP)"
+					ActiveSelectedAction = "Assault"
+				end
 				ActionBtn.TextColor3 = Color3.fromRGB(255, 85, 85)
 			end
 			TweenService:Create(NodePanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Position = UDim2.new(1, -250, 0, 0)}):Play()
 		end)
 
 		AllVisualNodes[baseData.Id] = {
-			Data = baseData, Wrap = pinWrap, Glow = glow, Pin = pinBtn, Stroke = pStroke, Pulse = pulse, PulseTween = pulseTween
+			Data = baseData, Wrap = pinWrap, Glow = glow, Pin = pinBtn, Stroke = pStroke, Danger = dangerWrap
 		}
 	end
 
@@ -366,20 +415,20 @@ function ExpeditionsTab.Initialize(parentFrame)
 				nodeUI.Stroke.Color = Color3.fromRGB(255, 50, 50)
 				nodeUI.Pin.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
 				nodeUI.Glow.ImageColor3 = Color3.fromRGB(255, 0, 0)
-				nodeUI.Glow.ImageTransparency = 0.3
-				nodeUI.PulseTween:Play()
+				nodeUI.Glow.ImageTransparency = 0.5
+				nodeUI.Danger.Visible = true
 			else
 				nodeUI.Stroke.Color = sColor
 				nodeUI.Pin.BackgroundColor3 = Color3.fromRGB(sColor.R * 255 * 0.3, sColor.G * 255 * 0.3, sColor.B * 255 * 0.3)
 				nodeUI.Glow.ImageColor3 = sColor
 				nodeUI.Glow.ImageTransparency = (state.OwnerName == "Unclaimed") and 0.8 or 0.3
-				nodeUI.Pulse.BackgroundTransparency = 1
-				nodeUI.PulseTween:Cancel()
+				nodeUI.Danger.Visible = false
 			end
 		end
 
 		for _, child in ipairs(SupplyLineLayer:GetChildren()) do child:Destroy() end
 
+		-- CLEAN LINES: Each node only connects to its absolute 2 closest neighbors
 		local DrawnLines = {}
 		for i, nA in pairs(AllVisualNodes) do
 			local neighbors = {}
@@ -395,9 +444,7 @@ function ExpeditionsTab.Initialize(parentFrame)
 			for k = 1, 2 do 
 				local target = neighbors[k].Node
 				local linkKey = (nA.Data.Id < target.Data.Id) and (nA.Data.Id .. "_" .. target.Data.Id) or (target.Data.Id .. "_" .. nA.Data.Id)
-				if not DrawnLines[linkKey] then
-					DrawnLines[linkKey] = {nA, target}
-				end
+				if not DrawnLines[linkKey] then DrawnLines[linkKey] = {nA, target} end
 			end
 		end
 
@@ -422,10 +469,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 				line.Size = UDim2.new(0, (p1 - p2).Magnitude, 0, isSafeRoute and 4 or 2)
 			end
 			MapCanvas:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateLine); updateLine()
-
-			if not isSafeRoute then 
-				local dash = Instance.new("UIStroke", line); dash.ApplyStrokeMode = Enum.ApplyStrokeMode.Border; dash.LineJoinMode = Enum.LineJoinMode.Miter; dash.Thickness = 1; dash.Color = Color3.fromRGB(15,15,18) 
-			end
 		end
 	end
 
@@ -470,7 +513,6 @@ function ExpeditionsTab.Initialize(parentFrame)
 			for _, member in ipairs(CurrentParty) do
 				local mCard = Instance.new("Frame", RosterFrame); mCard.Size = UDim2.new(1, 0, 0, 42); mCard.BackgroundColor3 = Color3.fromRGB(25, 25, 30); local mStroke = Instance.new("UIStroke", mCard); mStroke.Color = UIHelpers.Colors.BorderMuted
 
-				-- Safe verification
 				local isMemDict = (type(member) == "table" and typeof(member) ~= "Instance")
 				local memName = isMemDict and member.Name or member.Name
 				local memIsLeader = isMemDict and member.IsLeader or false
