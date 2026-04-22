@@ -25,7 +25,7 @@ local NotificationEvent = GetOrCreateEvent("NotificationEvent")
 local GetMapData = GetOrCreateFunction("GetMapData")
 
 -- ==========================================
--- SQUAD IDENTIFICATION ENGINE (BULLETPROOF)
+-- SQUAD IDENTIFICATION ENGINE
 -- ==========================================
 local function GetPlayerSquadContext(player)
 	local getPartyFunc = RemotesFolder:FindFirstChild("GetPlayerParty")
@@ -37,7 +37,7 @@ local function GetPlayerSquadContext(player)
 		end
 	end
 
-	-- Fallback for solo players (Commander of their own 1-man squad)
+	-- Fallback: Solo player acts as commander of their own 1-man squad
 	return player.Name .. "'s Squad", true
 end
 
@@ -80,11 +80,11 @@ local function BroadcastMapState()
 end
 
 -- ==========================================
--- PVE INVASION ENGINE
+-- PVE INVASION ENGINE (The Living Map)
 -- ==========================================
 task.spawn(function()
 	while true do
-		task.wait(math.random(120, 300))
+		task.wait(math.random(180, 400))
 
 		local possibleTargets = {}
 		for id, node in pairs(GlobalMapState) do table.insert(possibleTargets, id) end
@@ -94,15 +94,16 @@ task.spawn(function()
 
 		if not node.UnderAttack then
 			node.UnderAttack = true
-			node.AttackerType = (math.random(1,2) == 1) and "Marleyan Scouts" or "Pure Titans"
+			node.AttackerType = (math.random(1,2) == 1) and "Bandits" or "Pure Titans"
 
-			node.Health = math.max(0, node.Health - 25)
-
-			if node.Health <= 0 then
+			-- If unowned, hostile forces capture immediately. If owned, it enters danger state.
+			if node.OwnerSquad == nil then
 				node.OwnerSquad = node.AttackerType
 				node.Health = 100
 				node.FortificationLevel = 1
 				node.UnderAttack = false
+			else
+				node.Health = math.max(1, node.Health - 20)
 			end
 
 			BroadcastMapState()
@@ -111,7 +112,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- INSTANT TACTICAL LOGIC (Fortify)
+-- INSTANT TACTICAL LOGIC (Fortify Only)
 -- ==========================================
 local function ProcessNodeInteraction(player, nodeId, actionType)
 	local node = GlobalMapState[nodeId]
@@ -123,10 +124,7 @@ local function ProcessNodeInteraction(player, nodeId, actionType)
 	local mySquad, isLeader = GetPlayerSquadContext(player)
 	local FORTIFY_COST = 100000
 
-	if mySquad == "None" then
-		NotificationEvent:FireClient(player, "You must be in a Strike Squad to participate in Territory Wars.", "Error")
-		return
-	end
+	if mySquad == "None" then return end
 
 	if actionType == "Fortify" then
 		if node.OwnerSquad ~= mySquad then return end
@@ -166,53 +164,42 @@ territoryEvent.Event:Connect(function(player, nodeId, actionType)
 	local mySquad, isLeader = GetPlayerSquadContext(player)
 	if mySquad == "None" then return end
 
-	if actionType == "Assault" then
+	-- ONE-FIGHT LEADER CAPTURE
+	if actionType == "Capture" then
+		if node.OwnerSquad == mySquad then return end
+		if not isLeader then return end
+
+		node.OwnerSquad = mySquad
+		node.Health = 100
+		node.MaxHealth = 100
+		node.FortificationLevel = 1
+		node.UnderAttack = false
+		node.AttackerType = "None"
+		NotificationEvent:FireClient(player, "Hostile forces crushed! Territory captured for " .. mySquad .. "!", "Success")
+
+		-- MEMBER CHIP DAMAGE
+	elseif actionType == "Assault" then
 		if node.OwnerSquad == mySquad then return end
 
 		node.UnderAttack = true
 		node.AttackerType = "Player"
 
-		local dmg = isLeader and 40 or 20 
-		node.Health -= dmg
+		node.Health -= 35 
 
 		if node.Health <= 0 then
-			node.Health = 100
-			node.MaxHealth = 100
-			node.FortificationLevel = 1
-			node.UnderAttack = false
-			node.OwnerSquad = mySquad
-			node.AttackerType = "None"
-			NotificationEvent:FireClient(player, "Hostile forces crushed! Territory captured for " .. mySquad .. "!", "Success")
+			node.Health = 1 
+			NotificationEvent:FireClient(player, "Defenses shattered! The node is severely weakened, awaiting a Squad Leader to conquer it!", "Success")
 		else
-			NotificationEvent:FireClient(player, "Assault successful! Enemy garrison health dropped to " .. node.Health .. ".", "Success")
+			NotificationEvent:FireClient(player, "Chip damage dealt! Enemy garrison health dropped to " .. node.Health .. ".", "Success")
 		end
 
-	elseif actionType == "Capture" then
-		if node.OwnerSquad == mySquad then return end
-		if not isLeader then return end
-
-		if node.Health <= 25 or node.OwnerSquad == nil or node.OwnerSquad == "Marleyan Scouts" or node.OwnerSquad == "Pure Titans" then
-			local ls = player:FindFirstChild("leaderstats")
-			if ls and ls:FindFirstChild("Dews") and ls.Dews.Value >= 50000 then
-				ls.Dews.Value -= 50000
-				node.OwnerSquad = mySquad
-				node.Health = 100
-				node.MaxHealth = 100
-				node.FortificationLevel = 1
-				node.UnderAttack = false
-				node.AttackerType = "None"
-				NotificationEvent:FireClient(player, "Territory successfully secured for " .. mySquad .. "!", "Success")
-			else
-				NotificationEvent:FireClient(player, "Combat won, but you lack the 50,000 Dews to secure the territory!", "Error")
-			end
-		end
-
+		-- CLEARING DANGER
 	elseif actionType == "Defend" then
 		if node.UnderAttack then
 			node.UnderAttack = false
 			node.AttackerType = "None"
 			node.Health = math.min(node.MaxHealth, node.Health + 25) 
-			NotificationEvent:FireClient(player, "Invasion repelled! Territory secured.", "Success")
+			NotificationEvent:FireClient(player, "Invasion repelled! " .. mySquad .. " border secured.", "Success")
 		end
 	end
 
@@ -253,3 +240,5 @@ MapAction.OnServerEvent:Connect(function(player, actionCategory, arg1, arg2)
 		end
 	end
 end)
+
+return MapManager
